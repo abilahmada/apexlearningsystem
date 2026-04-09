@@ -1,0 +1,858 @@
+
+<h2 class="sr-only">APEX Learning Platform — Product Requirements Document & Technical Specification interaktif</h2>
+<style>
+:root {
+  --ink: var(--color-text-primary);
+  --muted: var(--color-text-secondary);
+  --hint: var(--color-text-tertiary);
+  --line: var(--color-border-tertiary);
+  --line2: var(--color-border-secondary);
+  --bg: var(--color-background-primary);
+  --bg2: var(--color-background-secondary);
+  --bg3: var(--color-background-tertiary);
+  --info: var(--color-text-info);
+  --bgi: var(--color-background-info);
+  --success: var(--color-text-success);
+  --bgs: var(--color-background-success);
+  --warn: var(--color-text-warning);
+  --bgw: var(--color-background-warning);
+  --danger: var(--color-text-danger);
+  --bgd: var(--color-background-danger);
+  --r: var(--border-radius-md);
+  --rl: var(--border-radius-lg);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-size: 14px; line-height: 1.6; color: var(--ink); }
+
+.doc { max-width: 820px; padding: 0 0 48px; }
+
+/* NAV TABS */
+.tabs { display: flex; gap: 2px; border-bottom: 0.5px solid var(--line2); margin-bottom: 28px; overflow-x: auto; }
+.tab { padding: 8px 16px; font-size: 12px; font-weight: 500; border: none; background: transparent;
+  color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+  white-space: nowrap; transition: all .15s; }
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* PANELS */
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* TYPOGRAPHY */
+h1 { font-size: 22px; font-weight: 500; letter-spacing: -.4px; margin-bottom: 6px; }
+h2 { font-size: 18px; font-weight: 500; letter-spacing: -.3px; margin: 32px 0 12px; }
+h3 { font-size: 15px; font-weight: 500; margin: 24px 0 8px; }
+h4 { font-size: 13px; font-weight: 500; margin: 16px 0 6px; color: var(--muted); }
+p { margin-bottom: 12px; color: var(--muted); }
+strong { font-weight: 500; color: var(--ink); }
+code { font-size: 12px; background: var(--bg2); border: 0.5px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+
+/* HERO STRIP */
+.hero-strip { background: var(--bg2); border: 0.5px solid var(--line); border-radius: var(--rl);
+  padding: 20px 24px; margin-bottom: 28px; }
+.hero-meta { font-size: 11px; color: var(--hint); margin-bottom: 6px; letter-spacing: .5px; }
+.hero-title { font-size: 20px; font-weight: 500; letter-spacing: -.3px; margin-bottom: 4px; }
+.hero-sub { font-size: 13px; color: var(--muted); }
+.hero-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.tag { font-size: 11px; padding: 3px 10px; border-radius: 100px; border: 0.5px solid var(--line2);
+  color: var(--muted); background: var(--bg); }
+.tag.info { color: var(--info); background: var(--bgi); border-color: transparent; }
+.tag.success { color: var(--success); background: var(--bgs); border-color: transparent; }
+.tag.warn { color: var(--warn); background: var(--bgw); border-color: transparent; }
+
+/* SECTION */
+.section { margin-bottom: 36px; }
+
+/* CARDS */
+.card { background: var(--bg); border: 0.5px solid var(--line); border-radius: var(--rl); padding: 18px 20px; margin-bottom: 12px; }
+.card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.card-row.trio { grid-template-columns: 1fr 1fr 1fr; }
+.card.accent-info { border-left: 3px solid var(--info); }
+.card.accent-success { border-left: 3px solid var(--success); }
+.card.accent-warn { border-left: 3px solid var(--warn); }
+.card.accent-danger { border-left: 3px solid var(--danger); }
+
+/* TABLE */
+table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0 20px; }
+th { padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 500; color: var(--hint);
+  letter-spacing: .5px; border-bottom: 0.5px solid var(--line2); background: var(--bg2); }
+td { padding: 9px 12px; border-bottom: 0.5px solid var(--line); color: var(--muted); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg2); }
+td strong { color: var(--ink); }
+td code { white-space: nowrap; }
+
+/* BADGE */
+.badge { display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 8px;
+  border-radius: 100px; }
+.badge.p1 { background: var(--bgd); color: var(--danger); }
+.badge.p2 { background: var(--bgw); color: var(--warn); }
+.badge.p3 { background: var(--bgs); color: var(--success); }
+.badge.p4 { background: var(--bg2); color: var(--hint); }
+.badge.dev { background: var(--bgi); color: var(--info); }
+.badge.product { background: var(--bgw); color: var(--warn); }
+.badge.design { background: var(--bgs); color: var(--success); }
+.badge.req { background: var(--bgd); color: var(--danger); }
+.badge.opt { background: var(--bgs); color: var(--success); }
+
+/* PILLAR CARDS */
+.pillar-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.pillar { background: var(--bg2); border: 0.5px solid var(--line); border-radius: var(--r);
+  padding: 14px 16px; }
+.pillar-num { font-size: 10px; font-weight: 500; color: var(--hint); letter-spacing: 1px; margin-bottom: 4px; }
+.pillar-name { font-size: 13px; font-weight: 500; color: var(--ink); margin-bottom: 4px; }
+.pillar-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.pillar-feature { font-size: 11px; color: var(--info); margin-top: 6px; }
+
+/* FLOW STRIP */
+.flow { display: flex; align-items: center; gap: 0; flex-wrap: wrap; margin: 14px 0; }
+.flow-step { background: var(--bg2); border: 0.5px solid var(--line2); border-radius: var(--r);
+  padding: 8px 14px; font-size: 12px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+.flow-arrow { font-size: 14px; color: var(--hint); padding: 0 6px; }
+
+/* CHECKLIST */
+.checklist { list-style: none; display: flex; flex-direction: column; gap: 6px; margin: 10px 0 16px; }
+.checklist li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--muted); }
+.checklist li::before { content: '·'; color: var(--hint); flex-shrink: 0; }
+.checklist li.check::before { content: '✓'; color: var(--success); }
+.checklist li.warn::before { content: '!'; color: var(--warn); }
+
+/* METRICS */
+.metric-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin: 14px 0; }
+.metric { background: var(--bg2); border-radius: var(--r); padding: 14px 16px; text-align: center; }
+.metric-val { font-size: 22px; font-weight: 500; color: var(--ink); }
+.metric-lbl { font-size: 11px; color: var(--hint); margin-top: 2px; }
+
+/* USER STORY */
+.story { background: var(--bg2); border: 0.5px solid var(--line); border-radius: var(--r);
+  padding: 14px 16px; margin-bottom: 8px; }
+.story-who { font-size: 11px; color: var(--hint); margin-bottom: 4px; }
+.story-body { font-size: 13px; color: var(--ink); }
+.story-body em { font-style: italic; color: var(--muted); }
+.story-ac { font-size: 11px; color: var(--success); margin-top: 6px; }
+
+/* ARCH BOX */
+.arch { border: 0.5px solid var(--line2); border-radius: var(--rl); overflow: hidden; margin: 14px 0; }
+.arch-layer { padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.arch-layer + .arch-layer { border-top: 0.5px solid var(--line); }
+.arch-lbl { font-size: 10px; font-weight: 500; color: var(--hint); letter-spacing: .5px;
+  white-space: nowrap; width: 90px; flex-shrink: 0; }
+.arch-items { display: flex; gap: 8px; flex-wrap: wrap; }
+.arch-item { font-size: 12px; font-weight: 500; color: var(--ink); background: var(--bg2);
+  border: 0.5px solid var(--line2); border-radius: var(--r); padding: 5px 12px; }
+.arch-item.hi { background: var(--bgi); color: var(--info); border-color: transparent; }
+.arch-item.hs { background: var(--bgs); color: var(--success); border-color: transparent; }
+.arch-item.hw { background: var(--bgw); color: var(--warn); border-color: transparent; }
+.arch-item.hd { background: var(--bgd); color: var(--danger); border-color: transparent; }
+
+/* DATA FLOW */
+.dflow { display: flex; flex-direction: column; gap: 0; margin: 14px 0; }
+.dflow-row { display: flex; align-items: stretch; gap: 0; }
+.dflow-node { background: var(--bg2); border: 0.5px solid var(--line2); border-radius: var(--r);
+  padding: 10px 14px; flex: 1; min-width: 0; }
+.dflow-node-title { font-size: 12px; font-weight: 500; color: var(--ink); }
+.dflow-node-sub { font-size: 11px; color: var(--hint); margin-top: 2px; }
+.dflow-sep { display: flex; align-items: center; justify-content: center;
+  width: 32px; flex-shrink: 0; color: var(--hint); font-size: 14px; }
+.dflow-vsep { display: flex; align-items: center; justify-content: center;
+  height: 20px; color: var(--hint); font-size: 14px; }
+
+/* RULE BOX */
+.rule-box { background: var(--bg2); border-radius: var(--r); padding: 16px 18px; margin: 12px 0; }
+.rule-title { font-size: 12px; font-weight: 500; color: var(--ink); margin-bottom: 8px; display: flex; gap: 8px; align-items: center; }
+.rule-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.rule-list li { font-size: 12px; color: var(--muted); padding-left: 14px; position: relative; }
+.rule-list li::before { content: '—'; position: absolute; left: 0; color: var(--hint); }
+
+/* DIVIDER */
+.div { height: 0.5px; background: var(--line); margin: 28px 0; }
+
+/* SENDPROMPT BUTTON */
+.sp-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500;
+  padding: 5px 12px; border: 0.5px solid var(--line2); border-radius: var(--r);
+  background: transparent; color: var(--muted); cursor: pointer; margin-top: 10px;
+  transition: all .15s; }
+.sp-btn:hover { background: var(--bg2); color: var(--ink); }
+
+@media (max-width: 560px) {
+  .card-row, .card-row.trio, .pillar-grid, .metric-row { grid-template-columns: 1fr; }
+}
+</style>
+
+<div class="doc">
+
+<!-- HERO -->
+<div class="hero-strip">
+  <div class="hero-meta">APEX LEARNING SYSTEM · PRD + TECHNICAL SPEC · v1.0</div>
+  <div class="hero-title">Platform Specification Document</div>
+  <div class="hero-sub">Dokumen ini mendeskripsikan logika program, metodologi pedagogis, arsitektur teknis, dan acceptance criteria lengkap yang dibutuhkan developer untuk mengimplementasikan APEX Learning Platform secara tepat.</div>
+  <div class="hero-tags">
+    <span class="tag info">Next.js 14</span>
+    <span class="tag info">PostgreSQL</span>
+    <span class="tag info">Prisma ORM</span>
+    <span class="tag info">Anthropic Claude API</span>
+    <span class="tag success">EdTech</span>
+    <span class="tag success">Indonesia</span>
+    <span class="tag warn">SD · SMP · SMK</span>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab active" onclick="showTab('overview')">01 Overview</button>
+  <button class="tab" onclick="showTab('pedagogy')">02 Metodologi</button>
+  <button class="tab" onclick="showTab('users')">03 User Stories</button>
+  <button class="tab" onclick="showTab('features')">04 Fitur & Logic</button>
+  <button class="tab" onclick="showTab('architecture')">05 Arsitektur</button>
+  <button class="tab" onclick="showTab('datamodel')">06 Data Model</button>
+  <button class="tab" onclick="showTab('acceptance')">07 Acceptance Criteria</button>
+</div>
+
+<!-- ═══ TAB 1: OVERVIEW ═══ -->
+<div id="tab-overview" class="panel active">
+
+  <div class="section">
+    <h2>Problem Statement</h2>
+    <p>Anak-anak Indonesia tidak lagi bersaing hanya dengan teman sekelas — mereka bersaing dengan talenta dari Singapura, Finlandia, dan Silicon Valley. Sistem pendidikan tradisional yang berbasis hafalan dan nilai ujian gagal membekali mereka dengan kemampuan Abad 21.</p>
+    <div class="card-row">
+      <div class="card accent-danger">
+        <h4>Masalah yang dipecahkan</h4>
+        <ul class="rule-list">
+          <li>Belajar pasif (menonton video satu arah)</li>
+          <li>Tidak ada personalisasi per tingkat kemampuan</li>
+          <li>Orang tua tidak memiliki visibilitas perkembangan</li>
+          <li>Hafalan tanpa pemahaman mendalam</li>
+          <li>Tidak ada integrasi nilai dan karakter</li>
+        </ul>
+      </div>
+      <div class="card accent-success">
+        <h4>Solusi APEX</h4>
+        <ul class="rule-list">
+          <li>AI Socratic Tutor — tanya balik, tidak beri jawaban</li>
+          <li>Mastery gating — lanjut jika sudah ≥80% paham</li>
+          <li>Parent dashboard dengan radar 6 dimensi holistik</li>
+          <li>Spaced Repetition (SM-2) untuk retensi jangka panjang</li>
+          <li>Integrasi ibadah, niat, dan syukur (Pilar 7)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="div"></div>
+
+  <div class="section">
+    <h2>Scope & Target Pengguna</h2>
+    <div class="card-row trio">
+      <div class="card">
+        <h4>Siswa (Primary)</h4>
+        <p>SD (6–12 th), SMP (12–15 th), SMK (15–18 th). Belajar mandiri dari rumah menggunakan platform, didampingi AI Socrates dan jadwal terstruktur.</p>
+        <div class="hero-tags"><span class="tag info">Student</span></div>
+      </div>
+      <div class="card">
+        <h4>Orang Tua (Secondary)</h4>
+        <p>Monitor perkembangan anak via dashboard analitik. Terima smart alert jika ada anomali belajar atau ibadah. Bukan pemeriksa nilai — tapi mentor strategis.</p>
+        <div class="hero-tags"><span class="tag warn">Parent</span></div>
+      </div>
+      <div class="card">
+        <h4>Mentor (Tertiary)</h4>
+        <p>Praktisi ahli yang menilai portofolio kompleks (presentasi, esai, pitch deck) yang tidak bisa dinilai AI — human-in-the-loop untuk kreativitas dan soft skills.</p>
+        <div class="hero-tags"><span class="tag success">Mentor</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="div"></div>
+
+  <div class="section">
+    <h2>Success Metrics</h2>
+    <div class="metric-row">
+      <div class="metric"><div class="metric-val">≥80%</div><div class="metric-lbl">Mastery sebelum lanjut bab</div></div>
+      <div class="metric"><div class="metric-val">3×</div><div class="metric-lbl">Lebih efektif dari belajar pasif</div></div>
+      <div class="metric"><div class="metric-val">7.0</div><div class="metric-lbl">Target IELTS lulusan SMK</div></div>
+      <div class="metric"><div class="metric-val">100%</div><div class="metric-lbl">Visibilitas orang tua</div></div>
+    </div>
+  </div>
+
+  <button class="sp-btn" onclick="sendPrompt('Jelaskan lebih detail tentang bagaimana APEX berbeda dari platform e-learning lain seperti Ruangguru atau Zenius')">Bandingkan dengan kompetitor ↗</button>
+</div>
+
+<!-- ═══ TAB 2: PEDAGOGY ═══ -->
+<div id="tab-pedagogy" class="panel">
+
+  <div class="section">
+    <h2>7 Pilar Metodologi — Inti Logika Platform</h2>
+    <p>Setiap fitur dalam platform harus dapat dilacak ke salah satu dari 7 pilar ini. Developer HARUS memahami pilar mana yang diimplementasikan oleh setiap komponen UI dan backend service.</p>
+
+    <div class="pillar-grid">
+      <div class="pillar">
+        <div class="pillar-num">PILAR 01</div>
+        <div class="pillar-name">Metacognition First</div>
+        <div class="pillar-desc">Sebelum dan sesudah belajar, siswa mengisi jurnal mini. Sistem memantau apakah rasa percaya diri sesuai dengan hasil tes aktual.</div>
+        <div class="pillar-feature">→ WeeklyReflection, Pre/Post Journal di AIClassroom</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">PILAR 02</div>
+        <div class="pillar-name">Inquiry-Based Learning</div>
+        <div class="pillar-desc">AI Socrates TIDAK boleh memberi jawaban langsung. Wajib merespons dengan guiding question yang memancing siswa berpikir sendiri.</div>
+        <div class="pillar-feature">→ AIClassroom + System Prompt Socrates</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">PILAR 03</div>
+        <div class="pillar-name">Spaced Repetition</div>
+        <div class="pillar-desc">Algoritma SuperMemo-2 (SM-2) menjadwalkan ulang review flashcard berdasarkan kualitas ingatan (0–5). Interval: hari ke-1 → 6 → interval × E-Factor.</div>
+        <div class="pillar-feature">→ SpacedRepetition, IslamicHub (Muraja'ah)</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">PILAR 04</div>
+        <div class="pillar-name">Mastery Learning</div>
+        <div class="pillar-desc">Gerbang materi terkunci sampai siswa mencapai 80% mastery. Jika gagal, sistem menyajikan materi penunjang yang berbeda — bukan soal yang sama.</div>
+        <div class="pillar-feature">→ LearningHub mastery gate, MockExam</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">PILAR 05</div>
+        <div class="pillar-name">Project-Based Learning</div>
+        <div class="pillar-desc">Di akhir semester, siswa mengunggah hasil karya nyata (website, pitch deck, lab report) yang menjadi bukti kemampuan untuk mendaftar universitas.</div>
+        <div class="pillar-feature">→ Portfolio, MentorPortal (IB HOTS Rubric)</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">PILAR 06</div>
+        <div class="pillar-name">Bilingual Academic Output</div>
+        <div class="pillar-desc">Proyek, esai, dan presentasi di level SMP ke atas harus dikerjakan dalam dua bahasa (Indonesia + Inggris). Ini syarat mutlak untuk daya saing global.</div>
+        <div class="pillar-feature">→ Portfolio bilingual flag, LanguageToggle</div>
+      </div>
+      <div class="pillar" style="grid-column: 1/-1;">
+        <div class="pillar-num">PILAR 07</div>
+        <div class="pillar-name">Tafakkur & Akhlaq Integration — Islamic Worldview</div>
+        <div class="pillar-desc">Pendidikan global tanpa akar moral hanya menghasilkan generasi cerdas yang kehilangan arah. "Adab sebelum ilmu." Ilmu sains diarahkan ke Tafakkur (merenungi ciptaan Allah). Ambisi global diikat dengan Akhlakul Karimah. BUKAN sekadar add-on — ini adalah worldview yang memframing seluruh kurikulum.</div>
+        <div class="pillar-feature">→ IslamicHub: Smart Muraja'ah + Tafakkur Checkpoint + Mutaba'ah Yaumiyyah + Jurnal Syukur</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="div"></div>
+
+  <div class="section">
+    <h2>Logika Inti AI Socrates — Aturan Mutlak</h2>
+    <p>Ini bukan sekadar prompt biasa. Ini adalah perilaku sistem yang wajib diimplementasikan dan ditest secara eksplisit oleh developer.</p>
+
+    <div class="card accent-danger">
+      <h4>Aturan yang TIDAK BOLEH dilanggar</h4>
+      <table>
+        <thead><tr><th>Skenario</th><th>Respons yang SALAH</th><th>Respons yang BENAR</th></tr></thead>
+        <tbody>
+          <tr><td>Siswa tanya: "Berapa jawaban soal no. 3?"</td><td><span style="color:var(--danger)">Langsung jawab: "Jawabannya 42"</span></td><td><strong>Balik tanya:</strong> "Coba ceritakan dulu caramu mendekati soal ini. Informasi apa yang sudah kamu punya?"</td></tr>
+          <tr><td>Siswa salah 3× berturut-turut</td><td><span style="color:var(--danger)">Tetap diam atau beri jawaban</span></td><td><strong>Beri HINT kecil</strong> (bukan jawaban): "Petunjuk: pikirkan tentang hubungan antara tegangan dan hambatan..."</td></tr>
+          <tr><td>Siswa minta contekan PR</td><td><span style="color:var(--danger)">"Berikut jawaban PRmu:"</span></td><td><strong>Tolak dengan ramah:</strong> "Aku di sini untuk membantumu berpikir, bukan menggantikan proses berpikirmu 😊"</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card accent-info">
+      <h4>SM-2 Algorithm — Formula Wajib Diimplementasikan Persis</h4>
+      <p>Rumus E-Factor update setelah setiap review:</p>
+      <code style="display:block;padding:12px;margin:8px 0;font-size:13px;background:var(--bg3);">EF' = EF + (0.1 − (5−q) × (0.08 + (5−q) × 0.02))</code>
+      <ul class="rule-list">
+        <li>Minimum EF = 1.3 (jangan pernah di bawah ini)</li>
+        <li>Jika quality &lt; 3 → reset interval ke 1, repetitions ke 0</li>
+        <li>Repetisi ke-1 → interval 1 hari | Ke-2 → 6 hari | Ke-3+ → interval × EF</li>
+        <li>q = 0 (lupa total) sampai 5 (ingat sempurna tanpa ragu)</li>
+      </ul>
+    </div>
+  </div>
+
+  <button class="sp-btn" onclick="sendPrompt('Buatkan contoh skenario lengkap bagaimana SM-2 bekerja untuk satu flashcard selama 30 hari')">Simulasikan SM-2 selama 30 hari ↗</button>
+</div>
+
+<!-- ═══ TAB 3: USER STORIES ═══ -->
+<div id="tab-users" class="panel">
+
+  <div class="section">
+    <h2>User Stories — Format Standar Developer</h2>
+    <p>Setiap story memiliki: <strong>Who</strong> (siapa), <strong>What</strong> (apa yang dilakukan), <strong>Why</strong> (tujuan), dan <strong>Acceptance Criteria</strong> yang dapat ditest.</p>
+
+    <h3>Siswa (Student)</h3>
+
+    <div class="story">
+      <div class="story-who">STORY S-01 · Spaced Repetition · <span class="badge p1">P1</span> <span class="badge dev">Dev</span></div>
+      <div class="story-body"><strong>Sebagai siswa,</strong> saya ingin melihat flashcard yang <em>harus</em> saya review hari ini berdasarkan algoritma SM-2, <strong>agar</strong> ingatan saya diperkuat secara efisien tanpa membuang waktu review materi yang sudah kuat.</div>
+      <div class="story-ac">✓ AC: Sistem menampilkan hanya kartu dengan <code>nextReviewAt ≤ today</code> · Setelah rating, interval kartu diperbarui sesuai SM-2 · Kartu yang dinilai q&lt;3 muncul kembali besok</div>
+    </div>
+
+    <div class="story">
+      <div class="story-who">STORY S-02 · AI Socrates · <span class="badge p1">P1</span> <span class="badge dev">Dev</span></div>
+      <div class="story-body"><strong>Sebagai siswa,</strong> saya ingin bertanya ke AI tentang materi yang sulit, <strong>agar</strong> AI membantu saya menemukan jawaban sendiri lewat pertanyaan pancingan — bukan langsung memberi jawaban.</div>
+      <div class="story-ac">✓ AC: AI tidak pernah menjawab soal langsung · Selalu merespons dengan ≥1 guiding question · Jika siswa salah 3× berturut-turut → tampilkan hint (bukan jawaban) · Loading state: "Socrates sedang memikirkan petunjuk terbaik untukmu..."</div>
+    </div>
+
+    <div class="story">
+      <div class="story-who">STORY S-03 · Mastery Gate · <span class="badge p1">P1</span> <span class="badge dev">Dev</span></div>
+      <div class="story-body"><strong>Sebagai siswa,</strong> saya ingin bab berikutnya terkunci sampai saya mencapai 80% mastery di bab ini, <strong>agar</strong> fondasi ilmu saya solid sebelum maju ke materi lebih sulit.</div>
+      <div class="story-ac">✓ AC: Progress bar menampilkan persentase mastery · Tombol "Lanjut" disabled jika &lt;80% · Di bawah 80%: tampilkan copy "Hampir Sampai! Usahamu sudah X%, mari kita perkuat Y% sisanya 💪" · Di atas 80%: copy "Luar Biasa! Materi ini sudah kamu kuasai! 🌟"</div>
+    </div>
+
+    <div class="story">
+      <div class="story-who">STORY S-04 · Islamic Hub · <span class="badge p1">P1</span> <span class="badge dev">Dev</span></div>
+      <div class="story-body"><strong>Sebagai siswa Muslim,</strong> saya ingin mengisi niat belajar sebelum memulai sesi dan jurnal syukur setelah selesai, <strong>agar</strong> belajar saya bernilai ibadah dan tidak hanya mengejar nilai.</div>
+      <div class="story-ac">✓ AC: Niat Check muncul sebagai modal 3-langkah sebelum sesi · Tidak bisa skip kecuali sudah jawab ketiga pertanyaan · Jurnal syukur di akhir sesi +20 Charity Points · Mutaba'ah tracker mencatat ibadah harian dengan streak counter</div>
+    </div>
+
+    <div class="story">
+      <div class="story-who">STORY S-05 · Weekly Reflection · <span class="badge p2">P2</span> <span class="badge dev">Dev</span></div>
+      <div class="story-body"><strong>Sebagai siswa,</strong> saya ingin mengisi refleksi mingguan (3 pertanyaan + confidence slider 1–10), <strong>agar</strong> saya membangun kesadaran tentang apa yang sudah dan belum dipahami (metacognition).</div>
+      <div class="story-ac">✓ AC: Refleksi dapat diisi sekali per minggu · Week navigator untuk melihat refleksi masa lalu · Simpan +50 Charity Points · Confidence slider 1–10 tersimpan ke database</div>
+    </div>
+
+    <h3>Orang Tua (Parent)</h3>
+
+    <div class="story">
+      <div class="story-who">STORY P-01 · Radar Chart · <span class="badge p1">P1</span> <span class="badge design">Design</span></div>
+      <div class="story-body"><strong>Sebagai orang tua,</strong> saya ingin melihat grafik radar 6 dimensi (Kognitif, Bahasa, Digital, Karakter, Spiritual, Leadership), <strong>agar</strong> saya bisa melihat sekilas keseimbangan tumbuh kembang anak — bukan hanya nilai akademis.</div>
+      <div class="story-ac">✓ AC: Radar SVG interaktif dengan 6 sumbu · Hover pada titik menampilkan tooltip detail · Alert otomatis jika ada dimensi &lt;70% · Bahasa profesional: "Insight: [nama] terlihat butuh waktu lebih lama di..."</div>
+    </div>
+
+    <div class="story">
+      <div class="story-who">STORY P-02 · Smart Alert · <span class="badge p1">P1</span> <span class="badge dev">Dev</span></div>
+      <div class="story-body"><strong>Sebagai orang tua,</strong> saya ingin menerima notifikasi cerdas jika sistem mendeteksi anomali pada pola belajar atau ibadah anak, <strong>agar</strong> saya bisa intervensi dengan cara yang tepat dan tidak menghakimi.</div>
+      <div class="story-ac">✓ AC: Alert muncul jika: mastery &lt;60% selama 3 hari berturut-turut, ibadah tracker kosong 3+ hari, tidak ada sesi belajar 2+ hari berturut-turut · Copy alert menggunakan bahasa empatik, bukan menghakimi · Alert bisa di-dismiss</div>
+    </div>
+
+    <h3>Mentor</h3>
+
+    <div class="story">
+      <div class="story-who">STORY M-01 · IB Rubric · <span class="badge p2">P2</span> <span class="badge dev">Dev</span></div>
+      <div class="story-body"><strong>Sebagai mentor,</strong> saya ingin menilai portofolio siswa menggunakan rubrik IB HOTS 4 level (Beginner → Mastery), <strong>agar</strong> penilaian saya konsisten, terstandar, dan dapat dibandingkan antar siswa.</div>
+      <div class="story-ac">✓ AC: 4 kriteria × 4 level = 16 skor yang harus diisi · Jika rata-rata ≥3, badge digital otomatis diterbitkan · Feedback bisa dalam bentuk teks atau simulasi voice note · Skor tersimpan ke database sebagai bagian dari assessment holistik</div>
+    </div>
+  </div>
+
+  <button class="sp-btn" onclick="sendPrompt('Tambahkan user stories untuk fitur Peer Review antar siswa di APEX')">Generate User Stories Peer Review ↗</button>
+</div>
+
+<!-- ═══ TAB 4: FEATURES ═══ -->
+<div id="tab-features" class="panel">
+
+  <div class="section">
+    <h2>Feature Breakdown — Logic per Modul</h2>
+    <p>Tabel ini mendeskripsikan logika program untuk setiap fitur. Developer membaca kolom "Business Rule" untuk memahami apa yang harus dikode, bukan hanya apa yang ditampilkan.</p>
+
+    <table>
+      <thead>
+        <tr><th>Modul</th><th>Business Rule Utama</th><th>Input</th><th>Output / State Change</th><th>Prioritas</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Learning Hub</strong></td>
+          <td>Tampilkan misi harian berdasarkan jadwal aktif. Hitung mastery dari rata-rata skor quiz dalam modul. Jika mastery &lt;80%, tombol "Lanjut" disabled. Jika mastery ≥80%, buka gerbang ke modul berikutnya dan +XP.</td>
+          <td>SubjectProgress dari DB · GradeLevel dari context</td>
+          <td>Update <code>masteryPct</code> di DB · Tambah <code>xpEarned</code> · Tampilkan copy microcopy sesuai threshold</td>
+          <td><span class="badge p1">P1</span></td>
+        </tr>
+        <tr>
+          <td><strong>AI Classroom (Socrates)</strong></td>
+          <td>Kirim conversation history ke Claude API dengan system prompt Socrates. AI tidak boleh menjawab soal langsung. Track jumlah percobaan salah — jika ≥3, kirim flag ke API agar AI berikan hint. Pre-journal wajib sebelum sesi, post-journal opsional.</td>
+          <td>Chat messages array · GradeLevel untuk context · Wrong attempt count</td>
+          <td>Simpan AIChatLog ke DB · Tambah Charity Points setiap interaksi · Update pre/post journal ke DB</td>
+          <td><span class="badge p1">P1</span></td>
+        </tr>
+        <tr>
+          <td><strong>Spaced Repetition (SM-2)</strong></td>
+          <td>Load flashcard dengan <code>nextReviewAt ≤ today</code>. Setelah siswa rating (1–5), jalankan calculateNextReview(). Update flashcard di DB. Jika quality &lt; 3, reset interval=1 dan repetitions=0. Sesi selesai jika semua due cards sudah di-review.</td>
+          <td>Flashcard[] dari DB · Quality rating 1–5 dari user</td>
+          <td>Update <code>easeFactor, interval, repetitions, nextReviewAt</code> di DB · +10 Charity Points per kartu benar</td>
+          <td><span class="badge p1">P1</span></td>
+        </tr>
+        <tr>
+          <td><strong>Islamic Hub — Muraja'ah</strong></td>
+          <td>Sama dengan SM-2 flashcard, tetapi untuk hafalan Qur'an. Kartu berisi: surah, ayat range, konten Arabic + terjemahan. Quality rating: 1=lupa total, 5=hafal sempurna. +50 Charity Points per ayat yang berhasil dimuraja'ah.</td>
+          <td>MurajaahCard[] (subset Flashcard dengan subject='tahfidz') · Quality rating</td>
+          <td>Update SM-2 data di DB · +50 CharityPoint · Streak update di IbadahLog</td>
+          <td><span class="badge p1">P1</span></td>
+        </tr>
+        <tr>
+          <td><strong>Mock Exam</strong></td>
+          <td>Load 5 soal acak dari QuestionBank berdasarkan subject pilihan. Timer 90 detik per soal — jika habis, jawaban otomatis di-skip (null). Hitung masteryScore = (correct/total)×100. Jika mastery ≥80%, flag passed=true dan tampilkan badge. Setelah selesai, tampilkan review penuh dengan explanation + metacognition_hint per soal.</td>
+          <td>Subject pilihan · QuizQuestion[] dari bank · Timer countdown</td>
+          <td>Simpan QuizSession + QuizAnswer[] ke DB · +XP ke SubjectProgress · Badge di-issue jika passed · Charity Points += xpEarned</td>
+          <td><span class="badge p1">P1</span></td>
+        </tr>
+        <tr>
+          <td><strong>Parent Analytics</strong></td>
+          <td>Hitung 6 dimensi radar dari kombinasi data: Kognitif (avg mastery_pct matematika+sains), Bahasa (mastery bahasa_inggris), Digital (mastery cs), Karakter (ibadah streak avg), Spiritual (tahfidz progress), Leadership (oral assessment avg). Trigger Smart Alert jika dimensi apapun &lt;70% atau ibadah kosong 3+ hari.</td>
+          <td>SubjectProgress[] · IbadahLog[] · QuizSession[] dari DB</td>
+          <td>Computed dimensions array · SmartAlert[] · Tidak ada write ke DB (read-only view)</td>
+          <td><span class="badge p1">P1</span></td>
+        </tr>
+        <tr>
+          <td><strong>Milestone Tracker</strong></td>
+          <td>Setiap target dalam milestone bisa di-toggle done/undone. Persentase milestone = (done targets / total targets) × 100. Milestone 'locked' tidak bisa diinteraksi. Milestone berikutnya hanya unlock jika milestone sebelumnya mencapai 100%.</td>
+          <td>MilestoneProgress[] dari DB · Toggle action dari user</td>
+          <td>Upsert MilestoneProgress di DB · Recalculate completedPct · Check unlock condition untuk milestone berikutnya</td>
+          <td><span class="badge p2">P2</span></td>
+        </tr>
+        <tr>
+          <td><strong>Assessment Dashboard</strong></td>
+          <td>Weighted score = Σ(score_i × weight_i / 100) untuk 5 komponen: Project 30%, Quiz 25%, Oral 20%, Benchmark 15%, Karakter 10%. Grade: A≥90, B≥80, C≥70, D≥60, E&lt;60. Slider adjusts score simulasi (tidak langsung update DB — harus ada tombol Save eksplisit).</td>
+          <td>AssessmentComp scores · Weight config (hardcoded per kurikulum)</td>
+          <td>Computed weighted total · Grade badge · Trend delta vs periode lalu</td>
+          <td><span class="badge p2">P2</span></td>
+        </tr>
+        <tr>
+          <td><strong>Charity Points</strong></td>
+          <td>Setiap aksi positif menghasilkan points dengan amount berbeda. Points menumpuk, tidak bisa berkurang. Tampilkan total di sidebar. Di masa depan: integrasikan dengan lembaga zakat untuk konversi ke donasi nyata.</td>
+          <td>Source action · Amount dari config · UserId</td>
+          <td>INSERT ke CharityPoint table · Read-only aggregate untuk display</td>
+          <td><span class="badge p2">P2</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Charity Points Reference — Semua Source</h3>
+    <div class="card-row">
+      <div class="card">
+        <table style="margin:0;">
+          <thead><tr><th>Aksi</th><th>Points</th></tr></thead>
+          <tbody>
+            <tr><td>Flashcard SM-2 benar (quality ≥3)</td><td><strong>+10</strong></td></tr>
+            <tr><td>Muraja'ah Qur'an berhasil</td><td><strong>+50</strong></td></tr>
+            <tr><td>Selesai sesi Pomodoro (fokus)</td><td><strong>+25</strong></td></tr>
+            <tr><td>Mock Exam passed (≥80%)</td><td><strong>+XP (var)</strong></td></tr>
+            <tr><td>Upload portofolio</td><td><strong>+30</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <table style="margin:0;">
+          <thead><tr><th>Aksi</th><th>Points</th></tr></thead>
+          <tbody>
+            <tr><td>Weekly Reflection tersimpan</td><td><strong>+50</strong></td></tr>
+            <tr><td>Jurnal Syukur (post-sesi)</td><td><strong>+20</strong></td></tr>
+            <tr><td>Pre-Metacognition Journal</td><td><strong>+15</strong></td></tr>
+            <tr><td>Ibadah harian (per item)</td><td><strong>+50–150</strong></td></tr>
+            <tr><td>Brain Dump tersimpan</td><td><strong>+15</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <button class="sp-btn" onclick="sendPrompt('Buatkan spesifikasi lengkap untuk sistem notifikasi APEX termasuk trigger conditions, delivery channels, dan copy notifikasi')">Generate Notification Spec ↗</button>
+</div>
+
+<!-- ═══ TAB 5: ARCHITECTURE ═══ -->
+<div id="tab-architecture" class="panel">
+
+  <div class="section">
+    <h2>Arsitektur Sistem</h2>
+
+    <div class="arch">
+      <div class="arch-layer">
+        <span class="arch-lbl">PRESENTATION</span>
+        <div class="arch-items">
+          <span class="arch-item hi">Next.js 14 App Router</span>
+          <span class="arch-item hi">React 18 + TypeScript</span>
+          <span class="arch-item hi">Tailwind CSS</span>
+          <span class="arch-item hi">shadcn/ui</span>
+          <span class="arch-item hi">Lucide Icons</span>
+        </div>
+      </div>
+      <div class="arch-layer">
+        <span class="arch-lbl">STATE</span>
+        <div class="arch-items">
+          <span class="arch-item">React Context (gradeLevel, language, charityPoints)</span>
+          <span class="arch-item">useState (UI ephemeral state)</span>
+          <span class="arch-item hw">→ Phase 2: Zustand / TanStack Query</span>
+        </div>
+      </div>
+      <div class="arch-layer">
+        <span class="arch-lbl">API LAYER</span>
+        <div class="arch-items">
+          <span class="arch-item hs">Next.js Route Handlers (/api/*)</span>
+          <span class="arch-item hs">NextAuth.js (Auth + Session)</span>
+          <span class="arch-item hw">→ Phase 2: tRPC</span>
+        </div>
+      </div>
+      <div class="arch-layer">
+        <span class="arch-lbl">DATA</span>
+        <div class="arch-items">
+          <span class="arch-item">Prisma ORM</span>
+          <span class="arch-item">PostgreSQL (Neon/Supabase)</span>
+        </div>
+      </div>
+      <div class="arch-layer">
+        <span class="arch-lbl">EXTERNAL</span>
+        <div class="arch-items">
+          <span class="arch-item hd">Anthropic Claude API (AI Socrates)</span>
+          <span class="arch-item hd">Vercel (Hosting + Edge)</span>
+          <span class="arch-item hw">→ Phase 3: Credly (Badges)</span>
+          <span class="arch-item hw">→ Phase 3: WhatsApp Business API (Alerts)</span>
+        </div>
+      </div>
+    </div>
+
+    <h3>Data Flow — Sesi Belajar Lengkap</h3>
+    <div class="dflow">
+      <div class="dflow-row">
+        <div class="dflow-node"><div class="dflow-node-title">1. Login</div><div class="dflow-node-sub">NextAuth → session token</div></div>
+        <div class="dflow-sep">→</div>
+        <div class="dflow-node"><div class="dflow-node-title">2. Niat Check</div><div class="dflow-node-sub">3-step modal wajib diisi</div></div>
+        <div class="dflow-sep">→</div>
+        <div class="dflow-node"><div class="dflow-node-title">3. Load Misi</div><div class="dflow-node-sub">Fetch SubjectProgress + Flashcard due</div></div>
+      </div>
+      <div class="dflow-vsep">↓</div>
+      <div class="dflow-row">
+        <div class="dflow-node"><div class="dflow-node-title">6. Charity Points</div><div class="dflow-node-sub">Insert ke DB + update sidebar</div></div>
+        <div class="dflow-sep">←</div>
+        <div class="dflow-node"><div class="dflow-node-title">5. Selesai Sesi</div><div class="dflow-node-sub">Jurnal Syukur + Wellbeing break</div></div>
+        <div class="dflow-sep">←</div>
+        <div class="dflow-node"><div class="dflow-node-title">4. Belajar + AI</div><div class="dflow-node-sub">Quiz, Flashcard, Chat Socrates</div></div>
+      </div>
+      <div class="dflow-vsep">↓</div>
+      <div class="dflow-row">
+        <div class="dflow-node" style="flex:0.5"><div class="dflow-node-title">7. Update Progress</div><div class="dflow-node-sub">masteryPct, xpEarned, unitsDone</div></div>
+        <div class="dflow-sep">→</div>
+        <div class="dflow-node" style="flex:0.5"><div class="dflow-node-title">8. Smart Alert Engine</div><div class="dflow-node-sub">Cek threshold → kirim alert ke Parent</div></div>
+        <div class="dflow-sep">→</div>
+        <div class="dflow-node" style="flex:1"><div class="dflow-node-title">9. Parent Dashboard Refresh</div><div class="dflow-node-sub">Radar recalculate, Weekly summary update</div></div>
+      </div>
+    </div>
+
+    <h3>API Routes — Daftar Endpoint yang Wajib Diimplementasikan</h3>
+    <table>
+      <thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Deskripsi</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET</code></td><td><code>/api/progress</code></td><td><span class="badge dev">Auth</span></td><td>Ambil semua SubjectProgress untuk userId</td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/progress</code></td><td><span class="badge dev">Auth</span></td><td>Upsert SubjectProgress (subject + masteryPct + unitsDone)</td></tr>
+        <tr><td><code>GET</code></td><td><code>/api/flashcards</code></td><td><span class="badge dev">Auth</span></td><td>Ambil flashcard due hari ini (nextReviewAt ≤ now)</td></tr>
+        <tr><td><code>PATCH</code></td><td><code>/api/flashcards</code></td><td><span class="badge dev">Auth</span></td><td>Update SM-2 data setelah review (easeFactor, interval, nextReviewAt)</td></tr>
+        <tr><td><code>GET</code></td><td><code>/api/charity-points</code></td><td><span class="badge dev">Auth</span></td><td>Aggregate total CharityPoints untuk user</td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/charity-points</code></td><td><span class="badge dev">Auth</span></td><td>Insert CharityPoint (amount + source)</td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/quiz-session</code></td><td><span class="badge dev">Auth</span></td><td>Simpan QuizSession + QuizAnswer[] setelah exam selesai</td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/reflection</code></td><td><span class="badge dev">Auth</span></td><td>Simpan WeeklyReflection (unique per weekNumber + year)</td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/ibadah</code></td><td><span class="badge dev">Auth</span></td><td>Log IbadahItem harian (upsert per ibadahType + logDate)</td></tr>
+        <tr><td><code>GET</code></td><td><code>/api/parent/radar</code></td><td><span class="badge dev">Auth</span></td><td>Compute 6 radar dimensions dari multi-table aggregate</td></tr>
+        <tr><td><code>GET</code></td><td><code>/api/parent/alerts</code></td><td><span class="badge dev">Auth</span></td><td>Cek threshold dan return SmartAlert[]</td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/ai/chat</code></td><td><span class="badge dev">Auth</span></td><td>Proxy ke Anthropic API dengan system prompt Socrates</td></tr>
+        <tr><td><code>PATCH</code></td><td><code>/api/milestone</code></td><td><span class="badge dev">Auth</span></td><td>Toggle MilestoneProgress target (done/undone)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <button class="sp-btn" onclick="sendPrompt('Buatkan sequence diagram untuk alur login, load dashboard, dan sesi belajar pertama di APEX')">Generate Sequence Diagram ↗</button>
+</div>
+
+<!-- ═══ TAB 6: DATA MODEL ═══ -->
+<div id="tab-datamodel" class="panel">
+
+  <div class="section">
+    <h2>Data Model — Entitas & Relasi</h2>
+    <p>Setiap entitas di bawah memiliki relasi eksplisit ke <code>User</code>. Semua operasi baca/tulis harus memverifikasi <code>userId === session.user.id</code> untuk keamanan.</p>
+
+    <div class="flow">
+      <span class="flow-step">User</span>
+      <span class="flow-arrow">1:N</span>
+      <span class="flow-step">SubjectProgress</span>
+      <span class="flow-arrow">·</span>
+      <span class="flow-step">User</span>
+      <span class="flow-arrow">1:N</span>
+      <span class="flow-step">Flashcard</span>
+      <span class="flow-arrow">·</span>
+      <span class="flow-step">User</span>
+      <span class="flow-arrow">1:N</span>
+      <span class="flow-step">QuizSession</span>
+      <span class="flow-arrow">1:N</span>
+      <span class="flow-step">QuizAnswer</span>
+    </div>
+
+    <h3>Entitas Kritis</h3>
+    <table>
+      <thead><tr><th>Entitas</th><th>Field Kritis</th><th>Business Logic</th><th>Indeks</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>User</strong></td>
+          <td><code>role</code>, <code>gradeLevel</code>, <code>language</code></td>
+          <td>Role menentukan akses halaman: STUDENT tidak bisa akses MentorPortal · gradeLevel menentukan konten kurikulum · Default language: ID</td>
+          <td><code>email UNIQUE</code></td>
+        </tr>
+        <tr>
+          <td><strong>SubjectProgress</strong></td>
+          <td><code>masteryPct</code>, <code>unitsDone</code>, <code>xpEarned</code></td>
+          <td>UNIQUE pada (userId, subject) · masteryPct 0–100, dihitung dari rata-rata skor quiz dalam subject tersebut · Update setiap kali QuizSession selesai</td>
+          <td><code>(userId, subject) UNIQUE</code></td>
+        </tr>
+        <tr>
+          <td><strong>Flashcard</strong></td>
+          <td><code>easeFactor</code>, <code>interval</code>, <code>repetitions</code>, <code>nextReviewAt</code></td>
+          <td>SM-2 fields. Default: easeFactor=2.5, interval=0, repetitions=0, nextReviewAt=now. Filter due: <code>nextReviewAt ≤ today</code></td>
+          <td><code>(userId, nextReviewAt)</code></td>
+        </tr>
+        <tr>
+          <td><strong>IbadahLog</strong></td>
+          <td><code>ibadahType</code>, <code>logDate</code>, <code>streak</code></td>
+          <td>UNIQUE pada (userId, ibadahType, logDate) sehingga tidak bisa double-log hari yang sama · streak dihitung dari consecutive logDates · Trigger alert Parent jika 3 hari kosong</td>
+          <td><code>(userId, ibadahType, logDate) UNIQUE</code></td>
+        </tr>
+        <tr>
+          <td><strong>QuizSession</strong></td>
+          <td><code>masteryScore</code>, <code>passed</code>, <code>xpEarned</code></td>
+          <td>passed = masteryScore ≥ 80 · xpEarned dihitung dari QuizAnswer (base points + time bonus) · Trigger badge jika passed=true</td>
+          <td><code>(userId, subject, startedAt)</code></td>
+        </tr>
+        <tr>
+          <td><strong>WeeklyReflection</strong></td>
+          <td><code>weekNumber</code>, <code>year</code>, <code>confidence</code></td>
+          <td>UNIQUE pada (userId, weekNumber, year) · confidence 1–10 · Untuk Parent alert: bandingkan confidence dengan actual masteryPct — jika selisih &gt;30%, flag overconfidence/underconfidence</td>
+          <td><code>(userId, weekNumber, year) UNIQUE</code></td>
+        </tr>
+        <tr>
+          <td><strong>CharityPoint</strong></td>
+          <td><code>amount</code>, <code>source</code></td>
+          <td>Append-only — jangan pernah UPDATE atau DELETE · Total selalu di-aggregate dari SUM(amount) · source adalah identifier aksi ("quiz", "ibadah", "reflection") untuk analytics</td>
+          <td><code>(userId, createdAt)</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Enum Reference</h3>
+    <div class="card-row trio">
+      <div class="card">
+        <h4>Role</h4>
+        <ul class="rule-list">
+          <li><code>STUDENT</code> — akses modul belajar</li>
+          <li><code>PARENT</code> — akses analytics anak</li>
+          <li><code>MENTOR</code> — akses portal review</li>
+          <li><code>ADMIN</code> — akses semua</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Grade</h4>
+        <ul class="rule-list">
+          <li><code>SD</code> — Pomodoro 15/5 mnt</li>
+          <li><code>SMP</code> — Pomodoro 25/5 mnt</li>
+          <li><code>SMK</code> — Pomodoro 50/10 mnt</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>PortfolioStatus</h4>
+        <ul class="rule-list">
+          <li><code>DRAFT</code> — belum disubmit</li>
+          <li><code>PENDING</code> — menunggu mentor</li>
+          <li><code>REVIEWED</code> — sudah dinilai</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <button class="sp-btn" onclick="sendPrompt('Buatkan ERD diagram untuk database APEX Learning System dalam format mermaid')">Generate ERD Diagram ↗</button>
+</div>
+
+<!-- ═══ TAB 7: ACCEPTANCE CRITERIA ═══ -->
+<div id="tab-acceptance" class="panel">
+
+  <div class="section">
+    <h2>Acceptance Criteria — Definition of Done</h2>
+    <p>Sebuah fitur dianggap "done" hanya jika semua AC berikut terpenuhi. QA engineer dan developer HARUS mencentang setiap item sebelum merge ke main branch.</p>
+
+    <h3>AC Global — Berlaku untuk Semua Fitur</h3>
+    <div class="card accent-info">
+      <ul class="checklist">
+        <li class="check">Semua operasi DB diproteksi: user hanya bisa baca/tulis data miliknya sendiri (<code>WHERE userId = session.user.id</code>)</li>
+        <li class="check">Error state ditangani: jika API call gagal, tampilkan pesan error yang ramah — bukan raw error message</li>
+        <li class="check">Loading state tersedia untuk semua async operations</li>
+        <li class="check">Responsive: berfungsi di viewport 375px (mobile) dan 1440px (desktop)</li>
+        <li class="check">Bilingual: semua teks punya versi Bahasa Indonesia dan Inggris</li>
+        <li class="warn">Microcopy HARUS menggunakan kalimat dari Panduan UX APEX — tidak boleh improvisasi</li>
+        <li class="warn">Warna CTA: primary = Cyan #06B6D4, error/warning = Coral #F97316, success = Emerald #10B981</li>
+      </ul>
+    </div>
+
+    <h3>AC per Fitur Kritis</h3>
+
+    <div class="rule-box">
+      <div class="rule-title"><span class="badge p1">P1</span> AI Socrates — Acceptance Criteria</div>
+      <ul class="rule-list">
+        <li>Test: kirim "Berapa jawaban soal no. 3?" → AI HARUS merespons dengan pertanyaan balik (bukan jawaban)</li>
+        <li>Test: kirim jawaban salah 3× berturut-turut → AI HARUS memberikan hint di pesan ke-4</li>
+        <li>Test: loading state menampilkan "Socrates sedang memikirkan petunjuk terbaik untukmu... 💭"</li>
+        <li>Test: API call ke Anthropic diproxy melalui server — API key TIDAK boleh exposed ke client-side</li>
+        <li>Test: conversation history dikirim setiap request (bukan hanya pesan terakhir)</li>
+        <li>Test: system prompt Socrates ter-inject di setiap request (tidak bisa dioverride user)</li>
+      </ul>
+    </div>
+
+    <div class="rule-box">
+      <div class="rule-title"><span class="badge p1">P1</span> SM-2 Algorithm — Acceptance Criteria</div>
+      <ul class="rule-list">
+        <li>Test: kartu dengan quality=5, EF=2.5, repetitions=0 → nextInterval=1, newEF=2.6</li>
+        <li>Test: kartu dengan quality=2 (salah) → nextInterval=1, repetitions=0 (reset)</li>
+        <li>Test: kartu dengan quality=4, EF=2.5, repetitions=2, interval=6 → nextInterval=15, newEF=2.5</li>
+        <li>Test: EF tidak pernah di bawah 1.3</li>
+        <li>Test: kartu due tampil di queue (<code>nextReviewAt ≤ today</code>) · kartu belum due tidak tampil</li>
+        <li>Test: setelah rating, data tersimpan ke DB dan kartu hilang dari queue hari ini</li>
+      </ul>
+    </div>
+
+    <div class="rule-box">
+      <div class="rule-title"><span class="badge p1">P1</span> Mastery Gate — Acceptance Criteria</div>
+      <ul class="rule-list">
+        <li>Test: mastery 79% → tombol "Lanjut" disabled · copy: "Hampir Sampai! Usahamu sudah 79%..."</li>
+        <li>Test: mastery 80% → tombol "Lanjut" enabled · copy: "Luar Biasa! Materi ini sudah kamu kuasai! 🌟"</li>
+        <li>Test: progress bar marker 80% visible di UI sebagai visual reference</li>
+        <li>Test: bar warna coral jika &lt;80%, hijau jika ≥80%</li>
+        <li>Test: mastery tersimpan ke DB setelah setiap quiz session</li>
+      </ul>
+    </div>
+
+    <div class="rule-box">
+      <div class="rule-title"><span class="badge p1">P1</span> Security — Acceptance Criteria</div>
+      <ul class="rule-list">
+        <li>Test: akses /api/* tanpa session → return 401 Unauthorized</li>
+        <li>Test: user A tidak bisa baca/tulis data user B (test dengan dua akun berbeda)</li>
+        <li>Test: ANTHROPIC_API_KEY tidak muncul di network tab browser (harus server-side only)</li>
+        <li>Test: DATABASE_URL tidak muncul di client-side JavaScript</li>
+        <li>Test: .env.local tidak ter-commit ke Git (cek dengan git log)</li>
+        <li>Test: password user di-hash dengan bcrypt (bukan plaintext di DB)</li>
+      </ul>
+    </div>
+
+    <div class="rule-box">
+      <div class="rule-title"><span class="badge p2">P2</span> Parent Smart Alert — Trigger Conditions</div>
+      <ul class="rule-list">
+        <li>Alert "Insight": dimensi radar manapun &lt;70% selama 3+ hari berturut-turut</li>
+        <li>Alert "Spiritual": ibadah tracker kosong 3+ hari (tidak ada IbadahLog dalam 3 hari)</li>
+        <li>Alert "Tidak Aktif": tidak ada QuizSession atau BrainDump 2+ hari berturut-turut</li>
+        <li>Alert "Pencapaian": masteryPct naik ≥15 poin dalam satu minggu → kirim ke Parent</li>
+        <li>Copy alert HARUS menggunakan bahasa empatik dari Panduan UX, bukan raw data</li>
+      </ul>
+    </div>
+
+    <h3>Microcopy Reference — Wajib Digunakan</h3>
+    <table>
+      <thead><tr><th>Konteks</th><th>Copy yang WAJIB digunakan</th><th>Jangan gunakan</th></tr></thead>
+      <tbody>
+        <tr><td>CTA mulai belajar</td><td><strong>"Mulai Misi Hari Ini! 🚀"</strong></td><td>"Start", "Mulai Belajar"</td></tr>
+        <tr><td>Jawaban salah</td><td><strong>"Belum tepat, tapi kamu sedang belajar! Coba periksa kembali..."</strong></td><td>"Salah!", "Incorrect"</td></tr>
+        <tr><td>Coba lagi setelah salah</td><td><strong>"Coba Strategi Lain 💡"</strong></td><td>"Try Again", "Coba Lagi"</td></tr>
+        <tr><td>Jawaban benar</td><td><strong>"Luar Biasa! Kerja kerasmu membuahkan hasil. 🌟"</strong></td><td>"Correct!", "Benar"</td></tr>
+        <tr><td>Upload karya</td><td><strong>"Karya Hebatmu Sudah Tersimpan! Mentor sedang meninjaunya. 🎨"</strong></td><td>"File uploaded", "Berhasil diunggah"</td></tr>
+        <tr><td>Wellbeing break</td><td><strong>"Hebat! Kamu sudah fokus 45 menit. Yuk istirahatkan mata & regangkan badanmu! 👀🌿"</strong></td><td>"Break time", "Batas waktu"</td></tr>
+        <tr><td>Spaced rep panel header</td><td><strong>"Waktunya Menyegarkan Ingatan! 🧠✨"</strong></td><td>"Review Cards", "Flashcard"</td></tr>
+        <tr><td>AI loading state</td><td><strong>"Socrates sedang memikirkan petunjuk terbaik untukmu... 💭"</strong></td><td>"Loading...", "AI sedang berpikir"</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <button class="sp-btn" onclick="sendPrompt('Buatkan test plan lengkap untuk APEX Learning System termasuk unit test, integration test, dan end-to-end test scenarios')">Generate Test Plan ↗</button>
+</div>
+
+</div>
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const ids = ['overview','pedagogy','users','features','architecture','datamodel','acceptance'];
+    t.classList.toggle('active', ids[i] === id);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+}
+</script>

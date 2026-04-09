@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>APEX — Master Curriculum: Modul, Materi, Quiz & Tools</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0A0F;--panel:#111118;--panel2:#16161F;--panel3:#1C1C28;
+  --b:rgba(255,255,255,.07);--b2:rgba(255,255,255,.13);
+  --t:rgba(240,237,232,.9);--m:rgba(240,237,232,.6);--m2:rgba(240,237,232,.3);
+  --cyan:#06B6D4;--coral:#F97316;--green:#10B981;--violet:#8B5CF6;
+  --amber:#F59E0B;--rose:#F43F5E;--blue:#3B82F6;--teal:#14B8A6;
+  --c-sd:#F59E0B;--c-smp:#06B6D4;--c-smk:#8B5CF6;
+  --rd:10px;--rl:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--t);line-height:1.7;font-size:13px;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-thumb{background:var(--cyan);border-radius:2px;}
+
+/* TOP BAR */
+.topbar{position:sticky;top:0;z-index:200;background:rgba(10,10,15,.97);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--b2);padding:0 24px;display:flex;align-items:center;gap:0;}
+.logo{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:13px;color:var(--cyan);
+  padding:12px 0;white-space:nowrap;flex-shrink:0;margin-right:20px;}
+.top-tabs{display:flex;gap:0;overflow-x:auto;flex:1;}
+.tt{padding:14px 18px;font-size:11px;font-weight:700;border:none;background:transparent;
+  color:var(--m2);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:all .2s;letter-spacing:.5px;}
+.tt:hover{color:var(--t);}
+.tt.on{border-bottom-color:var(--cyan);color:var(--cyan);}
+.tt.sd.on{border-bottom-color:var(--c-sd);color:var(--c-sd);}
+.tt.smp.on{border-bottom-color:var(--c-smp);color:var(--c-smp);}
+.tt.smk.on{border-bottom-color:var(--c-smk);color:var(--c-smk);}
+
+/* PANELS */
+.pnl{display:none;max-width:960px;margin:0 auto;padding:28px 24px 80px;}
+.pnl.on{display:block;}
+
+/* HERO STRIP */
+.hero{border-radius:var(--rl);padding:28px 32px;margin-bottom:28px;position:relative;overflow:hidden;}
+.hero-sd {background:linear-gradient(135deg,#1A0E00,#2D1A00);}
+.hero-smp{background:linear-gradient(135deg,#001520,#001F2E);}
+.hero-smk{background:linear-gradient(135deg,#0E0020,#1A0035);}
+.hero-eye{font-size:10px;letter-spacing:4px;font-weight:700;margin-bottom:8px;opacity:.75;}
+.hero h1{font-family:'Plus Jakarta Sans',sans-serif;font-size:clamp(22px,4vw,34px);
+  font-weight:800;letter-spacing:-.5px;margin-bottom:8px;color:#fff;}
+.hero-sub{font-size:13px;line-height:1.75;max-width:640px;font-family:'Plus Jakarta Sans',sans-serif;}
+.hero-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;}
+.hp{font-size:10px;font-weight:700;padding:3px 10px;border-radius:100px;border:1px solid;}
+
+/* STRUCTURE */
+h2{font-family:'Plus Jakarta Sans',sans-serif;font-size:17px;font-weight:800;color:var(--t);margin:28px 0 10px;}
+h3{font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;color:var(--t);margin:18px 0 8px;}
+h4{font-size:10px;font-weight:700;color:var(--m2);letter-spacing:1.5px;text-transform:uppercase;margin:14px 0 6px;}
+p{font-size:13px;color:var(--m);line-height:1.75;margin-bottom:8px;font-family:'Plus Jakarta Sans',sans-serif;}
+code{font-size:11px;background:var(--panel2);border:1px solid var(--b2);border-radius:4px;padding:1px 6px;color:var(--cyan);}
+
+/* DIVIDER */
+.div{height:1px;background:var(--b);margin:24px 0;}
+
+/* SUBJECT GRID */
+.subj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:16px;}
+.subj-card{background:var(--panel);border:1px solid var(--b);border-radius:var(--rl);overflow:hidden;}
+.subj-header{padding:14px 18px;display:flex;align-items:center;gap:10px;}
+.subj-icon{font-size:22px;flex-shrink:0;}
+.subj-name{font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;color:var(--t);}
+.subj-std{font-size:10px;color:var(--m2);margin-top:2px;}
+.subj-body{padding:14px 18px;border-top:1px solid var(--b);}
+
+/* MODULE TABLE */
+.mod-table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0 16px;}
+.mod-table th{padding:7px 12px;background:var(--panel3);color:var(--m2);text-align:left;
+  border:1px solid var(--b);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;}
+.mod-table td{padding:8px 12px;border:1px solid var(--b);color:var(--m);vertical-align:top;}
+.mod-table tr:hover td{background:rgba(255,255,255,.02);}
+.mod-table td:first-child{color:var(--t);font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;}
+.mod-table td:nth-child(2){font-size:11px;}
+
+/* PILLS/BADGES */
+.b{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;}
+.bi{background:rgba(6,182,212,.15);color:var(--cyan);}
+.bg{background:rgba(16,185,129,.15);color:var(--green);}
+.bo{background:rgba(249,115,22,.15);color:var(--coral);}
+.bv{background:rgba(139,92,246,.15);color:var(--violet);}
+.ba{background:rgba(245,158,11,.15);color:var(--amber);}
+.br{background:rgba(244,63,94,.15);color:var(--rose);}
+.bx{background:rgba(255,255,255,.08);color:var(--m2);}
+
+/* QUIZ BLOCK */
+.quiz-block{background:var(--panel2);border-radius:var(--rl);padding:18px 20px;margin:12px 0;}
+.quiz-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.quiz-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;color:var(--t);}
+.quiz-meta{font-size:10px;color:var(--m2);}
+.quiz-q{background:var(--panel);border:1px solid var(--b);border-radius:var(--rd);padding:12px 14px;margin-bottom:8px;}
+.quiz-q-text{font-size:13px;color:var(--t);margin-bottom:8px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;}
+.quiz-opts{display:flex;flex-direction:column;gap:5px;}
+.qo{font-size:12px;color:var(--m);padding:5px 10px;border:1px solid var(--b);border-radius:6px;
+  cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:8px;}
+.qo:hover{border-color:var(--cyan);color:var(--t);}
+.qo.correct{border-color:var(--green);background:rgba(16,185,129,.1);color:var(--green);}
+.qo.wrong{border-color:var(--rose);background:rgba(244,63,94,.1);color:var(--rose);}
+.qo-key{font-weight:700;width:18px;flex-shrink:0;}
+.explain{font-size:11px;padding:8px 10px;border-radius:6px;margin-top:6px;display:none;
+  font-family:'Plus Jakarta Sans',sans-serif;line-height:1.6;}
+.explain.show{display:block;}
+.explain.ok{background:rgba(16,185,129,.1);color:#86efac;}
+.explain.no{background:rgba(249,115,22,.08);color:#fed7aa;}
+
+/* TOOLS SECTION */
+.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin:10px 0 16px;}
+.tool-card{background:var(--panel);border:1px solid var(--b);border-radius:var(--rl);padding:14px 16px;}
+.tool-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.tool-icon{font-size:18px;}
+.tool-name{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;color:var(--t);}
+.tool-free{font-size:9px;padding:2px 7px;border-radius:100px;background:rgba(16,185,129,.15);color:var(--green);font-weight:700;margin-left:auto;}
+.tool-body{font-size:12px;color:var(--m);line-height:1.6;font-family:'Plus Jakarta Sans',sans-serif;}
+.tool-url{font-size:10px;color:var(--cyan);margin-top:6px;font-family:'DM Mono',monospace;}
+.tool-pilar{font-size:9px;color:var(--m2);margin-top:4px;}
+
+/* PILLAR TAG */
+.pilar-row{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;}
+.ptag{font-size:10px;padding:2px 9px;border-radius:100px;font-weight:700;
+  background:rgba(255,255,255,.06);color:var(--m2);border:1px solid var(--b);}
+.ptag.p1{background:rgba(6,182,212,.12);color:var(--cyan);border-color:rgba(6,182,212,.25);}
+.ptag.p2{background:rgba(16,185,129,.12);color:var(--green);border-color:rgba(16,185,129,.25);}
+.ptag.p3{background:rgba(249,115,22,.12);color:var(--coral);border-color:rgba(249,115,22,.25);}
+.ptag.p4{background:rgba(139,92,246,.12);color:var(--violet);border-color:rgba(139,92,246,.25);}
+.ptag.p5{background:rgba(245,158,11,.12);color:var(--amber);border-color:rgba(245,158,11,.25);}
+.ptag.p6{background:rgba(244,63,94,.12);color:var(--rose);border-color:rgba(244,63,94,.25);}
+.ptag.p7{background:rgba(190,24,93,.12);color:#f472b6;border-color:rgba(190,24,93,.25);}
+
+/* OUTPUT CARD */
+.output-card{background:var(--panel);border:1px solid var(--b2);border-radius:var(--rl);padding:18px 20px;margin:12px 0;}
+.output-card h4{color:var(--amber);font-size:11px;margin-bottom:10px;}
+.output-row{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--b);}
+.output-row:last-child{border-bottom:none;}
+.output-grade{font-size:10px;font-weight:700;width:60px;flex-shrink:0;color:var(--m2);}
+.output-val{font-size:12px;color:var(--m);font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
+
+/* ACCORDION */
+.acc{background:var(--panel);border:1px solid var(--b);border-radius:var(--rd);margin-bottom:6px;overflow:hidden;}
+.acc-h{padding:12px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;color:var(--t);}
+.acc-h:hover{background:rgba(255,255,255,.03);}
+.acc-arrow{transition:transform .25s;color:var(--m2);font-size:14px;}
+.acc-body{display:none;padding:14px 16px;border-top:1px solid var(--b);}
+.acc-body.open{display:block;}
+.acc-arrow.open{transform:rotate(180deg);}
+
+/* WEEK PLAN */
+.week-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:10px 0;}
+.wday{background:var(--panel2);border-radius:var(--rd);padding:10px 8px;text-align:center;}
+.wday-name{font-size:9px;font-weight:700;color:var(--m2);letter-spacing:1px;margin-bottom:6px;}
+.wday-item{font-size:10px;color:var(--m);margin:3px 0;padding:3px 5px;border-radius:4px;
+  background:rgba(255,255,255,.04);font-family:'Plus Jakarta Sans',sans-serif;}
+
+/* ASSESSMENT PHASE */
+.phase-card{background:var(--panel);border:1px solid var(--b);border-radius:var(--rl);
+  padding:16px 18px;margin-bottom:8px;display:flex;gap:14px;}
+.phase-num{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;
+  font-size:14px;color:white;flex-shrink:0;}
+.phase-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;color:var(--t);margin-bottom:4px;}
+.phase-desc{font-size:12px;color:var(--m);line-height:1.6;font-family:'Plus Jakarta Sans',sans-serif;}
+
+@media(max-width:600px){
+  .subj-grid{grid-template-columns:1fr;}
+  .tools-grid{grid-template-columns:1fr;}
+  .week-grid{grid-template-columns:repeat(3,1fr);}
+  .pnl{padding:20px 16px 80px;}
+  .topbar{padding:0 16px;}
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">APEX // KURIKULUM</div>
+  <div class="top-tabs">
+    <button class="tt on" onclick="show('overview')">📋 Overview</button>
+    <button class="tt sd" onclick="show('sd')">🌱 SD (Kelas 1–6)</button>
+    <button class="tt smp" onclick="show('smp')">🔭 SMP (Kelas 7–9)</button>
+    <button class="tt smk" onclick="show('smk')">🚀 SMK (Kelas 10–12)</button>
+    <button class="tt" onclick="show('assessment')">📊 Assessment</button>
+    <button class="tt" onclick="show('quiz')">❓ Quiz Bank</button>
+    <button class="tt" onclick="show('tools')">🛠 Tools</button>
+    <button class="tt" onclick="show('schedule')">📅 Jadwal</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PANEL: OVERVIEW
+═══════════════════════════════════════════════════════ -->
+<div id="pnl-overview" class="pnl on">
+  <div class="hero" style="background:linear-gradient(135deg,#0A0A1A,#0F1525);">
+    <div class="hero-eye" style="color:var(--cyan);">// APEX LEARNING SYSTEM · MASTER CURRICULUM DOCUMENT</div>
+    <h1>Kurikulum Jenjang Penuh<br><span style="color:var(--cyan);">SD → SMP → SMK</span></h1>
+    <p class="hero-sub" style="color:var(--m);">Dokumen kurikulum komprehensif berbasis 7 Pilar APEX, 4-Fase Assessment, dan standar global Cambridge · IB · IELTS · AP · internasional — dirancang untuk platform pembelajaran mandiri Indonesia.</p>
+    <div class="hero-pills">
+      <span class="hp" style="color:var(--amber);border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.08);">7 Pilar Metodologi</span>
+      <span class="hp" style="color:var(--cyan);border-color:rgba(6,182,212,.3);background:rgba(6,182,212,.08);">4-Fase Assessment</span>
+      <span class="hp" style="color:var(--green);border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.08);">12 Tahun Pembelajaran</span>
+      <span class="hp" style="color:var(--violet);border-color:rgba(139,92,246,.3);background:rgba(139,92,246,.08);">Cambridge · IB · IELTS</span>
+    </div>
+  </div>
+
+  <!-- 7 PILAR -->
+  <h2>7 Pilar Metodologi — Fondasi Seluruh Kurikulum</h2>
+  <p>Setiap modul, materi, dan aktivitas dalam kurikulum ini dapat dilacak ke minimal satu pilar. Developer dan kurikulator harus selalu bertanya: <em>"Pilar mana yang diaktifkan oleh materi ini?"</em></p>
+  <div class="subj-grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));">
+    <div class="subj-card" style="border-top:3px solid var(--cyan);">
+      <div class="subj-header"><div class="subj-icon">🧠</div><div><div class="subj-name">P1 — Metacognition</div><div class="subj-std">Berpikir tentang cara berpikir</div></div></div>
+      <div class="subj-body"><p style="font-size:12px;">Pre/post journal wajib setiap sesi. Weekly reflection 3 pertanyaan. Confidence calibration vs actual score. <strong>Output:</strong> Siswa tahu apa yang tidak mereka tahu.</p></div>
+    </div>
+    <div class="subj-card" style="border-top:3px solid var(--green);">
+      <div class="subj-header"><div class="subj-icon">🔍</div><div><div class="subj-name">P2 — Inquiry-Based</div><div class="subj-std">AI Socrates memandu, tidak menjawab</div></div></div>
+      <div class="subj-body"><p style="font-size:12px;">AI tutor hanya menjawab dengan pertanyaan. Socratic questioning. Anak menemukan sendiri. <strong>Output:</strong> Critical thinking, bukan hafalan.</p></div>
+    </div>
+    <div class="subj-card" style="border-top:3px solid var(--coral);">
+      <div class="subj-header"><div class="subj-icon">🔁</div><div><div class="subj-name">P3 — Spaced Repetition</div><div class="subj-std">SM-2 Algorithm untuk retensi</div></div></div>
+      <div class="subj-body"><p style="font-size:12px;">Flashcard SM-2 otomatis. Review terjadwal per interval eksponensial. Muraja'ah Qur'an. <strong>Output:</strong> Ingatan jangka panjang, bukan hafalan semalaman.</p></div>
+    </div>
+    <div class="subj-card" style="border-top:3px solid var(--amber);">
+      <div class="subj-header"><div class="subj-icon">🎯</div><div><div class="subj-name">P4 — Mastery Learning</div><div class="subj-std">80% sebelum lanjut</div></div></div>
+      <div class="subj-body"><p style="font-size:12px;">Mastery gate dikunci di 80%. Jika gagal: materi remediasi berbeda. <strong>Output:</strong> Fondasi solid di setiap konsep sebelum melangkah lebih jauh.</p></div>
+    </div>
+    <div class="subj-card" style="border-top:3px solid var(--violet);">
+      <div class="subj-header"><div class="subj-icon">🏗️</div><div><div class="subj-name">P5 — Project-Based</div><div class="subj-std">Karya nyata sebagai bukti</div></div></div>
+      <div class="subj-body"><p style="font-size:12px;">Portfolio karya per semester. Proyek besar akhir tahun. Mentor review rubrik IB. <strong>Output:</strong> Portofolio yang bisa dibawa ke universitas atau klien global.</p></div>
+    </div>
+    <div class="subj-card" style="border-top:3px solid var(--blue);">
+      <div class="subj-header"><div class="subj-icon">🌐</div><div><div class="subj-name">P6 — Bilingual Output</div><div class="subj-std">Indonesia + English wajib</div></div></div>
+      <div class="subj-body"><p style="font-size:12px;">SMP ke atas: semua proyek bilingual. IELTS pathway dari kelas 7. <strong>Output:</strong> Lulusan yang bisa berkomunikasi akademis dalam dua bahasa.</p></div>
+    </div>
+    <div class="subj-card" style="border-top:3px solid #BE185D;grid-column:1/-1;">
+      <div class="subj-header"><div class="subj-icon">🕌</div><div><div class="subj-name">P7 — Tafakkur & Akhlaq (Islamic Worldview)</div><div class="subj-std">"Adab sebelum Ilmu" — Pilar integrasi seluruh kurikulum</div></div></div>
+      <div class="subj-body"><p style="font-size:12px;">Bukan add-on — ini adalah worldview yang memframing seluruh kurikulum. Niat sebelum belajar. Jurnal Syukur setelah sesi. Konteks soal Islami. Muraja'ah SM-2. Mutaba'ah Yaumiyyah. <strong>Output:</strong> Generasi cerdas global dengan akhlakul karimah.</p></div>
+    </div>
+  </div>
+
+  <!-- OUTPUT TARGETS PER JENJANG -->
+  <h2>Target Output per Jenjang</h2>
+  <div class="output-card">
+    <h4>MILESTONE PENCAPAIAN — TRACKED DI APEX PLATFORM</h4>
+    <div class="output-row">
+      <div class="output-grade" style="color:var(--amber);">SD LULUS</div>
+      <div class="output-val">Cambridge YLE A2 · Singapore Math Level 4 · Scratch project mandiri · Baca 100+ buku · 1 juz hafalan · English 400 sight words · Public speaking 3 menit</div>
+    </div>
+    <div class="output-row">
+      <div class="output-grade" style="color:var(--cyan);">SMP LULUS</div>
+      <div class="output-val">IELTS Junior 5.5 · AMC 8 participated · GitHub portfolio (3 Python projects) · 1 business plan · Cambridge Checkpoint pass · 3 juz hafalan · Model UN participant · Lab report IMRAD</div>
+    </div>
+    <div class="output-row">
+      <div class="output-grade" style="color:var(--violet);">SMK LULUS</div>
+      <div class="output-val">IELTS 7.0 · 3+ sertifikasi internasional · Freelance income aktif · Portfolio global · 10 juz hafalan · CFA Investment Foundations · LinkedIn 500+ connections · 1 produk digital diluncurkan</div>
+    </div>
+  </div>
+
+  <!-- 4 FASE ASSESSMENT -->
+  <h2>4-Fase Assessment System</h2>
+  <div class="phase-card"><div class="phase-num" style="background:var(--cyan);">1</div><div><div class="phase-title">Intake Interview Adaptif (Hari 1 · ~20 menit)</div><div class="phase-desc">CAT 15–20 soal adaptif lintas 5 dimensi + scenario-based character assessment + baseline ibadah mapping. Output: Provisional competency radar profile 6 dimensi.</div></div></div>
+  <div class="phase-card"><div class="phase-num" style="background:var(--green);">2</div><div><div class="phase-title">Dynamic Calibration (14 Hari Pertama)</div><div class="phase-desc">3 sinyal: mastery velocity + error pattern + engagement. Nightly cron aggregation. Parent validation session (72-hour window). Output: Adjusted placement dikunci hari ke-14.</div></div></div>
+  <div class="phase-card"><div class="phase-num" style="background:var(--violet);">3</div><div><div class="phase-title">Competency Radar Profile (6 Dimensi Hidup)</div><div class="phase-desc">Kognitif · Bahasa · Digital · Karakter · Spiritual · Leadership. Bukan satu level — profil asimetris per dimensi. Update setiap 4–6 minggu. Parent dashboard real-time.</div></div></div>
+  <div class="phase-card"><div class="phase-num" style="background:var(--coral);">4</div><div><div class="phase-title">Continuous Review (Setiap 4–6 Minggu)</div><div class="phase-desc">Mini-assessment 5 soal per dimensi. Acceleration flag jika mastery avg &gt;92% (3 minggu berturut). Remediation flag jika systematic error &gt;50%. Mentor override tersedia.</div></div></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PANEL: SD
+═══════════════════════════════════════════════════════ -->
+<div id="pnl-sd" class="pnl">
+  <div class="hero hero-sd">
+    <div class="hero-eye" style="color:var(--amber);">// SD · KELAS 1–6 · FONDASI WORLD-CLASS</div>
+    <h1>Fase Fondasi<br><span style="color:var(--amber);">Cinta Belajar</span></h1>
+    <p class="hero-sub" style="color:rgba(255,220,150,.75);">Prioritas: anak CINTA belajar dulu. Fondasi yang benar di sini menentukan langit-langit prestasi di SMP dan SMK.</p>
+    <div class="hero-pills">
+      <span class="hp" style="color:var(--amber);border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.1);">Singapore Math</span>
+      <span class="hp" style="color:var(--amber);border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.1);">Cambridge YLE</span>
+      <span class="hp" style="color:var(--amber);border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.1);">Scratch Jr → Python</span>
+      <span class="hp" style="color:var(--amber);border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.1);">Next Gen Science</span>
+    </div>
+  </div>
+
+  <!-- FASE SD 1-2 -->
+  <h2>Fase 1 — Fondasi Cinta Belajar (Kelas 1–2)</h2>
+  <div class="subj-grid">
+
+    <div class="subj-card" style="border-top:3px solid var(--amber);">
+      <div class="subj-header"><div class="subj-icon">🔢</div><div><div class="subj-name">Matematika</div><div class="subj-std">Singapore Math · CPA Framework</div></div></div>
+      <div class="subj-body">
+        <div class="pilar-row"><span class="ptag p4">P4 Mastery</span><span class="ptag p3">P3 Spaced Rep</span><span class="ptag p7">P7 Konteks Islami</span></div>
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Benchmark</th></tr></thead>
+          <tbody>
+            <tr><td>M1.1</td><td>Number Sense 1–100. Ganjil-genap. Urutan.</td><td>Singapore Math P1</td></tr>
+            <tr><td>M1.2</td><td>Penjumlahan & Pengurangan 0–20. Metode CPA.</td><td>Singapore Math P1</td></tr>
+            <tr><td>M1.3</td><td>Geometri: Lingkaran, segitiga, persegi, kubus 2D/3D.</td><td>NGSSS K–2</td></tr>
+            <tr><td>M1.4</td><td>Pengukuran informal. Pola. Grafik pictograph.</td><td>Common Core K–2</td></tr>
+            <tr><td>M2.1</td><td>Number Sense 1–1000. Nilai tempat ratusan.</td><td>Singapore Math P2</td></tr>
+            <tr><td>M2.2</td><td>Perkalian awal. Pembagian awal. Lompat hitung 2,5,10.</td><td>Singapore Math P2</td></tr>
+            <tr><td>M2.3</td><td>Waktu (jam, kalender). Uang. Pengukuran cm/m/g/kg.</td><td>Singapore Math P2</td></tr>
+            <tr><td>M2.4</td><td>Pecahan ½, ⅓, ¼ dari benda nyata.</td><td>Singapore Math P2</td></tr>
+          </tbody>
+        </table>
+        <div class="acc"><div class="acc-h" onclick="tog(this)"><span>📝 Contoh Quiz M1.2 — Penjumlahan</span><span class="acc-arrow">▼</span></div>
+          <div class="acc-body">
+            <p style="font-size:12px;margin-bottom:10px;">Format: <span class="b bg">Gamifikasi</span> — anak memilih jawaban dengan tap, dapat bintang.</p>
+            <div style="font-size:12px;color:var(--m);font-family:'Plus Jakarta Sans',sans-serif;">
+              <strong style="color:var(--t);">Q1 (Easy):</strong> Adi punya 5 kurma dan Budi memberi 3 lagi. Berapa kurma Adi sekarang?<br>
+              <em>Jawaban: 8 ✓ · Jika salah: AI Socrates tanya "Coba hitung dengan jarimu — dimulai dari 5, tambah 3 kali lagi, berapa sekarang?"</em><br><br>
+              <strong style="color:var(--t);">Q2 (Medium):</strong> Di masjid ada 12 anak laki-laki dan 8 anak perempuan ikut pengajian. Berapa total anak?<br>
+              <em>Jawaban: 20 ✓ · Hint: gunakan bar model Singapore</em><br><br>
+              <strong style="color:var(--t);">Q3 (Hard):</strong> Ibu punya 19 butir tasbih. Adik ambil beberapa. Sisa 11 butir. Berapa yang diambil Adik?<br>
+              <em>Jawaban: 8 ✓ · Metacognition: "Cara apa yang kamu pakai untuk mencari jawabannya?"</em>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--blue);">
+      <div class="subj-header"><div class="subj-icon">🌍</div><div><div class="subj-name">Bahasa Inggris</div><div class="subj-std">Cambridge YLE · Oxford Phonics World</div></div></div>
+      <div class="subj-body">
+        <div class="pilar-row"><span class="ptag p6">P6 Bilingual</span><span class="ptag p1">P1 Metacognition</span></div>
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Benchmark</th></tr></thead>
+          <tbody>
+            <tr><td>E1.1</td><td>Phonics Phase 1–3: s,a,t,p,i,n → digraphs ch,sh,th</td><td>Jolly Phonics</td></tr>
+            <tr><td>E1.2</td><td>Sight Words Set 1: 200 Dolch words. CVC reading.</td><td>Dolch List A</td></tr>
+            <tr><td>E1.3</td><td>Speaking: greetings, introduce self, 200+ kosakata</td><td>Cambridge Starters</td></tr>
+            <tr><td>E2.1</td><td>Phonics lanjut: long vowels, blends, diphthongs</td><td>Oxford Phonics Lvl 3</td></tr>
+            <tr><td>E2.2</td><td>Sight Words Set 2: total 400 kata. Reading fluency.</td><td>Oxford Level 3–5</td></tr>
+            <tr><td>E2.3</td><td>Grammar: nouns, verbs, adjectives, simple present</td><td>Cambridge Starters</td></tr>
+            <tr><td>E2.4</td><td>Writing sentences: S+V+O. Capitalization. Full stop.</td><td>Cambridge Starters</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--violet);">
+      <div class="subj-header"><div class="subj-icon">💻</div><div><div class="subj-name">Coding & CT</div><div class="subj-std">Code.org · Scratch Jr · CS Unplugged</div></div></div>
+      <div class="subj-body">
+        <div class="pilar-row"><span class="ptag p2">P2 Inquiry</span><span class="ptag p5">P5 PBL</span></div>
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Benchmark</th></tr></thead>
+          <tbody>
+            <tr><td>C1.1</td><td>CS Unplugged: algorithm, sequencing, debugging tanpa PC</td><td>CS Unplugged</td></tr>
+            <tr><td>C1.2</td><td>Pattern recognition. Decomposition. Abstraction dasar.</td><td>CT Framework</td></tr>
+            <tr><td>C1.3</td><td>Code.org Course A: maze, loops, events (drag-drop)</td><td>CSTA K–2</td></tr>
+            <tr><td>C2.1</td><td>Scratch Jr: karakter bergerak, cerita interaktif 3 hal.</td><td>ScratchJr</td></tr>
+            <tr><td>C2.2</td><td>Code.org Course B: sequences, loops, debugging</td><td>CSTA K–2</td></tr>
+            <tr><td>C2.3</td><td>Digital citizenship: aman online, privasi, etika digital</td><td>Common Sense Media</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--green);">
+      <div class="subj-header"><div class="subj-icon">🔭</div><div><div class="subj-name">Sains & IPA</div><div class="subj-std">Next Gen Science Standards</div></div></div>
+      <div class="subj-body">
+        <div class="pilar-row"><span class="ptag p2">P2 Inquiry</span><span class="ptag p5">P5 PBL</span><span class="ptag p7">P7 Tafakkur</span></div>
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th></tr></thead>
+          <tbody>
+            <tr><td>S1.1</td><td>5 indera. Makhluk hidup vs tak hidup. Pengamatan ilmiah.</td></tr>
+            <tr><td>S1.2</td><td>Tumbuhan & hewan: bagian, fungsi, kebutuhan dasar.</td></tr>
+            <tr><td>S1.3</td><td>Cuaca, musim, langit. Materi: padat, cair, gas.</td></tr>
+            <tr><td>S2.1</td><td>Ekosistem sederhana: rantai makanan, habitat.</td></tr>
+            <tr><td>S2.2</td><td>Gaya sederhana: dorong, tarik, gravitasi. Magnet.</td></tr>
+            <tr><td>S2.3</td><td>Energi: cahaya, panas, bunyi. Tafakkur: ciptaan Allah.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid #BE185D;">
+      <div class="subj-header"><div class="subj-icon">🕌</div><div><div class="subj-name">Islamic Foundation</div><div class="subj-std">Pilar 7 — Tafakkur & Akhlaq</div></div></div>
+      <div class="subj-body">
+        <div class="pilar-row"><span class="ptag p7">P7 Islamic</span><span class="ptag p3">P3 Spaced Rep</span></div>
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Konten</th></tr></thead>
+          <tbody>
+            <tr><td>I1.1</td><td>Aqidah dasar: Rukun Iman 6 (dengan bukti tafakkur)</td></tr>
+            <tr><td>I1.2</td><td>Ibadah harian: wudhu, shalat 5 waktu, doa sehari-hari</td></tr>
+            <tr><td>I1.3</td><td>Akhlak: jujur, berbagi, sopan. Cerita sahabat Nabi.</td></tr>
+            <tr><td>I2.1</td><td>Tahfidz: Juz 30 (dimulai Al-Fatihah → Al-Nas). SM-2.</td></tr>
+            <tr><td>I2.2</td><td>Asmaul Husna 1–20: arti + bukti nyata di alam.</td></tr>
+            <tr><td>I2.3</td><td>Sirah: Kisah Nabi Muhammad ﷺ untuk anak-anak.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- FASE SD 3-4 -->
+  <h2>Fase 2 — Pendalaman & Eksplorasi (Kelas 3–4)</h2>
+  <div class="subj-grid">
+    <div class="subj-card" style="border-top:3px solid var(--amber);">
+      <div class="subj-header"><div class="subj-icon">🔢</div><div><div class="subj-name">Matematika Kelas 3–4</div><div class="subj-std">Singapore Math P3–P4</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Benchmark</th></tr></thead>
+          <tbody>
+            <tr><td>M3.1</td><td>Perkalian 1–12 (hafal & mental math). Long division awal.</td><td>Singapore Math P3</td></tr>
+            <tr><td>M3.2</td><td>Pecahan: menyamakan penyebut, operasi, word problems.</td><td>Singapore Math P3</td></tr>
+            <tr><td>M3.3</td><td>Perimeter & Area semua bangun 2D.</td><td>PSLE prep</td></tr>
+            <tr><td>M3.4</td><td>Grafik: bar graph, line graph. Rata-rata sederhana.</td><td>Singapore Math P3</td></tr>
+            <tr><td>M4.1</td><td>Bilangan sampai 100.000. Pembagian panjang.</td><td>Singapore Math P4</td></tr>
+            <tr><td>M4.2</td><td>Desimal: tenths, hundredths. Konversi pecahan-desimal.</td><td>Singapore Math P4</td></tr>
+            <tr><td>M4.3</td><td>Geometri: sudut, simetri, segitiga jenis-jenis.</td><td>Singapore Math P4</td></tr>
+            <tr><td>M4.4</td><td>Word Problems multi-step (Singapore bar model method).</td><td>PSLE level</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--blue);">
+      <div class="subj-header"><div class="subj-icon">🌍</div><div><div class="subj-name">English Kelas 3–4</div><div class="subj-std">Cambridge Movers → Flyers</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th></tr></thead>
+          <tbody>
+            <tr><td>E3.1</td><td>Reading fluency: 200+ WPM. Chapter books pertama.</td></tr>
+            <tr><td>E3.2</td><td>Grammar: past tense, future tense, plurals, comparatives.</td></tr>
+            <tr><td>E3.3</td><td>Writing: paragraph (topic sentence + 3 detail + conclusion).</td></tr>
+            <tr><td>E3.4</td><td>Vocabulary: 1000+ kata aktif. Academic word list awal.</td></tr>
+            <tr><td>E4.1</td><td>Cambridge Movers prep: listening, reading, writing, speaking.</td></tr>
+            <tr><td>E4.2</td><td>Essay 3 paragraf: opinion essay dasar. Supporting evidence.</td></tr>
+            <tr><td>E4.3</td><td>Speaking: book report 3 menit. Show-and-tell bilingual.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--violet);">
+      <div class="subj-header"><div class="subj-icon">💻</div><div><div class="subj-name">Coding Kelas 3–4</div><div class="subj-std">Scratch 3.0 → Python Intro</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Project</th></tr></thead>
+          <tbody>
+            <tr><td>C3.1</td><td>Scratch 3.0: variabel, kondisi if-else, score system.</td><td>Game platformer</td></tr>
+            <tr><td>C3.2</td><td>Scratch: loops, lists, custom blocks. Clone.</td><td>Quiz game</td></tr>
+            <tr><td>C3.3</td><td>Micro:bit atau Arduino Uno: LED, sensor suhu.</td><td>Termometer sederhana</td></tr>
+            <tr><td>C4.1</td><td>Python intro: print, input, variables, if/else.</td><td>Kalkulator BMI</td></tr>
+            <tr><td>C4.2</td><td>Python: for loop, while, list. Simple functions.</td><td>Number guessing game</td></tr>
+            <tr><td>C4.3</td><td>HTML/CSS dasar: halaman web pertama.</td><td>Web biodata diri</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- FASE SD 5-6 -->
+  <h2>Fase 3 — Ekspansi Global (Kelas 5–6)</h2>
+  <div class="subj-grid">
+    <div class="subj-card" style="border-top:3px solid var(--amber);">
+      <div class="subj-header"><div class="subj-icon">🔢</div><div><div class="subj-name">Matematika Kelas 5–6</div><div class="subj-std">Singapore Math P5–P6 · PSLE Level</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Benchmark</th></tr></thead>
+          <tbody>
+            <tr><td>M5.1</td><td>Rasio & proporsi lanjut. Skala peta. Rate problems.</td><td>Singapore Math P5</td></tr>
+            <tr><td>M5.2</td><td>Persen: diskon, bunga, profit/loss. Aplikasi nyata.</td><td>Singapore Math P5</td></tr>
+            <tr><td>M5.3</td><td>Geometri lanjut: volume 3D, luas gabungan, koordinat.</td><td>Singapore Math P5</td></tr>
+            <tr><td>M5.4</td><td>Statistik: data set, mean/median/mode, grafik lanjut.</td><td>Singapore Math P5</td></tr>
+            <tr><td>M6.1</td><td>Aljabar awal: variabel, ekspresi, substitusi.</td><td>Singapore Math P6 / Pre-Aljabar</td></tr>
+            <tr><td>M6.2</td><td>PSLE Math Multi-step Problems: model & strategy.</td><td>PSLE Standard</td></tr>
+            <tr><td>M6.3</td><td>Pengenalan Python untuk Math: kalkulasi otomatis.</td><td>Transisi SMP</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--blue);">
+      <div class="subj-header"><div class="subj-icon">🌍</div><div><div class="subj-name">English Kelas 5–6</div><div class="subj-std">Cambridge Flyers → YLE A2</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th></tr></thead>
+          <tbody>
+            <tr><td>E5.1</td><td>Cambridge Flyers full prep. Listening, reading, writing, speaking.</td></tr>
+            <tr><td>E5.2</td><td>Grammar lanjut: perfect tenses, passive voice dasar, reported speech.</td></tr>
+            <tr><td>E5.3</td><td>Academic writing: 5-paragraph essay. Thesis statement. Evidence.</td></tr>
+            <tr><td>E6.1</td><td>Cambridge YLE A2 target. Reading non-fiction artikel.</td></tr>
+            <tr><td>E6.2</td><td>Research skills: cara cari sumber, cite sederhana, plagiarism.</td></tr>
+            <tr><td>E6.3</td><td>Presentasi 5 menit dengan slides. Public speaking dasar.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--green);">
+      <div class="subj-header"><div class="subj-icon">🔭</div><div><div class="subj-name">Sains Kelas 5–6</div><div class="subj-std">NGSS + Cambridge Primary Science</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Proyek</th></tr></thead>
+          <tbody>
+            <tr><td>S5.1</td><td>Sistem tubuh manusia: pencernaan, peredaran darah, pernapasan.</td><td>Poster bilingual</td></tr>
+            <tr><td>S5.2</td><td>Fotosintesis lengkap. Ekosistem & rantai makanan kompleks.</td><td>Eksperimen fotosintesis</td></tr>
+            <tr><td>S5.3</td><td>Fisika: gaya, gerak, energi, sederhana tuas & katrol.</td><td>Rube Goldberg machine</td></tr>
+            <tr><td>S6.1</td><td>Kimia intro: materi, atom awal, larutan, perubahan kimia.</td><td>Eksperimen rumahan</td></tr>
+            <tr><td>S6.2</td><td>Bumi & Alam Semesta: sistem tata surya, siklus air, iklim.</td><td>Mini Science Fair</td></tr>
+            <tr><td>S6.3</td><td>Scientific Method penuh: hipotesis, variabel, analisis data.</td><td>Lab report IMRAD</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PANEL: SMP
+═══════════════════════════════════════════════════════ -->
+<div id="pnl-smp" class="pnl">
+  <div class="hero hero-smp">
+    <div class="hero-eye" style="color:var(--cyan);">// SMP · KELAS 7–9 · EKSPLORASI GLOBAL</div>
+    <h1>Fase Eksplorasi<br><span style="color:var(--cyan);">Identitas Global</span></h1>
+    <p class="hero-sub" style="color:rgba(150,220,255,.75);">Masa emas pembentukan identitas. Program ini memastikan anak menemukan passion, menguasai bahasa Inggris secara fungsional, dan mulai berkontribusi nyata.</p>
+    <div class="hero-pills">
+      <span class="hp" style="color:var(--cyan);border-color:rgba(6,182,212,.4);background:rgba(6,182,212,.1);">Cambridge Checkpoint</span>
+      <span class="hp" style="color:var(--cyan);border-color:rgba(6,182,212,.4);background:rgba(6,182,212,.1);">IELTS Junior 5.5</span>
+      <span class="hp" style="color:var(--cyan);border-color:rgba(6,182,212,.4);background:rgba(6,182,212,.1);">Python → GitHub</span>
+      <span class="hp" style="color:var(--cyan);border-color:rgba(6,182,212,.4);background:rgba(6,182,212,.1);">AMC 8 · Model UN</span>
+    </div>
+  </div>
+
+  <h2>Kelas 7 — Transisi & Konsolidasi</h2>
+  <div class="subj-grid">
+    <div class="subj-card" style="border-top:3px solid var(--cyan);">
+      <div class="subj-header"><div class="subj-icon">📐</div><div><div class="subj-name">Matematika Kelas 7</div><div class="subj-std">Cambridge Lower Secondary · AMC 8</div></div></div>
+      <div class="subj-body">
+        <div class="pilar-row"><span class="ptag p4">P4 Mastery 80%</span><span class="ptag p3">P3 SM-2</span></div>
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Standard</th></tr></thead>
+          <tbody>
+            <tr><td>7M.1</td><td>Bilangan bulat & operasi. FPB, KPK, faktorisasi prima.</td><td>Cambridge LS1</td></tr>
+            <tr><td>7M.2</td><td>Pecahan, desimal, persen — konversi bebas. Rate & ratio.</td><td>Cambridge LS1</td></tr>
+            <tr><td>7M.3</td><td>Aljabar: variabel, ekspresi, persamaan linear 1 variabel.</td><td>Cambridge LS1</td></tr>
+            <tr><td>7M.4</td><td>Geometri koordinat 4 kuadran. Transformasi.</td><td>Cambridge LS1</td></tr>
+            <tr><td>7M.5</td><td>Perimeter, area, volume semua bangun.</td><td>Cambridge LS1</td></tr>
+            <tr><td>7M.6</td><td>Statistik: mean/median/mode. Probabilitas dasar.</td><td>Cambridge LS1</td></tr>
+            <tr><td>7M.7</td><td>AMC 8 Problem Solving: non-rutin, creative thinking.</td><td>AMC 8 Prep</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--green);">
+      <div class="subj-header"><div class="subj-icon">🧪</div><div><div class="subj-name">Sains Kelas 7</div><div class="subj-std">Cambridge Lower Secondary · PhET</div></div></div>
+      <div class="subj-body">
+        <div class="pilar-row"><span class="ptag p2">P2 Inquiry</span><span class="ptag p5">P5 Lab Report</span></div>
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Lab/Proyek</th></tr></thead>
+          <tbody>
+            <tr><td>7F.1</td><td>Besaran & satuan SI. GLB & GLBB. Hukum Newton 1–3.</td><td>PhET: Forces & Motion</td></tr>
+            <tr><td>7F.2</td><td>Tekanan (Archimedes). Energi & usaha. Gelombang mek.</td><td>PhET: Energy Skate Park</td></tr>
+            <tr><td>7K.1</td><td>Materi: unsur, senyawa, campuran. Perubahan fisika/kimia.</td><td>Eksperimen rumahan</td></tr>
+            <tr><td>7K.2</td><td>Atom, molekul, model Bohr. Tabel periodik top 20.</td><td>Interactive periodic table</td></tr>
+            <tr><td>7B.1</td><td>Sel: hewan vs tumbuhan, organel, osmosis & difusi.</td><td>Mikroskop virtual</td></tr>
+            <tr><td>7B.2</td><td>Ekosistem: siklus biogeokimia, piramida energi.</td><td>Lab report IMRAD</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--blue);">
+      <div class="subj-header"><div class="subj-icon">🌐</div><div><div class="subj-name">English Kelas 7</div><div class="subj-std">Cambridge B1 Prep · Academic Writing</div></div></div>
+      <div class="subj-body">
+        <div class="pilar-row"><span class="ptag p6">P6 Bilingual</span><span class="ptag p1">P1 Metacognition</span></div>
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th></tr></thead>
+          <tbody>
+            <tr><td>7E.1</td><td>Academic Reading: skim, scan, inference. Text structure.</td></tr>
+            <tr><td>7E.2</td><td>5-Paragraph Essay: thesis statement, topic sentences.</td></tr>
+            <tr><td>7E.3</td><td>Grammar: all 12 tenses, conditionals 0/1/2, relative clauses.</td></tr>
+            <tr><td>7E.4</td><td>Vocabulary: AWL 1–4 (800+ kata). Prefix/suffix patterns.</td></tr>
+            <tr><td>7E.5</td><td>Presentasi formal 5 menit. Oxford debate dasar.</td></tr>
+            <tr><td>7E.6</td><td>IELTS Junior prep: listening multi-choice, short answer.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--violet);">
+      <div class="subj-header"><div class="subj-icon">💻</div><div><div class="subj-name">CS Kelas 7</div><div class="subj-std">Python Intermediate · GitHub</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Project</th></tr></thead>
+          <tbody>
+            <tr><td>7C.1</td><td>Functions advanced: *args, **kwargs, docstrings.</td><td>Kalkulator multi-fungsi</td></tr>
+            <tr><td>7C.2</td><td>Lists, tuples, dicts, sets. Comprehension. Sorting.</td><td>Contact book CLI</td></tr>
+            <tr><td>7C.3</td><td>File handling: open, read, write, append.</td><td>Grade calculator + CSV</td></tr>
+            <tr><td>7C.4</td><td>Error handling: try-except-finally. Custom exceptions.</td><td>Robust grade calculator</td></tr>
+            <tr><td>7C.5</td><td>Algorithms: linear/binary search, bubble sort. Big-O intro.</td><td>Algo visualizer</td></tr>
+            <tr><td>7C.6</td><td>GitHub: init, commit, push, README, branches.</td><td>Portfolio GitHub pertama</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <h2>Kelas 8 — Pendalaman Intensif</h2>
+  <div class="subj-grid">
+    <div class="subj-card" style="border-top:3px solid var(--cyan);">
+      <div class="subj-header"><div class="subj-icon">📐</div><div><div class="subj-name">Matematika Kelas 8</div><div class="subj-std">Cambridge LS2 · AMC 8/10</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th></tr></thead>
+          <tbody>
+            <tr><td>8M.1</td><td>Sistem persamaan linear 2 variabel: substitusi, eliminasi, grafik.</td></tr>
+            <tr><td>8M.2</td><td>Fungsi: definisi, domain, range, linear, kuadrat dasar.</td></tr>
+            <tr><td>8M.3</td><td>Pythagoras lanjut, trigonometri dasar (sin, cos, tan).</td></tr>
+            <tr><td>8M.4</td><td>Statistik lanjut: box plot, scatter plot, correlation.</td></tr>
+            <tr><td>8M.5</td><td>Probabilitas: compound events, permutation, combination dasar.</td></tr>
+            <tr><td>8M.6</td><td>Cambridge Checkpoint Past Papers: full practice test.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--violet);">
+      <div class="subj-header"><div class="subj-icon">💻</div><div><div class="subj-name">CS Kelas 8</div><div class="subj-std">Python OOP · Web Dev · Data</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Project</th></tr></thead>
+          <tbody>
+            <tr><td>8C.1</td><td>OOP: class, object, method, inheritance, polymorphism.</td><td>Library management system</td></tr>
+            <tr><td>8C.2</td><td>Web dev: HTML5, CSS3, JavaScript dasar. Responsive.</td><td>Personal website</td></tr>
+            <tr><td>8C.3</td><td>Data intro: pandas, CSV, basic visualization (matplotlib).</td><td>Analisis data COVID Indonesia</td></tr>
+            <tr><td>8C.4</td><td>API basics: requests library, JSON, REST API consumption.</td><td>Weather app + open API</td></tr>
+            <tr><td>8C.5</td><td>SQL dasar: SELECT, WHERE, JOIN, GROUP BY (SQLite).</td><td>Student records database</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--coral);">
+      <div class="subj-header"><div class="subj-icon">📊</div><div><div class="subj-name">Ekonomi & Wirausaha Kelas 8</div><div class="subj-std">JA Company Program · Financial Literacy</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Output</th></tr></thead>
+          <tbody>
+            <tr><td>8W.1</td><td>Business plan: problem, solution, target market, revenue model.</td><td>Business plan dokumen</td></tr>
+            <tr><td>8W.2</td><td>Financial literacy: budgeting, saving, compound interest (halal).</td><td>Spreadsheet keuangan</td></tr>
+            <tr><td>8W.3</td><td>Marketing dasar: STP, marketing mix 4P, branding islami.</td><td>Brand mini project</td></tr>
+            <tr><td>8W.4</td><td>Zakat maal: hitung nisab, jenis zakat, zakat profesi.</td><td>Kalkulator zakat</td></tr>
+            <tr><td>8W.5</td><td>Pitch deck 5 menit: problem → solution → ask. Simulasi investor.</td><td>Pitch deck Canva</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <h2>Kelas 9 — Persiapan Global</h2>
+  <div class="subj-grid">
+    <div class="subj-card" style="border-top:3px solid var(--cyan);">
+      <div class="subj-header"><div class="subj-icon">📐</div><div><div class="subj-name">Matematika Kelas 9</div><div class="subj-std">Cambridge IGCSE Prep · AMC 10</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th></tr></thead>
+          <tbody>
+            <tr><td>9M.1</td><td>Persamaan kuadrat: faktorisasi, formula kuadrat, diskriminan.</td></tr>
+            <tr><td>9M.2</td><td>Trigonometri lanjut: grafik, identitas dasar, aplikasi.</td></tr>
+            <tr><td>9M.3</td><td>Geometri analitik: persamaan garis, jarak, gradien.</td></tr>
+            <tr><td>9M.4</td><td>Cambridge IGCSE Mathematics past papers (0580).</td></tr>
+            <tr><td>9M.5</td><td>AMC 10 problem solving intensif: geometry, number theory.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--blue);">
+      <div class="subj-header"><div class="subj-icon">🌐</div><div><div class="subj-name">English Kelas 9</div><div class="subj-std">IELTS Junior 5.5 Target</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th></tr></thead>
+          <tbody>
+            <tr><td>9E.1</td><td>IELTS Academic: 14 question types reading. Full practice.</td></tr>
+            <tr><td>9E.2</td><td>Academic Writing Task 1: charts, maps, processes.</td></tr>
+            <tr><td>9E.3</td><td>Academic Writing Task 2: semua 5 essay types.</td></tr>
+            <tr><td>9E.4</td><td>Speaking Part 1/2/3: fluency, coherence, vocabulary drills.</td></tr>
+            <tr><td>9E.5</td><td>Research paper 1000 kata: citation, APA format dasar.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--violet);">
+      <div class="subj-header"><div class="subj-icon">💻</div><div><div class="subj-name">CS Kelas 9 — Capstone</div><div class="subj-std">Full-Stack Project · CS50x</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Project</th></tr></thead>
+          <tbody>
+            <tr><td>9C.1</td><td>Flask/Django intro: routing, templates, forms, DB.</td><td>Blog app full-stack</td></tr>
+            <tr><td>9C.2</td><td>CS50x Harvard: 10 minggu problem sets (C, Python, SQL, JS).</td><td>CS50 Final Project</td></tr>
+            <tr><td>9C.3</td><td>Git workflow: branching, PR, code review, open source contribution.</td><td>Contribute ke 1 open source</td></tr>
+            <tr><td>9C.4</td><td>Portfolio website: deploy ke Vercel/Netlify. Custom domain.</td><td>Live portfolio global</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PANEL: SMK
+═══════════════════════════════════════════════════════ -->
+<div id="pnl-smk" class="pnl">
+  <div class="hero hero-smk">
+    <div class="hero-eye" style="color:var(--violet);">// SMK · KELAS 10–12 · SPESIALISASI GLOBAL</div>
+    <h1>Fase Spesialisasi<br><span style="color:var(--violet);">Dari Pelajar ke Profesional</span></h1>
+    <p class="hero-sub" style="color:rgba(200,170,255,.75);">3 jalur spesialisasi, 10+ sertifikasi internasional, freelance income aktif, IELTS 7.0 — semua terukur dan bertahap.</p>
+    <div class="hero-pills">
+      <span class="hp" style="color:var(--violet);border-color:rgba(139,92,246,.4);background:rgba(139,92,246,.1);">IELTS 7.0</span>
+      <span class="hp" style="color:var(--violet);border-color:rgba(139,92,246,.4);background:rgba(139,92,246,.1);">3+ Sertifikasi Internasional</span>
+      <span class="hp" style="color:var(--violet);border-color:rgba(139,92,246,.4);background:rgba(139,92,246,.1);">Freelance Income Aktif</span>
+      <span class="hp" style="color:var(--violet);border-color:rgba(139,92,246,.4);background:rgba(139,92,246,.1);">CFA Investment Foundations</span>
+    </div>
+  </div>
+
+  <!-- WAJIB SEMUA JALUR -->
+  <h2>Kurikulum Wajib Semua Jalur (Kelas 10–12)</h2>
+  <div class="subj-grid">
+    <div class="subj-card" style="border-top:3px solid var(--blue);">
+      <div class="subj-header"><div class="subj-icon">🌐</div><div><div class="subj-name">IELTS Academic — Target 7.0</div><div class="subj-std">12 Bulan Intensif · Cambridge C1</div></div></div>
+      <div class="subj-body">
+        <div class="pilar-row"><span class="ptag p6">P6 Bilingual</span><span class="ptag p4">P4 Mastery</span></div>
+        <table class="mod-table">
+          <thead><tr><th>Fase</th><th>Fokus</th><th>Target Score</th></tr></thead>
+          <tbody>
+            <tr><td>10A</td><td>Diagnostik + Reading 14 types + Writing Task 1 semua chart types + AWL 1–10</td><td>Band 5.5–6.0</td></tr>
+            <tr><td>10B</td><td>Writing Task 2 semua 5 essay types + Academic grammar advanced</td><td>Band 6.0–6.5</td></tr>
+            <tr><td>11A</td><td>Listening 4 section strategies + Speaking Part 1/2/3 intensive + iTalki 2×/minggu</td><td>Band 6.5</td></tr>
+            <tr><td>11B</td><td>Full mock tests 1×/minggu + Error log + Band score tracking</td><td>Band 6.5–7.0</td></tr>
+            <tr><td>12A</td><td>Cambridge C1 Advanced prep + University application essays</td><td>Band 7.0+</td></tr>
+            <tr><td>12B</td><td>Professional English: email, negotiation, cold outreach, Zoom facilitation</td><td>C1 Level</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--amber);">
+      <div class="subj-header"><div class="subj-icon">💰</div><div><div class="subj-name">Keuangan & Investasi Islami</div><div class="subj-std">CFA IF · OJK · IDX · Bibit Syariah</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th><th>Sertifikasi</th></tr></thead>
+          <tbody>
+            <tr><td>FIN.10</td><td>Laporan keuangan: B/S, P&L, Cash Flow dari laporan nyata IDX.</td><td>—</td></tr>
+            <tr><td>FIN.11A</td><td>Saham syariah DES: analisis fundamental P/E, ROE, DER.</td><td>—</td></tr>
+            <tr><td>FIN.11B</td><td>Reksa dana syariah, Sukuk Ritel SR, compound interest halal.</td><td>—</td></tr>
+            <tr><td>FIN.12</td><td>CFA Investment Foundations: economics, ethics, portfolio.</td><td>CFA Institute</td></tr>
+            <tr><td>ZAKAT</td><td>Zakat maal, zakat profesi freelancer, wakaf produktif digital.</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--coral);">
+      <div class="subj-header"><div class="subj-icon">🎤</div><div><div class="subj-name">Leadership & Personal Branding</div><div class="subj-std">Toastmasters · Google PM · LinkedIn</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Modul</th><th>Topik</th></tr></thead>
+          <tbody>
+            <tr><td>LDR.10</td><td>Storytelling: Hero's Journey, STAR, Before-After-Bridge.</td></tr>
+            <tr><td>LDR.10B</td><td>LinkedIn setup profesional. Personal brand statement.</td></tr>
+            <tr><td>LDR.11</td><td>Google PM Certification: Agile, Scrum, Kanban, stakeholder mgmt.</td></tr>
+            <tr><td>LDR.11B</td><td>Negotiation: BATNA, ZOPA, Harvard Principled Negotiation.</td></tr>
+            <tr><td>LDR.12</td><td>TEDx-style presentation. Investor pitch 5 menit. Board deck.</td></tr>
+            <tr><td>LDR.12B</td><td>Kepemimpinan Islami: sifat pemimpin sejati, musyawarah, Umar management style.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 JALUR SPESIALISASI -->
+  <h2>3 Jalur Spesialisasi — Pilih Satu, Kuasai Sepenuhnya</h2>
+
+  <!-- TRACK 1: TECH -->
+  <div class="acc" style="border-top:3px solid var(--violet);">
+    <div class="acc-h" onclick="tog(this)">
+      <span>💻 Track 1 — Technology (Full-Stack · ML · Cloud)</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+    <div class="acc-body">
+      <p>Untuk yang ingin menjadi software engineer, AI researcher, atau tech entrepreneur. Demand global tertinggi. Remote work dari manapun. Salary entry level global USD 40–80K/tahun.</p>
+      <table class="mod-table">
+        <thead><tr><th>Modul</th><th>Topik</th><th>Sertifikasi Target</th></tr></thead>
+        <tbody>
+          <tr><td>T10.1</td><td>Advanced Python: decorators, generators, async/await, type hints.</td><td>—</td></tr>
+          <tr><td>T10.2</td><td>React.js: components, hooks, state management, API integration.</td><td>—</td></tr>
+          <tr><td>T10.3</td><td>Node.js + Express: REST API, middleware, authentication, JWT.</td><td>—</td></tr>
+          <tr><td>T10.4</td><td>Database: PostgreSQL lanjut, indexing, query optimization.</td><td>—</td></tr>
+          <tr><td>T10.5</td><td>CS50x Harvard full completion (C, Python, SQL, Flask, JS).</td><td>CS50 Certificate</td></tr>
+          <tr><td>T11.1</td><td>Machine Learning: scikit-learn, supervised/unsupervised, evaluation.</td><td>—</td></tr>
+          <tr><td>T11.2</td><td>Deep Learning: TensorFlow/Keras, CNN, RNN, transfer learning.</td><td>TensorFlow Developer</td></tr>
+          <tr><td>T11.3</td><td>Cloud AWS/GCP: EC2, S3, Lambda, deployment, auto-scaling.</td><td>AWS Cloud Practitioner</td></tr>
+          <tr><td>T11.4</td><td>Docker & Kubernetes: containerization, CI/CD pipeline, GitHub Actions.</td><td>—</td></tr>
+          <tr><td>T12.1</td><td>System Design: scalability, databases, caching, microservices.</td><td>—</td></tr>
+          <tr><td>T12.2</td><td>Capstone: SaaS product launch. Real users. Production deployment.</td><td>Portfolio + LinkedIn</td></tr>
+          <tr><td>T12.3</td><td>Freelance Tech: Upwork profile, proposal writing, client management.</td><td>First USD income</td></tr>
+        </tbody>
+      </table>
+      <div class="output-card" style="margin-top:10px;">
+        <h4>TARGET LULUS TRACK TECH</h4>
+        <div class="output-row"><div class="output-grade" style="color:var(--violet);">Sertifikasi</div><div class="output-val">CS50 Certificate · TensorFlow Developer · AWS Cloud Practitioner · Google IT Support</div></div>
+        <div class="output-row"><div class="output-grade" style="color:var(--violet);">Portfolio</div><div class="output-val">5+ GitHub repos · 1 SaaS live · Personal website dengan case studies · LinkedIn 500+</div></div>
+        <div class="output-row"><div class="output-grade" style="color:var(--violet);">Income</div><div class="output-val">Freelance USD 200–500/project via Upwork · atau internship tech company global</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRACK 2: BISNIS -->
+  <div class="acc" style="border-top:3px solid var(--coral);">
+    <div class="acc-h" onclick="tog(this)">
+      <span>📊 Track 2 — Business Digital (Marketing · E-Commerce · Entrepreneurship)</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+    <div class="acc-body">
+      <p>Untuk yang ingin membangun brand, menjalankan bisnis digital, atau bekerja di agency global. Kombinasi kreativitas, data analytics, dan business acumen.</p>
+      <table class="mod-table">
+        <thead><tr><th>Modul</th><th>Topik</th><th>Sertifikasi Target</th></tr></thead>
+        <tbody>
+          <tr><td>B10.1</td><td>Digital Marketing: SEO, SEM, Social Media Strategy, Content Calendar.</td><td>Google Digital Marketing</td></tr>
+          <tr><td>B10.2</td><td>Meta Ads: campaign structure, audience targeting, pixel, A/B test.</td><td>Meta Blueprint</td></tr>
+          <tr><td>B10.3</td><td>Google Analytics 4 + Tag Manager: tracking, conversion, funnel analysis.</td><td>Google Analytics Cert</td></tr>
+          <tr><td>B10.4</td><td>Copywriting: AIDA, PAS, story-driven copy. Email marketing sequences.</td><td>—</td></tr>
+          <tr><td>B11.1</td><td>E-Commerce: Shopify/WooCommerce setup, product listing, inventory.</td><td>Shopify Partner</td></tr>
+          <tr><td>B11.2</td><td>Data Analytics: Google Sheets advanced, Python pandas, Looker Studio dashboard.</td><td>—</td></tr>
+          <tr><td>B11.3</td><td>Business Model Canvas, Lean Startup, MVP, customer discovery interview.</td><td>—</td></tr>
+          <tr><td>B11.4</td><td>Keuangan bisnis: P&L, cash flow, break-even, harga pokok penjualan.</td><td>—</td></tr>
+          <tr><td>B12.1</td><td>Growth Hacking: viral loops, referral systems, retention strategies.</td><td>—</td></tr>
+          <tr><td>B12.2</td><td>Capstone: Bisnis nyata dengan revenue. Minimal 1 juta rupiah revenue.</td><td>Revenue + Portfolio</td></tr>
+          <tr><td>B12.3</td><td>Pitch ke investor/mentor nyata. Investor deck profesional.</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TRACK 3: KREATIF -->
+  <div class="acc" style="border-top:3px solid var(--teal);">
+    <div class="acc-h" onclick="tog(this)">
+      <span>🎨 Track 3 — Creative Digital (UI/UX · Video · Content Creation)</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+    <div class="acc-body">
+      <p>Untuk yang ingin berkarir di desain produk digital, konten kreatif, atau industri media. Kreativitas + skill teknis + storytelling = kombinasi paling langka dan dicari global.</p>
+      <table class="mod-table">
+        <thead><tr><th>Modul</th><th>Topik</th><th>Sertifikasi/Output</th></tr></thead>
+        <tbody>
+          <tr><td>K10.1</td><td>Design Thinking: empathize, define, ideate, prototype, test.</td><td>—</td></tr>
+          <tr><td>K10.2</td><td>Figma Advanced: component library, auto-layout, prototyping, handoff.</td><td>Figma Expert</td></tr>
+          <tr><td>K10.3</td><td>UX Research: user interview, usability testing, persona, journey map.</td><td>—</td></tr>
+          <tr><td>K10.4</td><td>Typography, color theory, visual hierarchy, gestalt principles.</td><td>—</td></tr>
+          <tr><td>K11.1</td><td>Video Production: script, storyboard, shooting, DaVinci Resolve editing.</td><td>—</td></tr>
+          <tr><td>K11.2</td><td>YouTube Strategy: niche selection, SEO, thumbnail psychology, analytics.</td><td>YouTube Creator</td></tr>
+          <tr><td>K11.3</td><td>Motion Graphics: After Effects atau Rive untuk UI animation.</td><td>—</td></tr>
+          <tr><td>K11.4</td><td>Brand Identity: logo, brand guide, style guide dari client brief nyata.</td><td>Portfolio 5 brand</td></tr>
+          <tr><td>K12.1</td><td>Product Design: end-to-end dari research ke handoff developer.</td><td>Portfolio case study</td></tr>
+          <tr><td>K12.2</td><td>Freelance Creative: Behance portfolio, 99designs, Dribbble profile.</td><td>First freelance client</td></tr>
+          <tr><td>K12.3</td><td>Capstone: 1 produk digital dirancang + 1 channel konten aktif 1000+ subscribers.</td><td>Live portfolio</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PANEL: ASSESSMENT
+═══════════════════════════════════════════════════════ -->
+<div id="pnl-assessment" class="pnl">
+  <div class="hero" style="background:linear-gradient(135deg,#0A1520,#0F2030);">
+    <div class="hero-eye" style="color:var(--green);">// SISTEM ASSESSMENT 4 FASE</div>
+    <h1>Placement &amp; Competency<br><span style="color:var(--green);">Assessment Engine</span></h1>
+    <p class="hero-sub" style="color:rgba(150,255,200,.75);">Assessment APEX bukan tes sekali — ini adalah sistem hidup yang terus belajar tentang siswa selama 12 tahun.</p>
+  </div>
+
+  <h2>Bank Soal Assessment per Dimensi</h2>
+  <p>Setiap soal dikategorikan per dimensi, level kesulitan (theta), dan concept tag untuk error pattern analysis.</p>
+
+  <div class="subj-grid" style="grid-template-columns:1fr 1fr;">
+    <div class="subj-card" style="border-top:3px solid var(--cyan);">
+      <div class="subj-header"><div class="subj-icon">📐</div><div><div class="subj-name">Dimensi Kognitif</div><div class="subj-std">Matematika + Logika + Sains</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Level θ</th><th>Contoh Soal</th><th>Concept Tag</th></tr></thead>
+          <tbody>
+            <tr><td>θ=2 (SD)</td><td>Ada 14 kurma, dimakan 6. Sisa berapa?</td><td>[subtraction][word_problem]</td></tr>
+            <tr><td>θ=4 (SD+)</td><td>Toko A jual 48 baju ke 3 yayasan sama banyak. Tiap yayasan dapat berapa?</td><td>[division][context_islami]</td></tr>
+            <tr><td>θ=5 (SMP)</td><td>Jika f(x) = 2x² − 3x + 1, hitung f(−2)</td><td>[function][substitution]</td></tr>
+            <tr><td>θ=7 (SMP+)</td><td>Benda 500g memindahkan 300mL air (ρ=1g/cm³). Tenggelam atau apung?</td><td>[archimedes][physics][HOTS]</td></tr>
+            <tr><td>θ=9 (SMK)</td><td>PED = −1.6. Harga naik 10%. Hitung % perubahan kuantitas diminta.</td><td>[economics][PED][calculation]</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--blue);">
+      <div class="subj-header"><div class="subj-icon">🌐</div><div><div class="subj-name">Dimensi Bahasa</div><div class="subj-std">English + Bahasa Indonesia</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Level θ</th><th>Contoh Soal</th><th>Concept Tag</th></tr></thead>
+          <tbody>
+            <tr><td>θ=2</td><td>Choose: She ___ (don't/doesn't) like coffee.</td><td>[grammar][subject_verb_agreement]</td></tr>
+            <tr><td>θ=4</td><td>Ahmad finished homework BEFORE mother called. Which sentence is Past Perfect?</td><td>[past_perfect][tense]</td></tr>
+            <tr><td>θ=6</td><td>Read passage. What is the MAIN PURPOSE of this text? (inference)</td><td>[reading][inference][main_idea]</td></tr>
+            <tr><td>θ=8</td><td>Identify logical fallacy: "Listen to me, I'm a doctor." (Appeal to Authority)</td><td>[critical_thinking][logical_fallacy][HOTS]</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--violet);">
+      <div class="subj-header"><div class="subj-icon">💻</div><div><div class="subj-name">Dimensi Digital / CS</div><div class="subj-std">Coding + Data + Systems</div></div></div>
+      <div class="subj-body">
+        <table class="mod-table">
+          <thead><tr><th>Level θ</th><th>Contoh Soal</th><th>Tag</th></tr></thead>
+          <tbody>
+            <tr><td>θ=3</td><td>Output dari: for i in range(3): print(i*2)?</td><td>[python][loop][output]</td></tr>
+            <tr><td>θ=5</td><td>Sistem antrian zakat digital: struktur data mana paling tepat (Queue FIFO)?</td><td>[data_structure][queue][application]</td></tr>
+            <tr><td>θ=7</td><td>Time complexity Binary Search adalah?</td><td>[algorithms][big_O][complexity]</td></tr>
+            <tr><td>θ=9</td><td>Rancang sistem untuk 1M concurrent users. Jelaskan trade-offs.</td><td>[system_design][scalability][HOTS]</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subj-card" style="border-top:3px solid var(--coral);">
+      <div class="subj-header"><div class="subj-icon">🤝</div><div><div class="subj-name">Dimensi Karakter</div><div class="subj-std">Scenario-based · Self-regulation</div></div></div>
+      <div class="subj-body">
+        <p style="font-size:12px;margin-bottom:10px;">Soal karakter tidak ada benar/salah. Respon memetakan learning style dan self-regulation pattern.</p>
+        <table class="mod-table">
+          <thead><tr><th>Scenario</th><th>Pola yang Diukur</th></tr></thead>
+          <tbody>
+            <tr><td>Kamu punya PR sulit dan besok ulangan. 2 jam tersisa. Apa yang kamu lakukan?</td><td>Strategic vs Impulsive vs Avoidant</td></tr>
+            <tr><td>Temanmu minta tolong PR. Kamu belum selesai juga. Bagaimana?</td><td>Boundary-setting, honesty, akhlak</td></tr>
+            <tr><td>Kamu dapat nilai buruk di mata pelajaran favorit. Reaksimu?</td><td>Growth mindset vs Fixed mindset</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <h2>Skema Placement per Skor Theta</h2>
+  <table class="mod-table">
+    <thead><tr><th>Theta Score</th><th>Placement Level</th><th>Starting Module</th><th>Deskripsi untuk Siswa</th></tr></thead>
+    <tbody>
+      <tr><td>θ 1.0–2.5</td><td>SD Kelas 1–2</td><td>M1.1 / E1.1 / C1.1</td><td>"Petualanganmu dimulai dari fondasi yang kuat 🌱"</td></tr>
+      <tr><td>θ 2.5–4.0</td><td>SD Kelas 3–4</td><td>M3.1 / E3.1 / C3.1</td><td>"Kamu sudah punya fondasi bagus, saatnya eksplorasi lebih dalam 🔍"</td></tr>
+      <tr><td>θ 4.0–5.5</td><td>SD Kelas 5 – SMP 7</td><td>M5.1 / 7M.1 / 7E.1</td><td>"Hebat! Kamu siap tantangan yang lebih menantang 🚀"</td></tr>
+      <tr><td>θ 5.5–7.0</td><td>SMP Kelas 8–9</td><td>8M.1 / 8C.1 / 9E.1</td><td>"Kemampuanmu di atas rata-rata. APEX siapkan jalur cepat untukmu ⚡"</td></tr>
+      <tr><td>θ 7.0–8.5</td><td>SMK Kelas 10–11</td><td>Semua Wajib + Track pilihan</td><td>"Kamu sudah di level global. Sekarang saatnya spesialisasi 🌍"</td></tr>
+      <tr><td>θ 8.5–10</td><td>Advanced / SMK Kelas 12</td><td>Capstone + Sertifikasi intensif</td><td>"Expert level! APEX menyiapkan jalur akselerasi khusus untukmu 🏆"</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PANEL: QUIZ BANK
+═══════════════════════════════════════════════════════ -->
+<div id="pnl-quiz" class="pnl">
+  <div class="hero" style="background:linear-gradient(135deg,#0A1A0A,#0F250F);">
+    <div class="hero-eye" style="color:var(--green);">// INTERACTIVE QUIZ BANK</div>
+    <h1>Bank Soal HOTS<br><span style="color:var(--green);">Berstandar Internasional</span></h1>
+    <p class="hero-sub" style="color:rgba(150,255,150,.75);">Format soal JSON dari Prompt Engineering Guide APEX. Konteks Islami. Metacognition hint setiap soal. Coba langsung di bawah.</p>
+  </div>
+
+  <h2>Matematika — Kelas 7 SMP (θ ≈ 5.0)</h2>
+  <div id="quiz-math"></div>
+
+  <h2>Bahasa Inggris — Kelas 9 / IELTS Prep (θ ≈ 6.5)</h2>
+  <div id="quiz-english"></div>
+
+  <h2>Computer Science — SMP/SMK (θ ≈ 6.0)</h2>
+  <div id="quiz-cs"></div>
+
+  <h2>Sains — Kelas 8 SMP (θ ≈ 6.0)</h2>
+  <div id="quiz-sains"></div>
+
+  <h2>Ekonomi & Wirausaha — SMK (θ ≈ 7.5)</h2>
+  <div id="quiz-ekonomi"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PANEL: TOOLS
+═══════════════════════════════════════════════════════ -->
+<div id="pnl-tools" class="pnl">
+  <div class="hero" style="background:linear-gradient(135deg,#1A0A1A,#250F25);">
+    <div class="hero-eye" style="color:var(--violet);">// TOOLS ECOSYSTEM</div>
+    <h1>Tools Digital<br><span style="color:var(--violet);">Per Jenjang & Pilar</span></h1>
+    <p class="hero-sub" style="color:rgba(200,170,255,.75);">Semua tools yang digunakan pelajar terbaik dunia — dikurasi, diklasifikasikan per pilar dan jenjang, dengan panduan penggunaan konkret.</p>
+  </div>
+
+  <h2>Core Learning Tools — Semua Jenjang</h2>
+  <div class="tools-grid">
+    <div class="tool-card" style="border-top:3px solid var(--cyan);">
+      <div class="tool-header"><div class="tool-icon">🧠</div><div class="tool-name">Anki</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">Spaced repetition flashcard engine. Implementasi SM-2 yang paling battle-tested di dunia. Untuk vocabulary, rumus, hafalan Qur'an — apapun yang butuh diingat jangka panjang.</div>
+      <div class="tool-url">apps.ankiweb.net · iOS/Android/Desktop</div>
+      <div class="tool-pilar">Pilar P3 (Spaced Repetition) · Semua jenjang</div>
+    </div>
+    <div class="tool-card" style="border-top:3px solid var(--amber);">
+      <div class="tool-header"><div class="tool-icon">📚</div><div class="tool-name">Khan Academy</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">Platform terlengkap untuk Math (K–12 + AP), Science, Economics. Adaptive practice dengan mastery system. Tersedia dalam bahasa Inggris, konten sangat kaya dan terstruktur.</div>
+      <div class="tool-url">khanacademy.org</div>
+      <div class="tool-pilar">P4 (Mastery) · SD, SMP, SMK · Math, Sains, Ekonomi</div>
+    </div>
+    <div class="tool-card" style="border-top:3px solid var(--green);">
+      <div class="tool-header"><div class="tool-icon">🔬</div><div class="tool-name">PhET Simulations</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">Simulasi sains interaktif dari University of Colorado. Eksperimen virtual Fisika, Kimia, Biologi, Math. Ubah variabel, catat data, tulis hipotesis. Lab virtual terbaik untuk home learning.</div>
+      <div class="tool-url">phet.colorado.edu</div>
+      <div class="tool-pilar">P2 (Inquiry) · SD Kelas 5+, SMP, SMK · Sains</div>
+    </div>
+    <div class="tool-card" style="border-top:3px solid var(--violet);">
+      <div class="tool-header"><div class="tool-icon">💻</div><div class="tool-name">Replit</div><span class="tool-free">FREEMIUM</span></div>
+      <div class="tool-body">Browser-based IDE. Tidak perlu install apapun. Python, JavaScript, C++, 50+ bahasa. Collaboration real-time. Cocok untuk siswa yang belum setup local dev environment.</div>
+      <div class="tool-url">replit.com</div>
+      <div class="tool-pilar">P5 (PBL) · SD Kelas 4+, SMP, SMK · CS</div>
+    </div>
+    <div class="tool-card" style="border-top:3px solid var(--coral);">
+      <div class="tool-header"><div class="tool-icon">🎯</div><div class="tool-name">IXL Learning</div><span class="tool-free">FREEMIUM</span></div>
+      <div class="tool-body">Adaptive practice untuk Math dan English. 10 soal gratis/hari per subjek. Sistem naik level otomatis di 80% mastery — persis mekanisme APEX. Sangat visual dan gamified untuk SD.</div>
+      <div class="tool-url">ixl.com · 10 soal/hari gratis</div>
+      <div class="tool-pilar">P4 (Mastery) · SD Kelas 1–6 · Math, English</div>
+    </div>
+    <div class="tool-card" style="border-top:3px solid var(--teal);">
+      <div class="tool-header"><div class="tool-icon">📊</div><div class="tool-name">Notion</div><span class="tool-free">FREE for Students</span></div>
+      <div class="tool-body">Knowledge management dan learning journal. Buat portfolio digital, Cornell Notes, weekly reflection, brain dump. Template sudah tersedia di komunitas Notion education.</div>
+      <div class="tool-url">notion.so · Free for students</div>
+      <div class="tool-pilar">P1 (Metacognition) · P5 (Portfolio) · Semua jenjang</div>
+    </div>
+  </div>
+
+  <h2>Tools SD (Kelas 1–6)</h2>
+  <div class="tools-grid">
+    <div class="tool-card">
+      <div class="tool-header"><div class="tool-icon">⭐</div><div class="tool-name">Starfall</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">Phonics dan reading untuk anak kelas 1–2. Klik interaktif, sangat visual dan audio-rich. Urutan: ABC → Learn to Read → It's Fun to Read. Sesi 10–15 mnt/hari.</div>
+      <div class="tool-url">starfall.com</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-header"><div class="tool-icon">🐱</div><div class="tool-name">Scratch Jr / Scratch</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">Scratch Jr untuk kelas 1–2 (tablet), Scratch 3.0 untuk kelas 3–6. Visual drag-drop programming. Kelas 1–2 buat animasi, kelas 3–6 buat game interaktif dan quiz.</div>
+      <div class="tool-url">scratchjr.org · scratch.mit.edu</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-header"><div class="tool-icon">🌐</div><div class="tool-name">Code.org</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">Course A (kelas 1) sampai Course F (kelas 6). Puzzle berbasis maze, loops, conditionals. Video pengantar oleh tokoh inspiratif. Progress tersimpan per akun.</div>
+      <div class="tool-url">code.org/learn</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-header"><div class="tool-icon">📖</div><div class="tool-name">Oxford Owl</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">250+ buku digital Cambridge & Oxford. Level guide tersedia. Baca bersama anak, tunjuk kata, diskusikan gambar. Download PDF untuk offline. Sangat bagus untuk reading fluency.</div>
+      <div class="tool-url">oxfordowl.co.uk → Free eBooks</div>
+    </div>
+  </div>
+
+  <h2>Tools SMP (Kelas 7–9)</h2>
+  <div class="tools-grid">
+    <div class="tool-card">
+      <div class="tool-header"><div class="tool-icon">🎓</div><div class="tool-name">CS50x Harvard</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">Introduction to Computer Science terbaik di dunia. Gratis via edX. Bahasa C, Python, SQL, JavaScript, Flask. 10 problem sets + final project. Certificate gratis jika verified.</div>
+      <div class="tool-url">cs50.harvard.edu</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-header"><div class="tool-icon">🔢</div><div class="tool-name">GeoGebra</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">Matematika visual interaktif. Geometry, Algebra, Statistics, Calculus. Sangat berguna untuk visualisasi fungsi, geometri koordinat, transformasi. Desktop dan browser.</div>
+      <div class="tool-url">geogebra.org</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-header"><div class="tool-icon">🌍</div><div class="tool-name">IELTS Liz</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">Sumber IELTS terlengkap gratis. Model answers Writing Task 1 & 2, Speaking cue cards, Reading strategies. Setara buku preparation Rp 500rb — semua gratis. Gunakan 30 mnt/sesi.</div>
+      <div class="tool-url">ieltsliz.com</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-header"><div class="tool-icon">🧪</div><div class="tool-name">Labster Virtual Labs</div><span class="tool-free">FREEMIUM</span></div>
+      <div class="tool-body">Lab sains virtual 3D. Eksperimen kimia, biologi, fisika yang tidak bisa dilakukan di rumah — PCR, diseksi, titrasi. Beberapa lab gratis. Sangat immersive untuk SMP.</div>
+      <div class="tool-url">labster.com · Beberapa lab gratis</div>
+    </div>
+  </div>
+
+  <h2>Tools SMK — Spesialisasi & Sertifikasi</h2>
+  <div class="tools-grid">
+    <div class="tool-card" style="border-top:3px solid var(--violet);">
+      <div class="tool-header"><div class="tool-icon">☁️</div><div class="tool-name">AWS Free Tier</div><span class="tool-free">FREE 12 bulan</span></div>
+      <div class="tool-body">12 bulan EC2, S3, Lambda, RDS gratis. Cukup untuk belajar cloud deployment, serverless, database. Target: AWS Cloud Practitioner cert ($100 ujian, tapi persiapan gratis).</div>
+      <div class="tool-url">aws.amazon.com/free</div>
+    </div>
+    <div class="tool-card" style="border-top:3px solid var(--coral);">
+      <div class="tool-header"><div class="tool-icon">📈</div><div class="tool-name">Stockbit / RTI Business</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">Paper trading saham Indonesia. Portofolio virtual Rp 10 juta untuk latihan. Analisis fundamental, berita emiten, laporan keuangan. Wajib untuk track bisnis dan semua jalur.</div>
+      <div class="tool-url">stockbit.com · rtibusiness.com</div>
+    </div>
+    <div class="tool-card" style="border-top:3px solid var(--teal);">
+      <div class="tool-header"><div class="tool-icon">🎨</div><div class="tool-name">Figma Education</div><span class="tool-free">FREE for Students</span></div>
+      <div class="tool-body">UI/UX design tool terbaik industri. Free untuk pelajar dengan akun education. Component library, prototyping, handoff. Wajib untuk track kreatif, sangat berguna untuk semua jalur.</div>
+      <div class="tool-url">figma.com/education</div>
+    </div>
+    <div class="tool-card" style="border-top:3px solid var(--amber);">
+      <div class="tool-header"><div class="tool-icon">🗣️</div><div class="tool-name">iTalki</div><span class="tool-free">Rp 60–120rb/sesi</span></div>
+      <div class="tool-body">Speaking practice dengan native speaker. Filter: IELTS tutor, harga murah. Community tutor jauh lebih terjangkau. 2× seminggu = progress IELTS Speaking yang nyata dalam 30 hari.</div>
+      <div class="tool-url">italki.com</div>
+    </div>
+    <div class="tool-card" style="border-top:3px solid var(--green);">
+      <div class="tool-header"><div class="tool-icon">🤖</div><div class="tool-name">TensorFlow/Keras</div><span class="tool-free">FREE</span></div>
+      <div class="tool-body">Framework ML/DL utama industri. Google Colab untuk notebook gratis dengan GPU. Target: TensorFlow Developer Certificate ($100). Belajar dari tensorflow.org/tutorials.</div>
+      <div class="tool-url">tensorflow.org · colab.google.com</div>
+    </div>
+    <div class="tool-card" style="border-top:3px solid var(--violet);">
+      <div class="tool-header"><div class="tool-icon">🏆</div><div class="tool-name">CFA Institute — Investment Foundations</div><span class="tool-free">Free Program</span></div>
+      <div class="tool-body">Sertifikasi investasi global dari CFA Institute. Program online gratis, ujian mandiri. Covers economics, ethics, portfolio management. Sangat impresif di CV untuk internship keuangan global.</div>
+      <div class="tool-url">cfainstitute.org/investments/foundations</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PANEL: JADWAL
+═══════════════════════════════════════════════════════ -->
+<div id="pnl-schedule" class="pnl">
+  <div class="hero" style="background:linear-gradient(135deg,#1A1000,#250F00);">
+    <div class="hero-eye" style="color:var(--amber);">// JADWAL BELAJAR MANDIRI</div>
+    <h1>Weekly Schedule<br><span style="color:var(--amber);">Per Jenjang</span></h1>
+    <p class="hero-sub" style="color:rgba(255,220,150,.75);">Rutinitas membangun karakter. Jadwal dirancang mengikuti 7 Pilar APEX dengan Pomodoro technique yang disesuaikan per usia.</p>
+  </div>
+
+  <h2>Jadwal SD Kelas 1–2 (90–120 menit/hari)</h2>
+  <p>Pomodoro 15 menit fokus / 5 menit break. Semua lewat permainan dan eksplorasi.</p>
+  <div class="week-grid">
+    <div class="wday"><div class="wday-name">SENIN</div><div class="wday-item">Matematika CPA</div><div class="wday-item">Phonics</div><div class="wday-item">Cerita Islami</div></div>
+    <div class="wday"><div class="wday-name">SELASA</div><div class="wday-item">English Reading</div><div class="wday-item">Code.org</div><div class="wday-item">Menggambar</div></div>
+    <div class="wday"><div class="wday-name">RABU</div><div class="wday-name" style="font-size:8px;">MIDWEEK</div><div class="wday-item">Matematika</div><div class="wday-item">Sains explore</div><div class="wday-item">Shalat + Dzikir</div></div>
+    <div class="wday"><div class="wday-name">KAMIS</div><div class="wday-item">English Speaking</div><div class="wday-item">Scratch Jr</div><div class="wday-item">Muraja'ah</div></div>
+    <div class="wday"><div class="wday-name">JUMAT</div><div class="wday-name" style="font-size:8px;">ISLAMI</div><div class="wday-item">Tahfidz SM-2</div><div class="wday-item">Sirah Nabi</div><div class="wday-item">Sedekah project</div></div>
+    <div class="wday"><div class="wday-name">SABTU</div><div class="wday-item">Science fair prep</div><div class="wday-item">Bacaan bebas</div><div class="wday-item">Olahraga</div></div>
+  </div>
+
+  <h2>Jadwal SMP Kelas 7–9 (3–4 jam/hari)</h2>
+  <p>Pomodoro 25 menit fokus / 5 menit break. Cornell notes wajib. Weekly reflection setiap Minggu.</p>
+  <div class="week-grid">
+    <div class="wday"><div class="wday-name">SENIN</div><div class="wday-item">Matematika 60'</div><div class="wday-item">Khan Academy</div><div class="wday-item">Anki review 15'</div></div>
+    <div class="wday"><div class="wday-name">SELASA</div><div class="wday-item">English 60'</div><div class="wday-item">IELTS practice</div><div class="wday-item">Menulis essay</div></div>
+    <div class="wday"><div class="wday-name">RABU</div><div class="wday-item">Coding 60'</div><div class="wday-item">Project work</div><div class="wday-item">GitHub commit</div></div>
+    <div class="wday"><div class="wday-name">KAMIS</div><div class="wday-item">Sains 60'</div><div class="wday-item">PhET lab</div><div class="wday-item">Lab report</div></div>
+    <div class="wday"><div class="wday-name">JUMAT</div><div class="wday-name" style="font-size:8px;">ISLAMI+BISNIS</div><div class="wday-item">Tahfidz SM-2</div><div class="wday-item">Ekonomi 30'</div><div class="wday-item">Ibadah tracker</div></div>
+    <div class="wday"><div class="wday-name">SABTU</div><div class="wday-item">Deep project 2j</div><div class="wday-item">AI Socrates sesi</div><div class="wday-item">Portfolio update</div></div>
+  </div>
+
+  <h2>Jadwal SMK Kelas 10–12 (Deep Work 4–6 jam/hari)</h2>
+  <p>Pomodoro 50 menit fokus / 10 menit break. Deep Work pagi (06:00–12:00). Freelance/project sore.</p>
+  <div class="week-grid">
+    <div class="wday"><div class="wday-name">SENIN</div><div class="wday-item">IELTS Reading 1j</div><div class="wday-item">Track spesifik 2j</div><div class="wday-item">Anki + review</div></div>
+    <div class="wday"><div class="wday-name">SELASA</div><div class="wday-item">IELTS Writing 1j</div><div class="wday-item">Track spesifik 2j</div><div class="wday-item">Freelance work</div></div>
+    <div class="wday"><div class="wday-name">RABU</div><div class="wday-item">Leadership 1j</div><div class="wday-item">Track spesifik 2j</div><div class="wday-item">LinkedIn content</div></div>
+    <div class="wday"><div class="wday-name">KAMIS</div><div class="wday-item">Finansial Islami 1j</div><div class="wday-item">Track spesifik 2j</div><div class="wday-item">Portfolio update</div></div>
+    <div class="wday"><div class="wday-name">JUMAT</div><div class="wday-name" style="font-size:8px;">ISLAMI FOCUS</div><div class="wday-item">Tahfidz 1j</div><div class="wday-item">Wirausaha review</div><div class="wday-item">Niat + Syukur</div></div>
+    <div class="wday"><div class="wday-name">SABTU</div><div class="wday-item">IELTS full mock</div><div class="wday-item">Sertifikasi prep</div><div class="wday-item">Mentor session</div></div>
+  </div>
+
+  <div class="output-card" style="margin-top:24px;">
+    <h4>INTEGRASI PILAR 7 — NIAT & SYUKUR SETIAP HARI</h4>
+    <div class="output-row"><div class="output-grade" style="color:#f472b6;">Pembuka</div><div class="output-val">Tafakkur Checkpoint: isi niat 3 pertanyaan sebelum sesi dimulai. "Untuk apa ilmu ini? Siapa yang merasakan manfaatnya?" — tidak bisa skip, wajib selesaikan ketiga pertanyaan.</div></div>
+    <div class="output-row"><div class="output-grade" style="color:#f472b6;">Penutup</div><div class="output-val">Jurnal Syukur: 3 hal yang disyukuri dari sesi hari ini. +20 Charity Points. Menutup sesi dengan Hamdalah dan doa sesudah belajar.</div></div>
+    <div class="output-row"><div class="output-grade" style="color:#f472b6;">Ibadah</div><div class="output-val">Mutaba'ah Yaumiyyah: shalat 5 waktu, tilawah, dhuha, tahajud — ditrack dan dihargai sebagai Charity Points. Streak counter membangun konsistensi.</div></div>
+  </div>
+</div>
+
+<script>
+// ─── TAB NAVIGATION ───
+function show(id) {
+  document.querySelectorAll('.pnl').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tt').forEach(t => t.classList.remove('on'));
+  document.getElementById('pnl-'+id).classList.add('on');
+  const tabs = ['overview','sd','smp','smk','assessment','quiz','tools','schedule'];
+  const idx = tabs.indexOf(id);
+  if (idx >= 0) document.querySelectorAll('.tt')[idx].classList.add('on');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// ─── ACCORDION ───
+function tog(el) {
+  const body  = el.nextElementSibling;
+  const arrow = el.querySelector('.acc-arrow');
+  const open  = body.classList.toggle('open');
+  if (arrow) arrow.classList.toggle('open', open);
+}
+
+// ─── QUIZ ENGINE ───
+const QUIZZES = {
+  math: [
+    {
+      q: "Pak Ahmad ingin membagi 48 buku wakaf ke 3 panti asuhan secara merata, namun 1 panti mendapat 2 buku lebih. Berapa buku yang diterima panti terbanyak?",
+      opts: ["A. 14", "B. 16", "C. 18", "D. 20"],
+      ans: 1,
+      exp: "Benar! 2 panti dapat x, 1 panti dapat x+2. Persamaan: 2x + (x+2) = 48 → 3x = 46 → x ≈ 15.33 → panti terbanyak = 18. Ini soal persamaan linear dengan konteks sosial.",
+      hint: "Buat dulu persamaan: misalkan 2 panti dapat x buku, 1 panti dapat x+2. Jumlah total = 48.",
+      diff: "Medium · θ=5.0", subj: "Matematika"
+    },
+    {
+      q: "Masjid Al-Hikmah punya lantai persegi sisi 12m. Di tengahnya karpet bundar diameter 6m. Berapa luas lantai yang tidak tertutup? (π = 3.14)",
+      opts: ["A. 115.74 m²", "B. 117.74 m²", "C. 116.00 m²", "D. 113.74 m²"],
+      ans: 0,
+      exp: "Benar! Luas persegi = 12² = 144 m². Luas lingkaran = π × r² = 3.14 × 3² = 28.26 m². Sisa = 144 − 28.26 = 115.74 m².",
+      hint: "Dua bangun: persegi dan lingkaran. Hitung luas masing-masing. Ingat: jari-jari = setengah diameter.",
+      diff: "Medium · θ=5.5", subj: "Matematika"
+    }
+  ],
+  english: [
+    {
+      q: "Ahmad finished his homework BEFORE his mother called him. Which sentence uses Past Perfect correctly?",
+      opts: ["A. Ahmad finished homework when mother called.", "B. Ahmad had finished homework before mother called.", "C. Ahmad has finished homework before mother called.", "D. Ahmad was finishing homework before mother called."],
+      ans: 1,
+      exp: "Correct! Past Perfect (had + past participle) = action completed BEFORE another past action. 'Before' is the key word. A = Simple Past (no sequence shown). C = Present Perfect (wrong tense for past context).",
+      hint: "Look for TWO actions in the past. Which happened FIRST? That one uses Past Perfect (had + verb3).",
+      diff: "Medium · θ=6.0", subj: "English Grammar"
+    },
+    {
+      q: "Identify the logical fallacy: 'You should trust my argument because I have a PhD in this field.'",
+      opts: ["A. Straw Man", "B. Appeal to Authority", "C. False Dichotomy", "D. Ad Hominem"],
+      ans: 1,
+      exp: "Correct! Appeal to Authority = using someone's credentials/status to validate an argument, rather than the argument's own merit. A PhD doesn't automatically make the claim true.",
+      hint: "The key phrase is 'because I have a PhD'. What kind of reasoning uses someone's title or status as the main justification?",
+      diff: "Hard · θ=8.0", subj: "Critical Thinking"
+    }
+  ],
+  cs: [
+    {
+      q: "Sistem antrian digital untuk pendaftar zakat fitrah harus memproses pendaftar pertama terlebih dahulu. Struktur data mana yang PALING TEPAT?",
+      opts: ["A. Stack (LIFO)", "B. Queue (FIFO)", "C. Dictionary/HashMap", "D. Array sorted descending"],
+      ans: 1,
+      exp: "Benar! Queue menggunakan FIFO: elemen pertama masuk adalah pertama keluar — persis seperti antrian manusia. Stack (LIFO) malah memproses yang terakhir daftar dulu — tidak adil. HashMap bagus untuk lookup tapi tidak menjaga urutan.",
+      hint: "Bayangkan antrian di masjid. Siapa yang dilayani pertama? Yang paling awal datang (First In) — ini prinsip apa?",
+      diff: "Medium · θ=6.0", subj: "Data Structures"
+    },
+    {
+      q: "Berapa time complexity dari Binary Search?",
+      opts: ["A. O(n)", "B. O(n log n)", "C. O(log n)", "D. O(n²)"],
+      ans: 2,
+      exp: "Benar! Binary Search membelah array menjadi dua setiap langkah. Untuk array n elemen, paling banyak butuh log₂(n) langkah. Contoh: array 1024 elemen = max 10 langkah (2¹⁰ = 1024).",
+      hint: "Binary Search selalu memotong ruang pencarian menjadi setengah. Berapa kali kita bisa membagi n menjadi 2 sampai tersisa 1?",
+      diff: "Hard · θ=7.0", subj: "Algorithms"
+    }
+  ],
+  sains: [
+    {
+      q: "Hukum Archimedes: benda bermassa 500g dimasukkan ke air dan memindahkan 300mL air (ρ=1g/cm³). Apa yang terjadi pada benda tersebut?",
+      opts: ["A. Mengapung, karena gaya apung > berat benda", "B. Tenggelam, karena berat benda > gaya apung", "C. Melayang sempurna di tengah air", "D. Bergantung pada suhu air"],
+      ans: 1,
+      exp: "Benar! Gaya apung = massa air dipindahkan × g = 300g × g. Berat benda = 500g × g. Karena berat (500g) > gaya apung (300g), benda TENGGELAM. Hanya jika gaya apung ≥ berat = mengapung/melayang.",
+      hint: "Bandingkan DUA gaya: berat benda (500g) vs gaya apung (massa air yang dipindahkan = 300mL × 1g/cm³ = 300g). Mana yang lebih besar?",
+      diff: "Hard · θ=7.0", subj: "Fisika — Archimedes"
+    }
+  ],
+  ekonomi: [
+    {
+      q: "Pedagang kurma menaikkan harga dari Rp50.000 ke Rp75.000/kg. Penjualan turun dari 100kg ke 60kg/hari. Berapa Price Elasticity of Demand (PED)?",
+      opts: ["A. −0.8", "B. −1.2", "C. −1.6", "D. −2.0"],
+      ans: 0,
+      exp: "Benar! PED = %ΔQ ÷ %ΔP. %ΔQ = (60−100)/100 × 100% = −40%. %ΔP = (75000−50000)/50000 × 100% = +50%. PED = −40% ÷ 50% = −0.8. PED > −1 = inelastis (harga naik, revenue naik).",
+      hint: "Rumus PED = persentase perubahan kuantitas ÷ persentase perubahan harga. Hitung % perubahan masing-masing dulu, lalu bagi.",
+      diff: "Very Hard · θ=9.0", subj: "Ekonomi — Elastisitas"
+    }
+  ]
+};
+
+function buildQuiz(containerId, questions) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  questions.forEach((q, qi) => {
+    const div = document.createElement('div');
+    div.className = 'quiz-block';
+    div.innerHTML = `
+      <div class="quiz-header">
+        <div>
+          <div class="quiz-title">Soal ${qi+1}</div>
+          <div class="quiz-meta">${q.diff} · ${q.subj}</div>
+        </div>
+      </div>
+      <div class="quiz-q">
+        <div class="quiz-q-text">${q.q}</div>
+        <div class="quiz-opts">
+          ${q.opts.map((o,oi) => `
+            <div class="qo" onclick="answerQ(this, ${oi}, ${q.ans}, '${encodeURIComponent(q.exp)}', '${encodeURIComponent(q.hint)}', ${qi})" data-qi="${qi}">
+              <span class="qo-key">${o[0]}</span>${o.slice(3)}
+            </div>`).join('')}
+        </div>
+        <div class="explain" id="exp-${containerId}-${qi}"></div>
+      </div>`;
+    el.appendChild(div);
+  });
+}
+
+function answerQ(el, chosen, correct, expEnc, hintEnc, qi) {
+  const block = el.closest('.quiz-q');
+  if (block.querySelector('.correct') || block.querySelector('.wrong')) return;
+  const opts = block.querySelectorAll('.qo');
+  const expEl = el.closest('.quiz-q').querySelector('.explain');
+  const isCorrect = chosen === correct;
+  opts.forEach((o,i) => {
+    if (i === correct) o.classList.add('correct');
+    else if (i === chosen && !isCorrect) o.classList.add('wrong');
+  });
+  expEl.classList.add('show', isCorrect ? 'ok' : 'no');
+  const exp = decodeURIComponent(expEnc);
+  const hint = decodeURIComponent(hintEnc);
+  expEl.innerHTML = isCorrect
+    ? `✓ ${exp}`
+    : `✗ Belum tepat. 💡 Metacognition Hint: ${hint}<br><br>📖 Penjelasan: ${exp}`;
+}
+
+// Build semua quiz saat halaman load
+buildQuiz('quiz-math', QUIZZES.math);
+buildQuiz('quiz-english', QUIZZES.english);
+buildQuiz('quiz-cs', QUIZZES.cs);
+buildQuiz('quiz-sains', QUIZZES.sains);
+buildQuiz('quiz-ekonomi', QUIZZES.ekonomi);
+</script>
+</body>
+</html>
