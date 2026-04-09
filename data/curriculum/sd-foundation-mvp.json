@@ -1,0 +1,82 @@
+{
+  "version": "2026.04-mvp",
+  "source": "apex-curriculum-master.html",
+  "gradeLevel": "SD",
+  "locale": "id-ID",
+  "courses": [
+    {
+      "title": "Fondasi Literasi SD (Kelas 1-2)",
+      "description": "Fase awal membaca pemahaman, menulis sederhana, dan komunikasi dasar.",
+      "modules": [
+        {
+          "title": "Membaca Pemahaman Dasar",
+          "sequenceOrder": 1,
+          "masteryThreshold": 80,
+          "lessons": [
+            {
+              "title": "Mengenal Ide Pokok",
+              "type": "ARTICLE",
+              "contentUrl": "https://example.com/apex/sd/literasi/ide-pokok",
+              "quiz": {
+                "questions": [
+                  {
+                    "question": "Ide pokok paragraf adalah ...",
+                    "options": [
+                      "Kalimat yang paling panjang",
+                      "Gagasan utama yang dibahas",
+                      "Kata yang paling sering muncul",
+                      "Judul bacaan"
+                    ],
+                    "answerIndex": 1,
+                    "explanation": "Ide pokok adalah inti pembahasan pada paragraf.",
+                    "tags": ["literasi", "ide-pokok", "sd-kelas-1-2"]
+                  },
+                  {
+                    "question": "Untuk menemukan ide pokok, kita bisa ...",
+                    "options": [
+                      "Membaca judul saja",
+                      "Melewati kalimat awal",
+                      "Membaca semua kalimat dan cari inti",
+                      "Menebak dari gambar"
+                    ],
+                    "answerIndex": 2,
+                    "explanation": "Membaca utuh membantu menemukan inti paragraf.",
+                    "tags": ["literasi", "strategi-membaca", "sd-kelas-1-2"]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Menyusun Kalimat Efektif Sederhana",
+              "type": "INTERACTIVE",
+              "contentUrl": "https://example.com/apex/sd/literasi/kalimat-efektif"
+            }
+          ]
+        },
+        {
+          "title": "Numerasi Kontekstual Dasar",
+          "sequenceOrder": 2,
+          "masteryThreshold": 80,
+          "lessons": [
+            {
+              "title": "Penjumlahan dalam Kehidupan Sehari-hari",
+              "type": "VIDEO",
+              "contentUrl": "https://example.com/apex/sd/numerasi/penjumlahan-kontekstual",
+              "quiz": {
+                "questions": [
+                  {
+                    "question": "Jika Dina punya 3 apel lalu diberi 2 apel lagi, jumlah apel Dina adalah ...",
+                    "options": ["4", "5", "6", "7"],
+                    "answerIndex": 1,
+                    "explanation": "3 + 2 = 5.",
+                    "tags": ["numerasi", "penjumlahan", "sd-kelas-1-2"]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

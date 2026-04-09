@@ -1,0 +1,684 @@
+{
+  "version": "2026.04-full-extracted",
+  "source": "apex-curriculum-master.html",
+  "gradeLevel": "SMP",
+  "locale": "id-ID",
+  "courses": [
+    {
+      "title": "Kurikulum SMP Master (Kelas 7-9)",
+      "description": "Ekstraksi otomatis dari dokumen master HTML. Setiap baris modul-topik dipetakan sebagai lesson.",
+      "modules": [
+        {
+          "title": "Kelas 7 — Transisi & Konsolidasi · Matematika Kelas 7",
+          "sequenceOrder": 1,
+          "masteryThreshold": 80,
+          "meta": {
+            "phase": "Kelas 7 — Transisi & Konsolidasi",
+            "subject": "Matematika Kelas 7",
+            "gradeLevel": "SMP"
+          },
+          "lessons": [
+            {
+              "title": "7M.1 — Bilangan bulat & operasi. FPB, KPK, faktorisasi prima.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7M.1",
+                "topic": "Bilangan bulat & operasi. FPB, KPK, faktorisasi prima.",
+                "benchmark": "Cambridge LS1"
+              }
+            },
+            {
+              "title": "7M.2 — Pecahan, desimal, persen — konversi bebas. Rate & ratio.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7M.2",
+                "topic": "Pecahan, desimal, persen — konversi bebas. Rate & ratio.",
+                "benchmark": "Cambridge LS1"
+              }
+            },
+            {
+              "title": "7M.3 — Aljabar: variabel, ekspresi, persamaan linear 1 variabel.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7M.3",
+                "topic": "Aljabar: variabel, ekspresi, persamaan linear 1 variabel.",
+                "benchmark": "Cambridge LS1"
+              }
+            },
+            {
+              "title": "7M.4 — Geometri koordinat 4 kuadran. Transformasi.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7M.4",
+                "topic": "Geometri koordinat 4 kuadran. Transformasi.",
+                "benchmark": "Cambridge LS1"
+              }
+            },
+            {
+              "title": "7M.5 — Perimeter, area, volume semua bangun.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7M.5",
+                "topic": "Perimeter, area, volume semua bangun.",
+                "benchmark": "Cambridge LS1"
+              }
+            },
+            {
+              "title": "7M.6 — Statistik: mean/median/mode. Probabilitas dasar.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7M.6",
+                "topic": "Statistik: mean/median/mode. Probabilitas dasar.",
+                "benchmark": "Cambridge LS1"
+              }
+            },
+            {
+              "title": "7M.7 — AMC 8 Problem Solving: non-rutin, creative thinking.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7M.7",
+                "topic": "AMC 8 Problem Solving: non-rutin, creative thinking.",
+                "benchmark": "AMC 8 Prep"
+              }
+            }
+          ]
+        },
+        {
+          "title": "Kelas 7 — Transisi & Konsolidasi · Sains Kelas 7",
+          "sequenceOrder": 2,
+          "masteryThreshold": 80,
+          "meta": {
+            "phase": "Kelas 7 — Transisi & Konsolidasi",
+            "subject": "Sains Kelas 7",
+            "gradeLevel": "SMP"
+          },
+          "lessons": [
+            {
+              "title": "7F.1 — Besaran & satuan SI. GLB & GLBB. Hukum Newton 1–3.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7F.1",
+                "topic": "Besaran & satuan SI. GLB & GLBB. Hukum Newton 1–3.",
+                "benchmark": "PhET: Forces & Motion"
+              }
+            },
+            {
+              "title": "7F.2 — Tekanan (Archimedes). Energi & usaha. Gelombang mek.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7F.2",
+                "topic": "Tekanan (Archimedes). Energi & usaha. Gelombang mek.",
+                "benchmark": "PhET: Energy Skate Park"
+              }
+            },
+            {
+              "title": "7K.1 — Materi: unsur, senyawa, campuran. Perubahan fisika/kimia.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7K.1",
+                "topic": "Materi: unsur, senyawa, campuran. Perubahan fisika/kimia.",
+                "benchmark": "Eksperimen rumahan"
+              }
+            },
+            {
+              "title": "7K.2 — Atom, molekul, model Bohr. Tabel periodik top 20.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7K.2",
+                "topic": "Atom, molekul, model Bohr. Tabel periodik top 20.",
+                "benchmark": "Interactive periodic table"
+              }
+            },
+            {
+              "title": "7B.1 — Sel: hewan vs tumbuhan, organel, osmosis & difusi.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7B.1",
+                "topic": "Sel: hewan vs tumbuhan, organel, osmosis & difusi.",
+                "benchmark": "Mikroskop virtual"
+              }
+            },
+            {
+              "title": "7B.2 — Ekosistem: siklus biogeokimia, piramida energi.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7B.2",
+                "topic": "Ekosistem: siklus biogeokimia, piramida energi.",
+                "benchmark": "Lab report IMRAD"
+              }
+            }
+          ]
+        },
+        {
+          "title": "Kelas 7 — Transisi & Konsolidasi · English Kelas 7",
+          "sequenceOrder": 3,
+          "masteryThreshold": 80,
+          "meta": {
+            "phase": "Kelas 7 — Transisi & Konsolidasi",
+            "subject": "English Kelas 7",
+            "gradeLevel": "SMP"
+          },
+          "lessons": [
+            {
+              "title": "7E.1 — Academic Reading: skim, scan, inference. Text structure.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7E.1",
+                "topic": "Academic Reading: skim, scan, inference. Text structure.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "7E.2 — 5-Paragraph Essay: thesis statement, topic sentences.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7E.2",
+                "topic": "5-Paragraph Essay: thesis statement, topic sentences.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "7E.3 — Grammar: all 12 tenses, conditionals 0/1/2, relative clauses.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7E.3",
+                "topic": "Grammar: all 12 tenses, conditionals 0/1/2, relative clauses.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "7E.4 — Vocabulary: AWL 1–4 (800+ kata). Prefix/suffix patterns.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7E.4",
+                "topic": "Vocabulary: AWL 1–4 (800+ kata). Prefix/suffix patterns.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "7E.5 — Presentasi formal 5 menit. Oxford debate dasar.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7E.5",
+                "topic": "Presentasi formal 5 menit. Oxford debate dasar.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "7E.6 — IELTS Junior prep: listening multi-choice, short answer.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7E.6",
+                "topic": "IELTS Junior prep: listening multi-choice, short answer.",
+                "benchmark": null
+              }
+            }
+          ]
+        },
+        {
+          "title": "Kelas 7 — Transisi & Konsolidasi · CS Kelas 7",
+          "sequenceOrder": 4,
+          "masteryThreshold": 80,
+          "meta": {
+            "phase": "Kelas 7 — Transisi & Konsolidasi",
+            "subject": "CS Kelas 7",
+            "gradeLevel": "SMP"
+          },
+          "lessons": [
+            {
+              "title": "7C.1 — Functions advanced: *args, **kwargs, docstrings.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7C.1",
+                "topic": "Functions advanced: *args, **kwargs, docstrings.",
+                "benchmark": "Kalkulator multi-fungsi"
+              }
+            },
+            {
+              "title": "7C.2 — Lists, tuples, dicts, sets. Comprehension. Sorting.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7C.2",
+                "topic": "Lists, tuples, dicts, sets. Comprehension. Sorting.",
+                "benchmark": "Contact book CLI"
+              }
+            },
+            {
+              "title": "7C.3 — File handling: open, read, write, append.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7C.3",
+                "topic": "File handling: open, read, write, append.",
+                "benchmark": "Grade calculator + CSV"
+              }
+            },
+            {
+              "title": "7C.4 — Error handling: try-except-finally. Custom exceptions.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7C.4",
+                "topic": "Error handling: try-except-finally. Custom exceptions.",
+                "benchmark": "Robust grade calculator"
+              }
+            },
+            {
+              "title": "7C.5 — Algorithms: linear/binary search, bubble sort. Big-O intro.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7C.5",
+                "topic": "Algorithms: linear/binary search, bubble sort. Big-O intro.",
+                "benchmark": "Algo visualizer"
+              }
+            },
+            {
+              "title": "7C.6 — GitHub: init, commit, push, README, branches.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "7C.6",
+                "topic": "GitHub: init, commit, push, README, branches.",
+                "benchmark": "Portfolio GitHub pertama"
+              }
+            }
+          ]
+        },
+        {
+          "title": "Kelas 8 — Pendalaman Intensif · Matematika Kelas 8",
+          "sequenceOrder": 5,
+          "masteryThreshold": 80,
+          "meta": {
+            "phase": "Kelas 8 — Pendalaman Intensif",
+            "subject": "Matematika Kelas 8",
+            "gradeLevel": "SMP"
+          },
+          "lessons": [
+            {
+              "title": "8M.1 — Sistem persamaan linear 2 variabel: substitusi, eliminasi, grafik.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8M.1",
+                "topic": "Sistem persamaan linear 2 variabel: substitusi, eliminasi, grafik.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "8M.2 — Fungsi: definisi, domain, range, linear, kuadrat dasar.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8M.2",
+                "topic": "Fungsi: definisi, domain, range, linear, kuadrat dasar.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "8M.3 — Pythagoras lanjut, trigonometri dasar (sin, cos, tan).",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8M.3",
+                "topic": "Pythagoras lanjut, trigonometri dasar (sin, cos, tan).",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "8M.4 — Statistik lanjut: box plot, scatter plot, correlation.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8M.4",
+                "topic": "Statistik lanjut: box plot, scatter plot, correlation.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "8M.5 — Probabilitas: compound events, permutation, combination dasar.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8M.5",
+                "topic": "Probabilitas: compound events, permutation, combination dasar.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "8M.6 — Cambridge Checkpoint Past Papers: full practice test.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8M.6",
+                "topic": "Cambridge Checkpoint Past Papers: full practice test.",
+                "benchmark": null
+              }
+            }
+          ]
+        },
+        {
+          "title": "Kelas 8 — Pendalaman Intensif · CS Kelas 8",
+          "sequenceOrder": 6,
+          "masteryThreshold": 80,
+          "meta": {
+            "phase": "Kelas 8 — Pendalaman Intensif",
+            "subject": "CS Kelas 8",
+            "gradeLevel": "SMP"
+          },
+          "lessons": [
+            {
+              "title": "8C.1 — OOP: class, object, method, inheritance, polymorphism.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8C.1",
+                "topic": "OOP: class, object, method, inheritance, polymorphism.",
+                "benchmark": "Library management system"
+              }
+            },
+            {
+              "title": "8C.2 — Web dev: HTML5, CSS3, JavaScript dasar. Responsive.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8C.2",
+                "topic": "Web dev: HTML5, CSS3, JavaScript dasar. Responsive.",
+                "benchmark": "Personal website"
+              }
+            },
+            {
+              "title": "8C.3 — Data intro: pandas, CSV, basic visualization (matplotlib).",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8C.3",
+                "topic": "Data intro: pandas, CSV, basic visualization (matplotlib).",
+                "benchmark": "Analisis data COVID Indonesia"
+              }
+            },
+            {
+              "title": "8C.4 — API basics: requests library, JSON, REST API consumption.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8C.4",
+                "topic": "API basics: requests library, JSON, REST API consumption.",
+                "benchmark": "Weather app + open API"
+              }
+            },
+            {
+              "title": "8C.5 — SQL dasar: SELECT, WHERE, JOIN, GROUP BY (SQLite).",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8C.5",
+                "topic": "SQL dasar: SELECT, WHERE, JOIN, GROUP BY (SQLite).",
+                "benchmark": "Student records database"
+              }
+            }
+          ]
+        },
+        {
+          "title": "Kelas 8 — Pendalaman Intensif · Ekonomi & Wirausaha Kelas 8",
+          "sequenceOrder": 7,
+          "masteryThreshold": 80,
+          "meta": {
+            "phase": "Kelas 8 — Pendalaman Intensif",
+            "subject": "Ekonomi & Wirausaha Kelas 8",
+            "gradeLevel": "SMP"
+          },
+          "lessons": [
+            {
+              "title": "8W.1 — Business plan: problem, solution, target market, revenue model.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8W.1",
+                "topic": "Business plan: problem, solution, target market, revenue model.",
+                "benchmark": "Business plan dokumen"
+              }
+            },
+            {
+              "title": "8W.2 — Financial literacy: budgeting, saving, compound interest (halal).",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8W.2",
+                "topic": "Financial literacy: budgeting, saving, compound interest (halal).",
+                "benchmark": "Spreadsheet keuangan"
+              }
+            },
+            {
+              "title": "8W.3 — Marketing dasar: STP, marketing mix 4P, branding islami.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8W.3",
+                "topic": "Marketing dasar: STP, marketing mix 4P, branding islami.",
+                "benchmark": "Brand mini project"
+              }
+            },
+            {
+              "title": "8W.4 — Zakat maal: hitung nisab, jenis zakat, zakat profesi.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8W.4",
+                "topic": "Zakat maal: hitung nisab, jenis zakat, zakat profesi.",
+                "benchmark": "Kalkulator zakat"
+              }
+            },
+            {
+              "title": "8W.5 — Pitch deck 5 menit: problem → solution → ask. Simulasi investor.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "8W.5",
+                "topic": "Pitch deck 5 menit: problem → solution → ask. Simulasi investor.",
+                "benchmark": "Pitch deck Canva"
+              }
+            }
+          ]
+        },
+        {
+          "title": "Kelas 9 — Persiapan Global · Matematika Kelas 9",
+          "sequenceOrder": 8,
+          "masteryThreshold": 80,
+          "meta": {
+            "phase": "Kelas 9 — Persiapan Global",
+            "subject": "Matematika Kelas 9",
+            "gradeLevel": "SMP"
+          },
+          "lessons": [
+            {
+              "title": "9M.1 — Persamaan kuadrat: faktorisasi, formula kuadrat, diskriminan.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9M.1",
+                "topic": "Persamaan kuadrat: faktorisasi, formula kuadrat, diskriminan.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "9M.2 — Trigonometri lanjut: grafik, identitas dasar, aplikasi.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9M.2",
+                "topic": "Trigonometri lanjut: grafik, identitas dasar, aplikasi.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "9M.3 — Geometri analitik: persamaan garis, jarak, gradien.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9M.3",
+                "topic": "Geometri analitik: persamaan garis, jarak, gradien.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "9M.4 — Cambridge IGCSE Mathematics past papers (0580).",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9M.4",
+                "topic": "Cambridge IGCSE Mathematics past papers (0580).",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "9M.5 — AMC 10 problem solving intensif: geometry, number theory.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9M.5",
+                "topic": "AMC 10 problem solving intensif: geometry, number theory.",
+                "benchmark": null
+              }
+            }
+          ]
+        },
+        {
+          "title": "Kelas 9 — Persiapan Global · English Kelas 9",
+          "sequenceOrder": 9,
+          "masteryThreshold": 80,
+          "meta": {
+            "phase": "Kelas 9 — Persiapan Global",
+            "subject": "English Kelas 9",
+            "gradeLevel": "SMP"
+          },
+          "lessons": [
+            {
+              "title": "9E.1 — IELTS Academic: 14 question types reading. Full practice.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9E.1",
+                "topic": "IELTS Academic: 14 question types reading. Full practice.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "9E.2 — Academic Writing Task 1: charts, maps, processes.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9E.2",
+                "topic": "Academic Writing Task 1: charts, maps, processes.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "9E.3 — Academic Writing Task 2: semua 5 essay types.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9E.3",
+                "topic": "Academic Writing Task 2: semua 5 essay types.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "9E.4 — Speaking Part 1/2/3: fluency, coherence, vocabulary drills.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9E.4",
+                "topic": "Speaking Part 1/2/3: fluency, coherence, vocabulary drills.",
+                "benchmark": null
+              }
+            },
+            {
+              "title": "9E.5 — Research paper 1000 kata: citation, APA format dasar.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9E.5",
+                "topic": "Research paper 1000 kata: citation, APA format dasar.",
+                "benchmark": null
+              }
+            }
+          ]
+        },
+        {
+          "title": "Kelas 9 — Persiapan Global · CS Kelas 9 — Capstone",
+          "sequenceOrder": 10,
+          "masteryThreshold": 80,
+          "meta": {
+            "phase": "Kelas 9 — Persiapan Global",
+            "subject": "CS Kelas 9 — Capstone",
+            "gradeLevel": "SMP"
+          },
+          "lessons": [
+            {
+              "title": "9C.1 — Flask/Django intro: routing, templates, forms, DB.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9C.1",
+                "topic": "Flask/Django intro: routing, templates, forms, DB.",
+                "benchmark": "Blog app full-stack"
+              }
+            },
+            {
+              "title": "9C.2 — CS50x Harvard: 10 minggu problem sets (C, Python, SQL, JS).",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9C.2",
+                "topic": "CS50x Harvard: 10 minggu problem sets (C, Python, SQL, JS).",
+                "benchmark": "CS50 Final Project"
+              }
+            },
+            {
+              "title": "9C.3 — Git workflow: branching, PR, code review, open source contribution.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9C.3",
+                "topic": "Git workflow: branching, PR, code review, open source contribution.",
+                "benchmark": "Contribute ke 1 open source"
+              }
+            },
+            {
+              "title": "9C.4 — Portfolio website: deploy ke Vercel/Netlify. Custom domain.",
+              "type": "ARTICLE",
+              "contentUrl": "",
+              "meta": {
+                "code": "9C.4",
+                "topic": "Portfolio website: deploy ke Vercel/Netlify. Custom domain.",
+                "benchmark": "Live portfolio global"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

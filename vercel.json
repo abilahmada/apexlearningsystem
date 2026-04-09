@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/nightly-calibration",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/cron/placement-lock",
+      "schedule": "0 18 * * *"
+    }
+  ]
+}

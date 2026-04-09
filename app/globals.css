@@ -1,0 +1,332 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Font loading is handled via next/font in app/layout.tsx. */
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── APEX BRAND COLOR SYSTEM ────────────────────────────────────────────────
+   Brand Blueprint:
+   - Deep Space Navy  #0A1128  → Primary text, header, logo
+   - Electric Cyan    #06B6D4  → Accent tech, progress bar, AI elements
+   - Coral Orange     #F97316  → CTA sekunder, badges, spaced repetition panel
+   - Slate Background #F8FAFC  → App background (bukan putih murni)
+   - White Card       #FFFFFF  → Card surfaces
+   - Success Green    #10B981  → Mastery achieved, success states
+   - Navy Mid         #0F172A  → Sidebar background
+   - Navy Light       #1E293B  → Sidebar hover, secondary nav
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* APEX Core Brand */
+  --apex-navy:        #0A1128;
+  --apex-navy-mid:    #0F172A;
+  --apex-navy-light:  #1E293B;
+  --apex-cyan:        #06B6D4;
+  --apex-cyan-light:  #CFFAFE;
+  --apex-cyan-mid:    #0891B2;
+  --apex-coral:       #F97316;
+  --apex-coral-light: #FFF7ED;
+  --apex-coral-mid:   #EA6C0A;
+
+  /* Semantic */
+  --apex-success:     #10B981;
+  --apex-success-bg:  #ECFDF5;
+  --apex-warning:     #F59E0B;
+  --apex-warning-bg:  #FFFBEB;
+  --apex-danger:      #EF4444;
+  --apex-danger-bg:   #FEF2F2;
+
+  /* Grade Colors */
+  --apex-sd:          #10B981;   /* Emerald — SD */
+  --apex-smp:         #06B6D4;   /* Cyan    — SMP */
+  --apex-smk:         #8B5CF6;   /* Violet  — SMK */
+
+  /* Shadcn/ui token mapping → APEX colors */
+  --background: #F8FAFC;
+  --foreground: #0A1128;
+  --card: #FFFFFF;
+  --card-foreground: #0A1128;
+  --popover: #FFFFFF;
+  --popover-foreground: #0A1128;
+  --primary: #06B6D4;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F1F5F9;
+  --secondary-foreground: #0A1128;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --accent: #FFF7ED;
+  --accent-foreground: #F97316;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #06B6D4;
+  --radius: 0.75rem;
+
+  /* Chart colors */
+  --chart-1: #06B6D4;
+  --chart-2: #10B981;
+  --chart-3: #F97316;
+  --chart-4: #8B5CF6;
+  --chart-5: #F59E0B;
+
+  /* Sidebar → Deep Space Navy */
+  --sidebar: #0F172A;
+  --sidebar-foreground: #94A3B8;
+  --sidebar-primary: #06B6D4;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E293B;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #1E293B;
+  --sidebar-ring: #06B6D4;
+}
+
+@theme inline {
+  /* ─ Fonts: Plus Jakarta Sans (display) + Inter (body) ─ */
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+
+  /* Color tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 8px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* ─── BASE LAYER ─────────────────────────────────────────────────────────── */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Headline elements → Plus Jakarta Sans */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* ─── APEX UTILITY CLASSES ───────────────────────────────────────────────── */
+@layer utilities {
+
+  /* Typography */
+  .font-display   { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+  .font-body      { font-family: 'Inter', system-ui, sans-serif; }
+
+  /* Brand color shorthands */
+  .text-apex-navy   { color: var(--apex-navy); }
+  .text-apex-cyan   { color: var(--apex-cyan); }
+  .text-apex-coral  { color: var(--apex-coral); }
+  .bg-apex-navy     { background-color: var(--apex-navy); }
+  .bg-apex-cyan     { background-color: var(--apex-cyan); }
+  .bg-apex-coral    { background-color: var(--apex-coral); }
+  .bg-apex-slate    { background-color: #F8FAFC; }
+  .border-apex-cyan { border-color: var(--apex-cyan); }
+
+  /* Grade badge colors */
+  .apex-grade-sd  { background-color: var(--apex-sd);  color: white; }
+  .apex-grade-smp { background-color: var(--apex-smp); color: white; }
+  .apex-grade-smk { background-color: var(--apex-smk); color: white; }
+
+  /* Mastery bar states */
+  .mastery-below  { background-color: #F97316; }   /* < 80%  → Coral warning */
+  .mastery-above  { background-color: #10B981; }   /* ≥ 80%  → Green success */
+
+  /* APEX card style */
+  .apex-card {
+    background: white;
+    border: 1px solid #E2E8F0;
+    border-radius: 1.25rem;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  }
+
+  /* Spaced Repetition panel */
+  .apex-sr-panel {
+    background: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%);
+    border: 1px solid #FED7AA;
+  }
+
+  /* Sidebar active state */
+  .apex-nav-active {
+    background: linear-gradient(135deg, var(--apex-cyan) 0%, var(--apex-cyan-mid) 100%);
+    color: white;
+    box-shadow: 0 4px 14px 0 rgb(6 182 212 / 0.35);
+  }
+
+  /* Glow effect for CTA */
+  .apex-glow-cyan {
+    box-shadow: 0 4px 20px 0 rgb(6 182 212 / 0.40);
+  }
+  .apex-glow-coral {
+    box-shadow: 0 4px 20px 0 rgb(249 115 22 / 0.35);
+  }
+
+  /* ─── Chat Markdown (no typography plugin needed) ─────────────────────── */
+  .chat-markdown {
+    @apply leading-relaxed;
+  }
+  .chat-markdown :where(p) {
+    @apply my-1.5;
+  }
+  .chat-markdown :where(h1, h2, h3) {
+    @apply mt-3 mb-1.5 font-bold;
+  }
+  .chat-markdown :where(h1) {
+    @apply text-base;
+  }
+  .chat-markdown :where(h2) {
+    @apply text-sm;
+  }
+  .chat-markdown :where(h3) {
+    @apply text-sm;
+  }
+  .chat-markdown :where(ul) {
+    @apply my-1.5 pl-5 list-disc;
+  }
+  .chat-markdown :where(ol) {
+    @apply my-1.5 pl-5 list-decimal;
+  }
+  .chat-markdown :where(li) {
+    @apply my-0.5;
+  }
+  .chat-markdown :where(blockquote) {
+    @apply my-2 border-l-4 border-slate-200 pl-3 italic;
+  }
+  .chat-markdown :where(hr) {
+    @apply my-3 border-slate-200;
+  }
+  .chat-markdown :where(table) {
+    @apply my-2 w-full text-left border-collapse;
+  }
+  .chat-markdown :where(th, td) {
+    @apply border border-slate-200 px-2 py-1 align-top;
+  }
+  .chat-markdown :where(th) {
+    @apply bg-slate-100 font-semibold;
+  }
+  .chat-markdown :where(kbd) {
+    @apply rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[0.85em];
+  }
+  .chat-markdown-inverted :where(blockquote) {
+    @apply border-white/30;
+  }
+  .chat-markdown-inverted :where(hr) {
+    @apply border-white/30;
+  }
+  .chat-markdown-inverted :where(th, td) {
+    @apply border-white/25;
+  }
+  .chat-markdown-inverted :where(th) {
+    @apply bg-white/10;
+  }
+}
+
+/* ─── highlight.js integration (keep bubble backgrounds) ─────────────────── */
+.chat-markdown .hljs {
+  background: transparent;
+  padding: 0;
+}
+.chat-markdown .hljs-comment,
+.chat-markdown .hljs-quote {
+  color: rgb(148 163 184); /* slate-400 */
+}
+.chat-markdown .hljs-keyword,
+.chat-markdown .hljs-selector-tag,
+.chat-markdown .hljs-subst {
+  color: rgb(56 189 248); /* sky-400 */
+}
+.chat-markdown .hljs-string,
+.chat-markdown .hljs-title,
+.chat-markdown .hljs-section,
+.chat-markdown .hljs-attribute,
+.chat-markdown .hljs-literal,
+.chat-markdown .hljs-template-tag,
+.chat-markdown .hljs-template-variable,
+.chat-markdown .hljs-type,
+.chat-markdown .hljs-addition {
+  color: rgb(110 231 183); /* emerald-300 */
+}
+.chat-markdown .hljs-number,
+.chat-markdown .hljs-symbol,
+.chat-markdown .hljs-bullet,
+.chat-markdown .hljs-variable,
+.chat-markdown .hljs-link {
+  color: rgb(251 191 36); /* amber-400 */
+}
+.chat-markdown .hljs-deletion,
+.chat-markdown .hljs-regexp {
+  color: rgb(252 165 165); /* red-300 */
+}
+
+/* ─── SCROLLBAR BRAND STYLING ────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #F1F5F9; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--apex-cyan); }
+
+/* ─── OPENdyslexic ACCESSIBILITY MODE ───────────────────────────────────── */
+.font-dyslexic {
+  font-family: 'OpenDyslexic', 'Comic Sans MS', cursive !important;
+  line-height: 1.8 !important;
+  letter-spacing: 0.05em !important;
+  word-spacing: 0.15em !important;
+}
+
+/* ─── SMOOTH TRANSITION HELPER ───────────────────────────────────────────── */
+.apex-transition {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── MASTERY LOCK VISUAL ────────────────────────────────────────────────── */
+.apex-locked {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+  pointer-events: none;
+  user-select: none;
+}

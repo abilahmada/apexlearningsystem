@@ -1,0 +1,54 @@
+{
+  "rubricId": "R-PBL-IBMYP-09",
+  "rubricName": "PBL IB MYP Business Pitch Rubric",
+  "framework": "IB MYP (adapted)",
+  "gradeLevel": "SMP Kelas 9",
+  "taskTitle": "Membuat Rencana Bisnis Sederhana dan Pitch Deck 5 Slide",
+  "maxPoints": 16,
+  "criteria": [
+    {
+      "code": "C1",
+      "name": "Inovasi & Ide Bisnis",
+      "weightPct": 25,
+      "levels": {
+        "1": "Ide sangat umum/meniru, masalah pengguna tidak jelas, nilai unik belum terlihat.",
+        "2": "Ide cukup relevan, masalah pengguna mulai terdefinisi, nilai unik masih lemah.",
+        "3": "Ide jelas dan relevan dengan kebutuhan pengguna, ada diferensiasi yang masuk akal.",
+        "4": "Ide kuat, kreatif, berbasis masalah nyata, nilai unik tajam dan meyakinkan untuk target pasar."
+      }
+    },
+    {
+      "code": "C2",
+      "name": "Pemahaman Finansial (Supply/Demand)",
+      "weightPct": 25,
+      "levels": {
+        "1": "Tidak mampu menjelaskan hubungan supply-demand; asumsi biaya/harga tidak logis.",
+        "2": "Menjelaskan supply-demand secara dasar, namun penerapan ke produk/jasa masih parsial; angka belum konsisten.",
+        "3": "Menjelaskan supply-demand dengan benar dan mengaitkannya ke harga, biaya, dan peluang pasar secara cukup konsisten.",
+        "4": "Analisis supply-demand akurat dan kontekstual; asumsi harga/biaya realistis; menunjukkan pemahaman risiko dan strategi sederhana."
+      }
+    },
+    {
+      "code": "C3",
+      "name": "Kualitas Visual Pitch Deck",
+      "weightPct": 25,
+      "levels": {
+        "1": "Struktur slide tidak jelas, teks terlalu padat, visual kurang mendukung pesan.",
+        "2": "Struktur mulai rapi, visual ada tetapi belum konsisten; keterbacaan masih kurang.",
+        "3": "Struktur 5 slide jelas, visual mendukung ide, desain cukup konsisten dan mudah dipahami audiens.",
+        "4": "Desain profesional, ringkas, konsisten; alur cerita kuat per slide; visual/data memperkuat persuasi secara efektif."
+      }
+    },
+    {
+      "code": "C4",
+      "name": "Kejelasan Argumen (Bahasa Inggris Dasar)",
+      "weightPct": 25,
+      "levels": {
+        "1": "Penyampaian tidak terstruktur, banyak kalimat tidak jelas, kosakata sangat terbatas.",
+        "2": "Argumen dasar sudah ada, namun transisi/logika masih lemah; kesalahan bahasa cukup sering.",
+        "3": "Argumen cukup runtut (problem-solution-value), bahasa Inggris dasar jelas, kesalahan minor tidak mengganggu makna.",
+        "4": "Argumen sangat jelas, meyakinkan, dan terstruktur; penggunaan English sederhana namun efektif, percaya diri saat presentasi/Q&A."
+      }
+    }
+  ]
+}

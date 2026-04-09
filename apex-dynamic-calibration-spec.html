@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APEX — Dynamic Calibration Algorithm: Spesifikasi Teknis Lengkap</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--n:#0A1128;--n2:#0F172A;--n3:#1E293B;--c:#06B6D4;--o:#F97316;--g:#10B981;--v:#8B5CF6;--a:#F59E0B;--r:#EF4444;--t:rgba(240,237,232,.85);--m:rgba(240,237,232,.55);--m2:rgba(240,237,232,.3);--b:rgba(255,255,255,.07);--b2:rgba(255,255,255,.13);--bg:#0A0A0F;--p:#111118;--p2:#16161F;--p3:#1C1C28;--rd:10px;--rl:14px;}
+*{box-sizing:border-box;margin:0;padding:0;}html{scroll-behavior:smooth;}
+body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--t);line-height:1.7;font-size:13px;}
+::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:var(--c);border-radius:2px;}
+.topbar{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.96);backdrop-filter:blur(16px);border-bottom:1px solid var(--b2);padding:10px 24px;display:flex;align-items:center;gap:16px;overflow-x:auto;}
+.logo{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:800;color:var(--c);white-space:nowrap;flex-shrink:0;}
+.tabs{display:flex;gap:2px;flex-shrink:0;}
+.tab{padding:5px 12px;font-size:11px;font-weight:600;border:none;background:transparent;color:var(--m2);cursor:pointer;border-radius:6px;white-space:nowrap;transition:all .15s;}
+.tab:hover{color:var(--t);background:var(--p2);}
+.tab.on{color:var(--c);background:rgba(6,182,212,.1);}
+.wrap{max-width:900px;margin:0 auto;padding:24px 24px 60px;}
+.panel{display:none;}.panel.on{display:block;}
+h2{font-family:'Plus Jakarta Sans',sans-serif;font-size:20px;font-weight:800;letter-spacing:-.5px;color:var(--t);margin:28px 0 12px;}
+h3{font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:700;color:var(--t);margin:20px 0 8px;}
+h4{font-size:11px;font-weight:700;color:var(--m2);letter-spacing:1.5px;text-transform:uppercase;margin:14px 0 6px;}
+p{font-size:13px;color:var(--m);line-height:1.75;margin-bottom:10px;font-family:'Plus Jakarta Sans',sans-serif;}
+strong{font-weight:700;color:var(--t);}
+code{font-size:11px;background:var(--p2);border:1px solid var(--b2);border-radius:4px;padding:1px 6px;color:var(--c);font-family:'DM Mono',monospace;}
+pre{background:var(--p2);border:1px solid var(--b2);border-radius:var(--rl);padding:18px;overflow-x:auto;font-size:11.5px;font-family:'DM Mono',monospace;color:var(--t);line-height:1.8;margin:8px 0 16px;position:relative;}
+.copy-btn{position:absolute;top:10px;right:12px;padding:3px 10px;border:1px solid var(--b2);background:var(--p3);color:var(--m2);font-size:10px;border-radius:5px;cursor:pointer;font-family:'DM Mono',monospace;transition:all .2s;}
+.copy-btn:hover{border-color:var(--c);color:var(--c);}
+.copy-btn.ok{color:var(--g);border-color:var(--g);}
+.kw{color:#7dd3fc;}.fn{color:#fbbf24;}.st{color:#86efac;}.cm{color:#4a5568;}.nm{color:#f87171;}
+.div{height:1px;background:var(--b);margin:24px 0;}
+.card{background:var(--p);border:1px solid var(--b);border-radius:var(--rl);padding:18px 20px;margin-bottom:10px;}
+.card.al{border-left:3px solid var(--c);}
+.card.ag{border-left:3px solid var(--g);}
+.card.ao{border-left:3px solid var(--o);}
+.card.ar{border-left:3px solid var(--r);}
+.card.av{border-left:3px solid var(--v);}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+.card-s{background:var(--p2);border-radius:var(--rd);padding:12px 14px;}
+table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0 16px;}
+th{padding:8px 12px;background:var(--p3);color:var(--m2);text-align:left;border:1px solid var(--b);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;}
+td{padding:8px 12px;border:1px solid var(--b);color:var(--m);vertical-align:top;}
+tr:hover td{background:rgba(255,255,255,.02);}
+td:first-child{color:var(--t);font-weight:600;font-family:'DM Mono',monospace;font-size:11px;}
+td:nth-child(2){color:var(--c);font-family:'DM Mono',monospace;font-size:11px;}
+.formula{background:var(--p2);border:1px solid var(--b2);border-left:3px solid var(--c);border-radius:0 var(--rd) var(--rd) 0;padding:12px 16px;font-family:'DM Mono',monospace;font-size:12px;color:var(--t);margin:8px 0 14px;line-height:2;}
+.formula-note{font-size:11px;color:var(--m2);margin-top:4px;font-family:'Plus Jakarta Sans',sans-serif;}
+.b1{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;}
+.bi{background:rgba(6,182,212,.15);color:var(--c);}
+.bg{background:rgba(16,185,129,.15);color:var(--g);}
+.bo{background:rgba(249,115,22,.15);color:var(--o);}
+.bv{background:rgba(139,92,246,.15);color:var(--v);}
+.br{background:rgba(239,68,68,.15);color:var(--r);}
+.bx{background:rgba(255,255,255,.08);color:var(--m2);}
+.step{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--b);}
+.step:last-child{border-bottom:none;}
+.snum{width:26px;height:26px;border-radius:50%;background:var(--p2);border:1px solid var(--b2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--t);flex-shrink:0;margin-top:1px;}
+.stit{font-size:13px;font-weight:700;color:var(--t);margin-bottom:3px;font-family:'Plus Jakarta Sans',sans-serif;}
+.sdesc{font-size:12px;color:var(--m);line-height:1.6;font-family:'Plus Jakarta Sans',sans-serif;}
+@media(max-width:640px){.g2,.g3{grid-template-columns:1fr;}.wrap{padding:16px 16px 60px;}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">APEX // DYNAMIC CALIBRATION SPEC</div>
+  <div class="tabs">
+    <button class="tab on" onclick="T('overview')">Overview</button>
+    <button class="tab" onclick="T('signals')">Signal Collectors</button>
+    <button class="tab" onclick="T('formula')">Formula Engine</button>
+    <button class="tab" onclick="T('schema')">DB Schema</button>
+    <button class="tab" onclick="T('cron')">Cron Jobs</button>
+    <button class="tab" onclick="T('api')">API Contracts</button>
+    <button class="tab" onclick="T('tests')">Test Cases</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ═══ OVERVIEW ═══ -->
+<div id="pnl-overview" class="panel on">
+<h2>Dynamic Calibration Algorithm — Spesifikasi Teknis Lengkap</h2>
+<p>Background service yang berjalan 14 hari pasca intake assessment. Mengumpulkan 3 sinyal dari aktivitas nyata siswa, menggabungkan dengan weighted formula, menghasilkan placement lebih akurat dari intake saja.</p>
+
+<h3>Alur data tingkat tinggi</h3>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// Event flow: aktivitas siswa → placement final</span>
+
+UserActivity (quiz, flashcard, session, chat)
+  → EventStream (Redis Streams)
+    → SignalCollectors (3 parallel workers)
+      → CalibrationSignal table (raw signals per day)
+        → NightlyCronJob (aggregate + normalize)
+          → RunningTheta table (per-dimension estimates)
+            → Day14CronJob (weighted combine + CI check)
+              → FlagEngine (anomaly detection)
+                → [ManualReview → Mentor] OR [AutoLock]
+                  → CompetencyProfile (final placement)
+                    → Notification (student + parent)</pre>
+
+<h3>Tech stack komponen baru</h3>
+<table>
+<thead><tr><th>Komponen</th><th>Teknologi</th><th>Keterangan</th></tr></thead>
+<tbody>
+<tr><td>Event streaming</td><td>Redis Streams</td><td>Lightweight. Migrasikan ke Kafka jika DAU &gt;10k.</td></tr>
+<tr><td>Background jobs</td><td>BullMQ + Redis</td><td>Queue-based, retry logic, cocok dengan Vercel serverless.</td></tr>
+<tr><td>Nightly cron</td><td>Vercel Cron Jobs</td><td>Native Vercel. Cukup untuk precision menit-jam.</td></tr>
+<tr><td>Database</td><td>PostgreSQL + Prisma</td><td>Sudah ada. Window functions PostgreSQL berguna untuk time-series.</td></tr>
+<tr><td>Cache</td><td>Redis</td><td>Cache running theta agar tidak hit DB setiap request.</td></tr>
+</tbody>
+</table>
+
+<h3>6 komponen sistem</h3>
+<div class="g3">
+<div class="card-s"><h4>Signal collectors</h4><p style="font-size:12px;">3 service yang merekam sinyal berbeda setiap hari dari event stream platform</p></div>
+<div class="card-s"><h4>Normalizer</h4><p style="font-size:12px;">Mengubah raw signal menjadi normalized score 1–10 yang bisa dibandingkan lintas dimensi</p></div>
+<div class="card-s"><h4>Weighted combiner</h4><p style="font-size:12px;">Menggabungkan 4 sumber data dengan bobot berbeda per dimensi kompetensi</p></div>
+<div class="card-s"><h4>CI calculator</h4><p style="font-size:12px;">Menghitung confidence interval berdasarkan jumlah data yang terkumpul</p></div>
+<div class="card-s"><h4>Flag engine</h4><p style="font-size:12px;">Mendeteksi anomali dan memicu tindakan spesifik: alert, override, mentor review</p></div>
+<div class="card-s"><h4>Placement writer</h4><p style="font-size:12px;">Mengunci placement final ke CompetencyProfile setelah semua kondisi terpenuhi</p></div>
+</div>
+</div>
+
+<!-- ═══ SIGNAL COLLECTORS ═══ -->
+<div id="pnl-signals" class="panel">
+<h2>Signal Collectors — 3 Implementasi Detail</h2>
+
+<h3>Collector 1 — Mastery velocity</h3>
+<p>Mengukur kecepatan siswa mencapai 80% mastery per modul dibanding cohort normative. Direkam setiap kali siswa melewati threshold mastery. Mengukur <em>learning rate</em>, bukan pengetahuan awal.</p>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// lib/calibration/mastery-velocity-collector.ts</span>
+
+<span class="kw">interface</span> MasteryEvent {
+  userId:       <span class="kw">string</span>
+  subject:      <span class="kw">string</span>
+  moduleId:     <span class="kw">string</span>
+  masteryPct:   <span class="kw">number</span>
+  sessionCount: <span class="kw">number</span>   <span class="cm">// berapa sesi untuk capai ini</span>
+  daysElapsed:  <span class="kw">number</span>   <span class="cm">// hari sejak modul pertama dibuka</span>
+  timestamp:    <span class="kw">Date</span>
+}
+
+<span class="kw">export async function</span> <span class="fn">collectMasteryVelocity</span>(event: MasteryEvent) {
+  <span class="kw">if</span> (event.masteryPct &lt; <span class="nm">80</span>) <span class="kw">return</span>  <span class="cm">// hanya rekam saat threshold tercapai</span>
+
+  <span class="kw">const</span> cohortMedian = <span class="kw">await</span> <span class="fn">getCohortMedianDays</span>({
+    subject:    event.subject,
+    gradeLevel: <span class="kw">await</span> <span class="fn">getUserGrade</span>(event.userId),
+  })
+
+  <span class="cm">// velocity = median / actual (>1 lebih cepat, <1 lebih lambat)</span>
+  <span class="kw">const</span> rawVelocity     = cohortMedian / Math.<span class="fn">max</span>(event.daysElapsed, <span class="nm">0.5</span>)
+  <span class="kw">const</span> clampedVelocity = Math.<span class="fn">min</span>(Math.<span class="fn">max</span>(rawVelocity, <span class="nm">0.1</span>), <span class="nm">3.0</span>)
+
+  <span class="kw">await</span> prisma.calibrationSignal.<span class="fn">create</span>({
+    data: {
+      userId:     event.userId,
+      signalType: <span class="st">'mastery_velocity'</span>,
+      dimension:  <span class="fn">subjectToDimension</span>(event.subject),
+      rawValue:   clampedVelocity,
+      metadata:   { moduleId: event.moduleId, cohortMedian, daysElapsed: event.daysElapsed },
+      recordedAt: event.timestamp,
+    }
+  })
+}</pre>
+
+<h3>Collector 2 — Error pattern analyzer</h3>
+<p>Menganalisis pola kesalahan per tag konsep. Lebih diagnostik dari skor total karena mengidentifikasi gap konseptual yang spesifik — bukan hanya berapa banyak yang salah, tapi <em>di mana</em> yang salah.</p>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// lib/calibration/error-pattern-collector.ts</span>
+
+<span class="kw">export async function</span> <span class="fn">collectErrorPattern</span>(userId: <span class="kw">string</span>, dimension: <span class="kw">string</span>) {
+  <span class="kw">const</span> answers = <span class="kw">await</span> prisma.quizAnswer.<span class="fn">findMany</span>({
+    where: {
+      session: { userId, subject: <span class="fn">dimensionToSubjects</span>(dimension) },
+      createdAt: { gte: <span class="fn">daysAgo</span>(<span class="nm">14</span>) }
+    },
+    include: { question: { select: { conceptTags: <span class="kw">true</span>, difficulty: <span class="kw">true</span> } } }
+  })
+
+  <span class="cm">// group errors by concept tag</span>
+  <span class="kw">const</span> tagStats: Record&lt;<span class="kw">string</span>, { total: <span class="kw">number</span>; wrong: <span class="kw">number</span> }&gt; = {}
+
+  <span class="kw">for</span> (<span class="kw">const</span> a <span class="kw">of</span> answers) {
+    <span class="kw">for</span> (<span class="kw">const</span> tag <span class="kw">of</span> a.question.conceptTags) {
+      <span class="kw">if</span> (!tagStats[tag]) tagStats[tag] = { total: <span class="nm">0</span>, wrong: <span class="nm">0</span> }
+      tagStats[tag].total++
+      <span class="kw">if</span> (!a.isCorrect) tagStats[tag].wrong++
+    }
+  }
+
+  <span class="cm">// systematic error: >60% salah di satu tag, minimal 3 soal</span>
+  <span class="kw">const</span> systematicGaps = Object.<span class="fn">entries</span>(tagStats)
+    .<span class="fn">filter</span>(([_, s]) =&gt; s.total &gt;= <span class="nm">3</span> &amp;&amp; s.wrong / s.total &gt; <span class="nm">0.60</span>)
+    .<span class="fn">map</span>(([tag, s]) =&gt; ({ tag, errorRate: s.wrong / s.total }))
+
+  <span class="kw">const</span> systematicRate = answers.length &gt; <span class="nm">0</span>
+    ? systematicGaps.<span class="fn">reduce</span>((s, g) =&gt; s + tagStats[g.tag].wrong, <span class="nm">0</span>) / answers.length
+    : <span class="nm">0</span>
+
+  <span class="cm">// error pattern score: 5.0 = no gaps, 1.0 = severe gaps</span>
+  <span class="kw">const</span> errorPatternScore = Math.<span class="fn">max</span>(<span class="nm">1.0</span>, <span class="nm">5.0</span> - systematicRate * <span class="nm">4.0</span>)
+
+  <span class="kw">await</span> prisma.calibrationSignal.<span class="fn">create</span>({
+    data: {
+      userId, signalType: <span class="st">'error_pattern'</span>, dimension,
+      rawValue: errorPatternScore,
+      metadata: { systematicGaps, totalAnswers: answers.length },
+      recordedAt: <span class="kw">new</span> <span class="fn">Date</span>(),
+    }
+  })
+
+  <span class="cm">// queue remediation jika ada systematic gaps</span>
+  <span class="kw">if</span> (systematicGaps.length &gt; <span class="nm">0</span>) {
+    <span class="kw">await</span> <span class="fn">queueRemediationModules</span>(userId, dimension, systematicGaps)
+  }
+}</pre>
+
+<h3>Collector 3 — Engagement signal</h3>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// lib/calibration/engagement-collector.ts</span>
+
+<span class="kw">export async function</span> <span class="fn">collectEngagementSignal</span>(userId: <span class="kw">string</span>) {
+  <span class="kw">const</span> [sessions, rereads, skips, extras, drops] = <span class="kw">await</span> Promise.<span class="fn">all</span>([
+    <span class="fn">getSessionCount</span>(userId, <span class="nm">14</span>),
+    <span class="fn">getRereadRate</span>(userId, <span class="nm">14</span>),       <span class="cm">// pct konten dibuka ulang</span>
+    <span class="fn">getSkipRate</span>(userId, <span class="nm">14</span>),
+    <span class="fn">getVoluntaryExtras</span>(userId, <span class="nm">14</span>),
+    <span class="fn">getDropoutRate</span>(userId, <span class="nm">14</span>),
+  ])
+
+  <span class="cm">// engagement score 1–10, bukan sinyal placement langsung</span>
+  <span class="cm">// digunakan sebagai CI multiplier</span>
+  <span class="kw">const</span> score =
+      <span class="nm">2.0</span> * Math.<span class="fn">min</span>(sessions / <span class="nm">10</span>, <span class="nm">1</span>)     <span class="cm">// sesi: max 2 pts</span>
+    + <span class="nm">2.0</span> * (<span class="nm">1</span> - drops)                      <span class="cm">// retention: max 2 pts</span>
+    + <span class="nm">2.0</span> * (<span class="nm">1</span> - Math.<span class="fn">min</span>(skips, <span class="nm">1</span>))        <span class="cm">// non-skip: max 2 pts</span>
+    + <span class="nm">2.0</span> * Math.<span class="fn">min</span>(extras / <span class="nm">3</span>, <span class="nm">1</span>)         <span class="cm">// extras: max 2 pts</span>
+    + <span class="nm">2.0</span> * (<span class="nm">1</span> - Math.<span class="fn">min</span>(rereads * <span class="nm">2</span>, <span class="nm">1</span>)) <span class="cm">// low reread: max 2 pts</span>
+
+  <span class="kw">await</span> prisma.calibrationSignal.<span class="fn">create</span>({
+    data: {
+      userId, signalType: <span class="st">'engagement'</span>, dimension: <span class="st">'global'</span>,
+      rawValue:   Math.<span class="fn">min</span>(Math.<span class="fn">max</span>(score, <span class="nm">1</span>), <span class="nm">10</span>),
+      metadata:   { sessions, rereads, skips, extras, drops },
+      recordedAt: <span class="kw">new</span> <span class="fn">Date</span>(),
+    }
+  })
+}</pre>
+</div>
+
+<!-- ═══ FORMULA ENGINE ═══ -->
+<div id="pnl-formula" class="panel">
+<h2>Formula Engine — Normalisasi + Weighted Combination</h2>
+
+<h3>Step 1 — Normalisasi raw signals ke skala 1–10</h3>
+<div class="formula">
+VelocityNorm(v)  = clamp( tanh(v − 1.0) × 3.0 + 5.0, 1, 10 )
+<div class="formula-note">v=1.0 (rata-rata) → 5.0 · v=1.5 → ~6.8 · v=0.5 → ~3.2</div>
+<br>
+ErrorNorm(e)     = 5.0 − (systematic_error_rate × 4.0)
+<div class="formula-note">e=0% systematic → 5.0 · e=50% → 3.0 · e=100% → 1.0</div>
+<br>
+ParentNorm(p, θ) = θ × (1 + p × 0.15) &emsp; [p ∈ {−2 … +2}]
+<div class="formula-note">Adjustment +2 menaikkan theta ~30%, −2 menurunkan ~30%</div>
+<br>
+CI_final(d) = CI_intake × (1 − CoverageScore × EngagementMultiplier)
+<div class="formula-note">CoverageScore = min(sessions/10, 1.0) · EngMult = 0.7 + (eng/10)×0.3</div>
+</div>
+
+<h3>Step 2 — Bobot per dimensi</h3>
+<table>
+<thead><tr><th>Dimensi</th><th>w₁ intake</th><th>w₂ velocity</th><th>w₃ error</th><th>w₄ parent</th><th>Rationale</th></tr></thead>
+<tbody>
+<tr><td>Kognitif</td><td>0.35</td><td>0.35</td><td>0.20</td><td>0.10</td><td>Data platform sangat valid untuk kognitif.</td></tr>
+<tr><td>Bahasa</td><td>0.30</td><td>0.25</td><td>0.30</td><td>0.15</td><td>Error pattern penting untuk skill bahasa.</td></tr>
+<tr><td>Digital / CS</td><td>0.40</td><td>0.35</td><td>0.15</td><td>0.10</td><td>CAT + velocity sangat akurat untuk CS.</td></tr>
+<tr><td>Karakter</td><td>0.20</td><td>0.20</td><td>0.15</td><td>0.45</td><td>Platform kurang bisa ukur karakter. Parent dominan.</td></tr>
+<tr><td>Spiritual</td><td>0.10</td><td>0.10</td><td>0.10</td><td>0.70</td><td>Ibadah hanya bisa dinilai orang tua.</td></tr>
+<tr><td>Leadership</td><td>0.25</td><td>0.20</td><td>0.20</td><td>0.35</td><td>Oral assessment + parent sama pentingnya.</td></tr>
+</tbody>
+</table>
+
+<h3>Step 3 — Implementasi TypeScript lengkap</h3>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// lib/calibration/placement-calculator.ts</span>
+
+<span class="kw">const</span> WEIGHTS = {
+  kognitif:   { w1: <span class="nm">.35</span>, w2: <span class="nm">.35</span>, w3: <span class="nm">.20</span>, w4: <span class="nm">.10</span> },
+  bahasa:     { w1: <span class="nm">.30</span>, w2: <span class="nm">.25</span>, w3: <span class="nm">.30</span>, w4: <span class="nm">.15</span> },
+  digital:    { w1: <span class="nm">.40</span>, w2: <span class="nm">.35</span>, w3: <span class="nm">.15</span>, w4: <span class="nm">.10</span> },
+  karakter:   { w1: <span class="nm">.20</span>, w2: <span class="nm">.20</span>, w3: <span class="nm">.15</span>, w4: <span class="nm">.45</span> },
+  spiritual:  { w1: <span class="nm">.10</span>, w2: <span class="nm">.10</span>, w3: <span class="nm">.10</span>, w4: <span class="nm">.70</span> },
+  leadership: { w1: <span class="nm">.25</span>, w2: <span class="nm">.20</span>, w3: <span class="nm">.20</span>, w4: <span class="nm">.35</span> },
+} <span class="kw">as const</span>
+
+<span class="kw">const</span> <span class="fn">clamp</span> = (v: <span class="kw">number</span>, mn: <span class="kw">number</span>, mx: <span class="kw">number</span>) => Math.<span class="fn">min</span>(Math.<span class="fn">max</span>(v,mn),mx)
+
+<span class="kw">export function</span> <span class="fn">normalizeVelocity</span>(v: <span class="kw">number</span>) {
+  <span class="kw">return</span> <span class="fn">clamp</span>(Math.<span class="fn">tanh</span>(v - <span class="nm">1.0</span>) * <span class="nm">3.0</span> + <span class="nm">5.0</span>, <span class="nm">1</span>, <span class="nm">10</span>)
+}
+<span class="kw">export function</span> <span class="fn">normalizeError</span>(systematicRate: <span class="kw">number</span>) {
+  <span class="kw">return</span> <span class="fn">clamp</span>(<span class="nm">5.0</span> - systematicRate * <span class="nm">4.0</span>, <span class="nm">1</span>, <span class="nm">10</span>)
+}
+<span class="kw">export function</span> <span class="fn">normalizeParent</span>(theta: <span class="kw">number</span>, adj: <span class="kw">number</span>) {
+  <span class="kw">return</span> <span class="fn">clamp</span>(theta * (<span class="nm">1</span> + adj * <span class="nm">0.15</span>), <span class="nm">1</span>, <span class="nm">10</span>)
+}
+<span class="kw">export function</span> <span class="fn">calcCI</span>(sessions: <span class="kw">number</span>, engagement: <span class="kw">number</span>, intakeCI = <span class="nm">2.4</span>) {
+  <span class="kw">const</span> coverage = Math.<span class="fn">min</span>(sessions / <span class="nm">10</span>, <span class="nm">1.0</span>)
+  <span class="kw">const</span> engMult  = <span class="nm">0.7</span> + (engagement / <span class="nm">10</span>) * <span class="nm">0.3</span>
+  <span class="kw">return</span> intakeCI * (<span class="nm">1</span> - coverage * engMult)
+}
+
+<span class="kw">export async function</span> <span class="fn">calculateFinalPlacement</span>(userId: <span class="kw">string</span>): Promise&lt;PlacementResult&gt; {
+  <span class="kw">const</span> [session, signals, parentInput, engagement] = <span class="kw">await</span> Promise.<span class="fn">all</span>([
+    <span class="fn">getAssessmentSession</span>(userId),
+    <span class="fn">getAggregatedSignals</span>(userId),
+    <span class="fn">getParentValidation</span>(userId),
+    <span class="fn">getEngagementScore</span>(userId),
+  ])
+
+  <span class="kw">if</span> (session.sessionsCompleted &lt; <span class="nm">5</span>)
+    <span class="kw">return</span> { status: <span class="st">'insufficient_data'</span>, action: <span class="st">'extend_window'</span> }
+
+  <span class="kw">const</span> results = Object.<span class="fn">entries</span>(WEIGHTS).<span class="fn">map</span>(([dim, w]) => {
+    <span class="kw">const</span> intake  = session.intakeTheta[dim] ?? <span class="nm">5.0</span>
+    <span class="kw">const</span> velNorm = <span class="fn">normalizeVelocity</span>(signals[dim]?.velocity ?? <span class="nm">1.0</span>)
+    <span class="kw">const</span> errNorm = <span class="fn">normalizeError</span>(signals[dim]?.systematicRate ?? <span class="nm">0</span>)
+    <span class="kw">const</span> parNorm = parentInput
+      ? <span class="fn">normalizeParent</span>(intake, parentInput.adjustments[dim] ?? <span class="nm">0</span>)
+      : intake
+
+    <span class="kw">const</span> finalTheta = <span class="fn">clamp</span>(
+      w.w1*intake + w.w2*velNorm + w.w3*errNorm + w.w4*parNorm, <span class="nm">1</span>, <span class="nm">10</span>
+    )
+    <span class="cm">// safety: jangan turun lebih dari 2 poin dari intake</span>
+    <span class="kw">const</span> safeTheta = Math.<span class="fn">max</span>(finalTheta, intake - <span class="nm">2.0</span>)
+    <span class="kw">const</span> ci        = <span class="fn">calcCI</span>(session.sessionsCompleted, engagement)
+    <span class="kw">const</span> delta     = Math.<span class="fn">abs</span>(safeTheta - intake)
+
+    <span class="kw">return</span> { dim, finalTheta: safeTheta, ci, delta, intake, velNorm, errNorm, parNorm }
+  })
+
+  <span class="kw">const</span> flags       = <span class="fn">detectFlags</span>(results, session, parentInput)
+  <span class="kw">const</span> needsReview = flags.<span class="fn">some</span>(f => [<span class="st">'mismatch'</span>,<span class="st">'parent_disagreement'</span>].<span class="fn">includes</span>(f.type))
+
+  <span class="kw">return</span> {
+    status:  needsReview ? <span class="st">'pending_review'</span> : <span class="st">'ready_to_lock'</span>,
+    dimensions: results,
+    flags,
+    canLock: !needsReview &amp;&amp; results.<span class="fn">every</span>(r => r.ci &lt; <span class="nm">0.8</span>),
+  }
+}</pre>
+</div>
+
+<!-- ═══ DB SCHEMA ═══ -->
+<div id="pnl-schema" class="panel">
+<h2>Database Schema — Tambahan ke prisma/schema.prisma</h2>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// Tambahkan ke prisma/schema.prisma yang sudah ada</span>
+
+<span class="kw">model</span> AssessmentSession {
+  id                <span class="kw">String</span>        @id @default(cuid())
+  userId            <span class="kw">String</span>        @unique  <span class="cm">// 1 sesi aktif per user</span>
+  status            SessionStatus            <span class="cm">// PENDING|ACTIVE|CALIBRATING|PLACED|EXTENDED</span>
+  startedAt         <span class="kw">DateTime</span>      @default(now())
+  placementLockedAt <span class="kw">DateTime</span>?
+  calibrationEndsAt <span class="kw">DateTime</span>?             <span class="cm">// startedAt + 14 days</span>
+  sessionsCompleted <span class="kw">Int</span>           @default(0)
+  intakeCI          <span class="kw">Float</span>         @default(2.4)
+  intakeTheta       <span class="kw">Json</span>                    <span class="cm">// {kognitif:6.2, bahasa:5.1, ...}</span>
+  finalTheta        <span class="kw">Json</span>?                   <span class="cm">// diisi setelah kalibrasi</span>
+  parentValidatedAt <span class="kw">DateTime</span>?
+  extensionCount    <span class="kw">Int</span>           @default(0)  <span class="cm">// max 2</span>
+  user              <span class="kw">User</span>          @relation(fields: [userId], references: [id])
+  signals           CalibrationSignal[]
+  @@map(<span class="st">"assessment_sessions"</span>)
+}
+
+<span class="kw">model</span> CalibrationSignal {
+  id              <span class="kw">String</span>    @id @default(cuid())
+  userId          <span class="kw">String</span>
+  sessionId       <span class="kw">String</span>
+  signalType      SignalType              <span class="cm">// MASTERY_VELOCITY|ERROR_PATTERN|ENGAGEMENT</span>
+  dimension       <span class="kw">String</span>               <span class="cm">// kognitif|bahasa|digital|karakter|spiritual|leadership|global</span>
+  rawValue        <span class="kw">Float</span>
+  normalizedValue <span class="kw">Float</span>?
+  metadata        <span class="kw">Json</span>
+  recordedAt      <span class="kw">DateTime</span>
+  session         AssessmentSession @relation(fields: [sessionId], references: [id])
+  @@index([userId, dimension, recordedAt])
+  @@index([sessionId, signalType])
+  @@map(<span class="st">"calibration_signals"</span>)
+}
+
+<span class="kw">model</span> CompetencyProfile {
+  id        <span class="kw">String</span>          @id @default(cuid())
+  userId    <span class="kw">String</span>
+  dimension <span class="kw">String</span>
+  theta     <span class="kw">Float</span>
+  ci        <span class="kw">Float</span>
+  level     CompetencyLevel  <span class="cm">// DEVELOPING|SOLID|PROFICIENT|ADVANCED</span>
+  source    ProfileSource    <span class="cm">// INTAKE|CALIBRATION|CONTINUOUS_REVIEW|MENTOR_OVERRIDE</span>
+  lockedAt  <span class="kw">DateTime</span>?
+  updatedAt <span class="kw">DateTime</span>        @updatedAt
+  user      <span class="kw">User</span>            @relation(fields: [userId], references: [id])
+  @@unique([userId, dimension])
+  @@map(<span class="st">"competency_profiles"</span>)
+}
+
+<span class="kw">model</span> ParentValidation {
+  id                <span class="kw">String</span>   @id @default(cuid())
+  userId            <span class="kw">String</span>   @unique
+  agreedWithProfile <span class="kw">Boolean</span>
+  adjustments       <span class="kw">Json</span>     <span class="cm">// {kognitif:0, karakter:+1, spiritual:+2}</span>
+  observations      <span class="kw">String</span>?  @db.Text
+  specialConditions <span class="kw">String</span>[] <span class="cm">// ['adhd','dyslexia','prior_coding']</span>
+  submittedAt       <span class="kw">DateTime</span>
+  @@map(<span class="st">"parent_validations"</span>)
+}
+
+<span class="kw">model</span> CalibrationFlag {
+  id         <span class="kw">String</span>   @id @default(cuid())
+  userId     <span class="kw">String</span>
+  flagType   FlagType  <span class="cm">// ACCELERATION|REMEDIATION|MISMATCH|INSUFFICIENT_DATA|PARENT_DISAGREEMENT</span>
+  dimension  <span class="kw">String</span>?
+  severity   Severity  <span class="cm">// LOW|MEDIUM|HIGH|CRITICAL</span>
+  payload    <span class="kw">Json</span>
+  resolved   <span class="kw">Boolean</span>  @default(false)
+  resolvedBy <span class="kw">String</span>?
+  createdAt  <span class="kw">DateTime</span> @default(now())
+  @@index([userId, resolved])
+  @@map(<span class="st">"calibration_flags"</span>)
+}
+
+<span class="kw">enum</span> SessionStatus   { PENDING ACTIVE CALIBRATING PLACED EXTENDED }
+<span class="kw">enum</span> SignalType       { MASTERY_VELOCITY ERROR_PATTERN ENGAGEMENT }
+<span class="kw">enum</span> CompetencyLevel { DEVELOPING SOLID PROFICIENT ADVANCED }
+<span class="kw">enum</span> ProfileSource   { INTAKE CALIBRATION CONTINUOUS_REVIEW MENTOR_OVERRIDE }
+<span class="kw">enum</span> FlagType        { ACCELERATION REMEDIATION MISMATCH INSUFFICIENT_DATA PARENT_DISAGREEMENT EARLY_ALERT }
+<span class="kw">enum</span> Severity        { LOW MEDIUM HIGH CRITICAL }
+
+<span class="cm">// Helper: konversi theta ke level</span>
+<span class="kw">export function</span> <span class="fn">thetaToLevel</span>(theta: <span class="kw">number</span>): CompetencyLevel {
+  <span class="kw">if</span> (theta &lt; <span class="nm">4</span>)  <span class="kw">return</span> <span class="st">'DEVELOPING'</span>
+  <span class="kw">if</span> (theta &lt; <span class="nm">6</span>)  <span class="kw">return</span> <span class="st">'SOLID'</span>
+  <span class="kw">if</span> (theta &lt; <span class="nm">8</span>)  <span class="kw">return</span> <span class="st">'PROFICIENT'</span>
+  <span class="kw">return</span>          <span class="st">'ADVANCED'</span>
+}</pre>
+</div>
+
+<!-- ═══ CRON JOBS ═══ -->
+<div id="pnl-cron" class="panel">
+<h2>Cron Jobs — Nightly + Day-14 Placement Lock</h2>
+
+<h3>Konfigurasi vercel.json</h3>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button>{
+  <span class="st">"crons"</span>: [
+    {
+      <span class="st">"path"</span>:     <span class="st">"/api/cron/nightly-calibration"</span>,
+      <span class="st">"schedule"</span>: <span class="st">"0 17 * * *"</span>    <span class="cm">// 17:00 UTC = 00:00 WIB</span>
+    },
+    {
+      <span class="st">"path"</span>:     <span class="st">"/api/cron/placement-lock"</span>,
+      <span class="st">"schedule"</span>: <span class="st">"0 18 * * *"</span>    <span class="cm">// 18:00 UTC = 01:00 WIB (setelah nightly)</span>
+    }
+  ]
+}</pre>
+
+<h3>Nightly aggregation job</h3>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// app/api/cron/nightly-calibration/route.ts</span>
+
+<span class="kw">export async function</span> <span class="fn">GET</span>(req: Request) {
+  <span class="kw">if</span> (req.headers.<span class="fn">get</span>(<span class="st">'authorization'</span>) !== <span class="st">`Bearer ${process.env.CRON_SECRET}`</span>)
+    <span class="kw">return new</span> <span class="fn">Response</span>(<span class="st">'Unauthorized'</span>, { status: <span class="nm">401</span> })
+
+  <span class="kw">const</span> activeSessions = <span class="kw">await</span> prisma.assessmentSession.<span class="fn">findMany</span>({
+    where: {
+      status: <span class="st">'CALIBRATING'</span>,
+      calibrationEndsAt: { gte: <span class="kw">new</span> <span class="fn">Date</span>() }
+    }
+  })
+
+  <span class="kw">const</span> results = <span class="kw">await</span> Promise.<span class="fn">allSettled</span>(
+    activeSessions.<span class="fn">map</span>(s => <span class="fn">processNightlySignals</span>(s.userId))
+  )
+
+  <span class="kw">const</span> failed = results.<span class="fn">filter</span>(r => r.status === <span class="st">'rejected'</span>)
+  <span class="kw">if</span> (failed.length) <span class="fn">logError</span>(<span class="st">'nightly-calibration'</span>, failed)
+
+  <span class="kw">return</span> Response.<span class="fn">json</span>({
+    processed: activeSessions.length,
+    failed:    failed.length,
+    ts:        <span class="kw">new</span> <span class="fn">Date</span>().<span class="fn">toISOString</span>()
+  })
+}
+
+<span class="kw">async function</span> <span class="fn">processNightlySignals</span>(userId: <span class="kw">string</span>) {
+  <span class="kw">await</span> Promise.<span class="fn">all</span>([
+    <span class="fn">collectMasteryVelocityBatch</span>(userId),
+    <span class="fn">collectErrorPatternBatch</span>(userId),
+    <span class="fn">collectEngagementSignal</span>(userId),
+  ])
+
+  <span class="kw">await</span> <span class="fn">updateRunningTheta</span>(userId)
+
+  <span class="kw">const</span> session = <span class="kw">await</span> <span class="fn">getAssessmentSession</span>(userId)
+  <span class="kw">const</span> days    = <span class="fn">daysBetween</span>(session.startedAt, <span class="kw">new</span> <span class="fn">Date</span>())
+
+  <span class="kw">if</span> (days === <span class="nm">7</span>) <span class="kw">await</span> <span class="fn">checkEarlyIntervention</span>(userId, session)
+
+  <span class="kw">await</span> prisma.assessmentSession.<span class="fn">update</span>({
+    where: { userId },
+    data:  { sessionsCompleted: { increment: <span class="nm">1</span> } }
+  })
+}</pre>
+
+<h3>Placement lock job</h3>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// app/api/cron/placement-lock/route.ts</span>
+
+<span class="kw">async function</span> <span class="fn">lockExpiredSessions</span>() {
+  <span class="kw">const</span> expired = <span class="kw">await</span> prisma.assessmentSession.<span class="fn">findMany</span>({
+    where: { status: <span class="st">'CALIBRATING'</span>, calibrationEndsAt: { lt: <span class="kw">new</span> <span class="fn">Date</span>() } }
+  })
+
+  <span class="kw">for</span> (<span class="kw">const</span> session <span class="kw">of</span> expired) {
+    <span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">calculateFinalPlacement</span>(session.userId)
+
+    <span class="kw">switch</span> (result.status) {
+      <span class="kw">case</span> <span class="st">'insufficient_data'</span>:
+        <span class="kw">if</span> (session.extensionCount &lt; <span class="nm">2</span>) {
+          <span class="kw">await</span> prisma.assessmentSession.<span class="fn">update</span>({
+            where: { id: session.id },
+            data: {
+              calibrationEndsAt: <span class="fn">addDays</span>(<span class="kw">new</span> <span class="fn">Date</span>(), <span class="nm">7</span>),
+              extensionCount:    { increment: <span class="nm">1</span> },
+              status:            <span class="st">'EXTENDED'</span>
+            }
+          })
+          <span class="kw">await</span> <span class="fn">notifyParentLowEngagement</span>(session.userId)
+        } <span class="kw">else</span> {
+          <span class="kw">await</span> <span class="fn">forceLockWithIntakeOnly</span>(session.userId)
+        }
+        <span class="kw">break</span>
+
+      <span class="kw">case</span> <span class="st">'pending_review'</span>:
+        <span class="kw">await</span> <span class="fn">assignToMentorQueue</span>(session.userId, result.flags)
+        <span class="kw">break</span>
+
+      <span class="kw">case</span> <span class="st">'ready_to_lock'</span>:
+        <span class="kw">await</span> <span class="fn">lockPlacement</span>(session.userId, result.dimensions)
+        <span class="kw">await</span> <span class="fn">notifyPlacementFinal</span>(session.userId, result.dimensions)
+        <span class="kw">break</span>
+    }
+  }
+}
+
+<span class="kw">async function</span> <span class="fn">lockPlacement</span>(userId: <span class="kw">string</span>, dims: DimensionResult[]) {
+  <span class="cm">// atomic: semua dimensi tersimpan atau tidak sama sekali</span>
+  <span class="kw">await</span> prisma.$transaction(<span class="kw">async</span> (tx) => {
+    <span class="kw">for</span> (<span class="kw">const</span> d <span class="kw">of</span> dims) {
+      <span class="kw">await</span> tx.competencyProfile.<span class="fn">upsert</span>({
+        where:  { userId_dimension: { userId, dimension: d.dim } },
+        update: { theta: d.finalTheta, ci: d.ci, source: <span class="st">'CALIBRATION'</span>,
+                  level: <span class="fn">thetaToLevel</span>(d.finalTheta), lockedAt: <span class="kw">new</span> <span class="fn">Date</span>() },
+        create: { userId, dimension: d.dim, theta: d.finalTheta, ci: d.ci,
+                  level: <span class="fn">thetaToLevel</span>(d.finalTheta), source: <span class="st">'CALIBRATION'</span>,
+                  lockedAt: <span class="kw">new</span> <span class="fn">Date</span>() }
+      })
+    }
+    <span class="kw">await</span> tx.assessmentSession.<span class="fn">update</span>({
+      where: { userId },
+      data:  { status: <span class="st">'PLACED'</span>, placementLockedAt: <span class="kw">new</span> <span class="fn">Date</span>(),
+               finalTheta: Object.<span class="fn">fromEntries</span>(dims.<span class="fn">map</span>(d => [d.dim, d.finalTheta])) }
+    })
+  })
+}</pre>
+</div>
+
+<!-- ═══ API CONTRACTS ═══ -->
+<div id="pnl-api" class="panel">
+<h2>API Contracts — Request &amp; Response</h2>
+
+<h3>GET /api/assessment/status</h3>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// Response lengkap</span>
+{
+  status:          <span class="st">"calibrating"</span>,
+  daysRemaining:   <span class="nm">8</span>,
+  sessionsCompleted: <span class="nm">6</span>,
+  provisionalProfile: {
+    kognitif:   { level: <span class="st">"SOLID"</span>,      theta: <span class="nm">5.8</span>, ci: <span class="nm">1.2</span> },
+    bahasa:     { level: <span class="st">"DEVELOPING"</span>, theta: <span class="nm">4.1</span>, ci: <span class="nm">1.4</span> },
+    digital:    { level: <span class="st">"PROFICIENT"</span>, theta: <span class="nm">7.2</span>, ci: <span class="nm">1.0</span> },
+    karakter:   { level: <span class="st">"SOLID"</span>,      theta: <span class="nm">5.5</span>, ci: <span class="nm">1.8</span> },
+    spiritual:  { level: <span class="st">"SOLID"</span>,      theta: <span class="nm">5.0</span>, ci: <span class="nm">2.0</span> },
+    leadership: { level: <span class="st">"DEVELOPING"</span>, theta: <span class="nm">3.8</span>, ci: <span class="nm">1.9</span> },
+  },
+  flags: [{ type: <span class="st">"REMEDIATION"</span>, dimension: <span class="st">"bahasa"</span>, severity: <span class="st">"MEDIUM"</span> }],
+  isPlacementFinal: <span class="kw">false</span>
+}</pre>
+
+<h3>POST /api/assessment/parent-validation</h3>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button>{
+  agreedWithProfile: <span class="kw">false</span>,
+  adjustments: {
+    kognitif:   <span class="nm">0</span>,
+    karakter:  +<span class="nm">1</span>,
+    spiritual: +<span class="nm">2</span>,
+    bahasa:     <span class="nm">0</span>,
+    digital:    <span class="nm">0</span>,
+    leadership: <span class="nm">0</span>
+  },
+  observations:      <span class="st">"Anak sudah ikut kursus coding 6 bulan, hafal 3 juz"</span>,
+  specialConditions: [<span class="st">"prior_coding_course"</span>, <span class="st">"advanced_tahfidz"</span>]
+}</pre>
+
+<h3>GET /api/assessment/final-profile</h3>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// Hanya tersedia setelah status = 'placed'</span>
+{
+  placedAt: <span class="st">"2025-04-22T01:00:00.000Z"</span>,
+  profile: {
+    kognitif:  { finalTheta: <span class="nm">6.1</span>, intakeTheta: <span class="nm">6.2</span>, delta: -<span class="nm">0.1</span>,
+                 level: <span class="st">"PROFICIENT"</span>, ci: <span class="nm">0.6</span> },
+    bahasa:    { finalTheta: <span class="nm">3.9</span>, intakeTheta: <span class="nm">4.8</span>, delta: -<span class="nm">0.9</span>,
+                 level: <span class="st">"DEVELOPING"</span>, ci: <span class="nm">0.7</span> },
+    digital:   { finalTheta: <span class="nm">7.6</span>, intakeTheta: <span class="nm">6.5</span>, delta: +<span class="nm">1.1</span>,
+                 level: <span class="st">"ADVANCED"</span>,   ci: <span class="nm">0.5</span> },
+  },
+  flags: [],
+  recommendedStartModules: {
+    kognitif:  <span class="st">"smp-matematika-7b"</span>,
+    bahasa:    <span class="st">"smp-english-7a-remediation"</span>,
+    digital:   <span class="st">"smp-cs-8-advanced"</span>,
+  }
+}
+</pre>
+
+<h3>POST /api/assessment/mentor-override</h3>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// Hanya role MENTOR yang bisa akses</span>
+{
+  userId:      <span class="st">"cuid_siswa"</span>,
+  dimension:   <span class="st">"bahasa"</span>,
+  overrideTheta: <span class="nm">5.5</span>,
+  reason:      <span class="st">"Portfolio oral menunjukkan kemampuan lebih tinggi dari data platform"</span>
+}
+<span class="cm">// Sistem: update CompetencyProfile source=MENTOR_OVERRIDE → resolve flag → jika semua clear → lock</span></pre>
+</div>
+
+<!-- ═══ TEST CASES ═══ -->
+<div id="pnl-tests" class="panel">
+<h2>Test Cases — Wajib Semua Pass Sebelum Deploy</h2>
+<pre><button class="copy-btn" onclick="cp(this)">Copy</button><span class="cm">// lib/calibration/__tests__/placement-calculator.test.ts</span>
+
+<span class="fn">describe</span>(<span class="st">'normalizeVelocity'</span>, () => {
+  <span class="fn">it</span>(<span class="st">'velocity 1.0 → 5.0'</span>, () =>
+    <span class="fn">expect</span>(<span class="fn">normalizeVelocity</span>(<span class="nm">1.0</span>)).<span class="fn">toBeCloseTo</span>(<span class="nm">5.0</span>, <span class="nm">1</span>))
+  <span class="fn">it</span>(<span class="st">'velocity 1.5 → ~6.8'</span>, () =>
+    <span class="fn">expect</span>(<span class="fn">normalizeVelocity</span>(<span class="nm">1.5</span>)).<span class="fn">toBeCloseTo</span>(<span class="nm">6.8</span>, <span class="nm">1</span>))
+  <span class="fn">it</span>(<span class="st">'tidak pernah keluar range [1, 10]'</span>, () => {
+    <span class="fn">expect</span>(<span class="fn">normalizeVelocity</span>(<span class="nm">0.01</span>)).<span class="fn">toBeGreaterThanOrEqual</span>(<span class="nm">1</span>)
+    <span class="fn">expect</span>(<span class="fn">normalizeVelocity</span>(<span class="nm">10</span>)).<span class="fn">toBeLessThanOrEqual</span>(<span class="nm">10</span>)
+  })
+})
+
+<span class="fn">describe</span>(<span class="st">'calculateFinalPlacement'</span>, () => {
+  <span class="fn">it</span>(<span class="st">'sessions < 5 harus return insufficient_data'</span>, <span class="kw">async</span> () => {
+    <span class="fn">mockSessions</span>(<span class="nm">3</span>)
+    <span class="kw">const</span> r = <span class="kw">await</span> <span class="fn">calculateFinalPlacement</span>(<span class="st">'u1'</span>)
+    <span class="fn">expect</span>(r.status).<span class="fn">toBe</span>(<span class="st">'insufficient_data'</span>)
+  })
+
+  <span class="fn">it</span>(<span class="st">'parent adj +2 harus naikkan spiritual secara signifikan (w4=0.70)'</span>, <span class="kw">async</span> () => {
+    <span class="kw">const</span> base = <span class="kw">await</span> <span class="fn">calcWithParent</span>(<span class="nm">0</span>,  <span class="st">'spiritual'</span>)
+    <span class="kw">const</span> adj  = <span class="kw">await</span> <span class="fn">calcWithParent</span>(<span class="nm">2</span>, <span class="st">'spiritual'</span>)
+    <span class="fn">expect</span>(adj - base).<span class="fn">toBeGreaterThan</span>(<span class="nm">0.5</span>)
+  })
+
+  <span class="fn">it</span>(<span class="st">'delta > 1.5 harus trigger mismatch flag → pending_review'</span>, <span class="kw">async</span> () => {
+    <span class="fn">mockLargeVelocityDelta</span>()
+    <span class="kw">const</span> r = <span class="kw">await</span> <span class="fn">calculateFinalPlacement</span>(<span class="st">'u_mismatch'</span>)
+    <span class="fn">expect</span>(r.flags.<span class="fn">some</span>(f => f.type === <span class="st">'mismatch'</span>)).<span class="fn">toBe</span>(<span class="kw">true</span>)
+    <span class="fn">expect</span>(r.status).<span class="fn">toBe</span>(<span class="st">'pending_review'</span>)
+  })
+
+  <span class="fn">it</span>(<span class="st">'theta tidak boleh turun lebih dari 2 poin dari intake (safety floor)'</span>, <span class="kw">async</span> () => {
+    <span class="fn">mockSevereErrorPattern</span>()
+    <span class="kw">const</span> r = <span class="kw">await</span> <span class="fn">calculateFinalPlacement</span>(<span class="st">'u_severe'</span>)
+    <span class="kw">const</span> kognitif = r.dimensions.<span class="fn">find</span>(d => d.dim === <span class="st">'kognitif'</span>)!
+    <span class="fn">expect</span>(kognitif.finalTheta).<span class="fn">toBeGreaterThanOrEqual</span>(kognitif.intake - <span class="nm">2.0</span>)
+  })
+})
+
+<span class="fn">describe</span>(<span class="st">'CI calculator'</span>, () => {
+  <span class="fn">it</span>(<span class="st">'10 sessions + engagement 8 harus hasilkan CI < 0.8'</span>, () =>
+    <span class="fn">expect</span>(<span class="fn">calcCI</span>(<span class="nm">10</span>, <span class="nm">8</span>)).<span class="fn">toBeLessThan</span>(<span class="nm">0.8</span>))
+  <span class="fn">it</span>(<span class="st">'5 sessions + engagement 2 tidak boleh < 0.8'</span>, () =>
+    <span class="fn">expect</span>(<span class="fn">calcCI</span>(<span class="nm">5</span>, <span class="nm">2</span>)).<span class="fn">toBeGreaterThanOrEqual</span>(<span class="nm">0.8</span>))
+})
+
+<span class="fn">describe</span>(<span class="st">'lockPlacement — atomicity'</span>, () => {
+  <span class="fn">it</span>(<span class="st">'DB failure di satu dimensi harus rollback semua'</span>, <span class="kw">async</span> () => {
+    <span class="fn">mockDBFailureOnDimension</span>(<span class="st">'bahasa'</span>)
+    <span class="kw">await</span> <span class="fn">expect</span>(<span class="fn">lockPlacement</span>(<span class="st">'u1'</span>, mockDims)).<span class="fn">rejects</span>.<span class="fn">toThrow</span>()
+    <span class="kw">const</span> profiles = <span class="kw">await</span> prisma.competencyProfile.<span class="fn">findMany</span>({ where: { userId: <span class="st">'u1'</span> } })
+    <span class="fn">expect</span>(profiles.<span class="fn">every</span>(p => p.lockedAt === <span class="kw">null</span>)).<span class="fn">toBe</span>(<span class="kw">true</span>)
+  })
+})</pre>
+
+<h3>Safety constraints — checklist wajib sebelum go-live</h3>
+<div class="card ar">
+<ul style="list-style:none;display:flex;flex-direction:column;gap:8px;">
+<li style="display:flex;gap:8px;font-size:12px;color:rgba(240,237,232,.7);font-family:'Plus Jakarta Sans',sans-serif;"><span style="color:#EF4444;flex-shrink:0;">!</span> Placement tidak boleh turun lebih dari 2 poin theta dalam satu kalibasi</li>
+<li style="display:flex;gap:8px;font-size:12px;color:rgba(240,237,232,.7);font-family:'Plus Jakarta Sans',sans-serif;"><span style="color:#EF4444;flex-shrink:0;">!</span> Angka theta mentah tidak boleh ditampilkan ke siswa atau orang tua — hanya level deskriptif</li>
+<li style="display:flex;gap:8px;font-size:12px;color:rgba(240,237,232,.7);font-family:'Plus Jakarta Sans',sans-serif;"><span style="color:#EF4444;flex-shrink:0;">!</span> Jangan gunakan sinyal jika sessions &lt; 3 — sample size terlalu kecil</li>
+<li style="display:flex;gap:8px;font-size:12px;color:rgba(240,237,232,.7);font-family:'Plus Jakarta Sans',sans-serif;"><span style="color:#EF4444;flex-shrink:0;">!</span> lockPlacement harus dalam satu Prisma transaction — atomic atau rollback</li>
+<li style="display:flex;gap:8px;font-size:12px;color:rgba(240,237,232,.7);font-family:'Plus Jakarta Sans',sans-serif;"><span style="color:#EF4444;flex-shrink:0;">!</span> Jika parent_disagreement flag aktif, jangan lock tanpa mentor resolution</li>
+<li style="display:flex;gap:8px;font-size:12px;color:rgba(240,237,232,.7);font-family:'Plus Jakarta Sans',sans-serif;"><span style="color:#EF4444;flex-shrink:0;">!</span> Cron job harus idempotent — double-run tidak boleh menghasilkan state berbeda</li>
+</ul>
+</div>
+</div>
+
+</div><!-- /wrap -->
+
+<script>
+function T(id){
+  const ids=['overview','signals','formula','schema','cron','api','tests'];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',ids[i]===id));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  document.getElementById('pnl-'+id).classList.add('on');
+  window.scrollTo({top:56,behavior:'smooth'});
+}
+function cp(btn){
+  const pre=btn.parentElement;
+  const txt=[...pre.childNodes].filter(n=>n.nodeType===3||n.tagName!=='BUTTON').map(n=>n.textContent).join('');
+  navigator.clipboard.writeText(txt).then(()=>{
+    btn.textContent='Copied!';btn.classList.add('ok');
+    setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('ok');},2000);
+  });
+}
+</script>
+</body>
+</html>
