@@ -2,12 +2,21 @@
 -- dengan id BEDA dari auth.users.id — mencegah profil tertaut ke UUID yang bukan JWT sub.
 -- Tetap idempotent: jika baris public.users dengan id = new.id sudah ada, lanjut aman.
 
+DO $mig$
+BEGIN
+  IF to_regclass('public.users') IS NOT NULL
+     AND to_regtype('public.user_role') IS NOT NULL
+     AND to_regtype('public.grade_level') IS NOT NULL
+     AND to_regclass('public.parent_profiles') IS NOT NULL
+     AND to_regclass('public.student_profiles') IS NOT NULL
+     AND to_regclass('public.mentor_profiles') IS NOT NULL THEN
+    EXECUTE $fn$
 CREATE OR REPLACE FUNCTION public.handle_auth_user_created()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $body$
 DECLARE
   m jsonb;
   new_role_text text;
@@ -240,4 +249,8 @@ BEGIN
 
   RETURN new;
 END;
-$$;
+$body$;
+    $fn$;
+  END IF;
+END
+$mig$;
