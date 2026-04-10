@@ -1,5 +1,7 @@
 -- Phase 1 tables: remediation queue (used by /api/assessment/remediation) and
 -- parent alerts (used by /api/parent/monitoring).
+-- Note: student_id stored as plain UUID — no FK to student_profiles because
+-- that table is created by an older migration not tracked in this repo.
 
 CREATE TABLE IF NOT EXISTS public.assessment_remediation_queue (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -20,7 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_remediation_queue_user_status
 CREATE TABLE IF NOT EXISTS public.parent_alerts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   parent_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  student_id UUID NOT NULL REFERENCES public.student_profiles(id) ON DELETE CASCADE,
+  student_id UUID NOT NULL,
   type TEXT NOT NULL DEFAULT 'INFO',
   message_content TEXT NOT NULL DEFAULT '',
   is_read BOOLEAN NOT NULL DEFAULT FALSE,
