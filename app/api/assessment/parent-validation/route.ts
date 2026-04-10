@@ -147,6 +147,45 @@ export async function POST(req: Request) {
           await supabase
             .from("competency_profiles")
             .upsert(upsertRows, { onConflict: "user_id,dimension" });
+
+          // Persist calibration flags from placement result
+          if (result.flags.length > 0) {
+            const flagRows = result.flags.map((f) => ({
+              user_id: studentUserId,
+              flag_type: f.type,
+              dimension: f.dimension ?? null,
+              severity: f.severity,
+              payload: f.payload ?? {},
+            }));
+            await supabase.from("calibration_flags").insert(flagRows);
+
+            // Create parent_alert for each flag so the parent sees it in the portal
+            const { data: parentLink } = await supabase
+              .from("student_profiles")
+              .select("id, parent_id")
+              .eq("user_id", studentUserId)
+              .maybeSingle();
+            if (parentLink?.parent_id) {
+              const { data: parentProfileRow } = await supabase
+                .from("parent_profiles")
+                .select("user_id")
+                .eq("id", parentLink.parent_id)
+                .maybeSingle();
+              if (parentProfileRow?.user_id) {
+                const alertRows = result.flags.map((f) => ({
+                  parent_id: String(parentProfileRow.user_id),
+                  student_id: String(parentLink.id),
+                  type: f.type,
+                  message_content:
+                    f.type === "MISMATCH"
+                      ? `Perbedaan signifikan ditemukan pada dimensi ${String(f.dimension ?? "")} (delta ${String((f.payload as { delta?: number } | undefined)?.delta?.toFixed(1) ?? "")}).`
+                      : "Orang tua tidak setuju dengan profil assessment. Mentor akan meninjau.",
+                  is_read: false,
+                }));
+                await supabase.from("parent_alerts").insert(alertRows);
+              }
+            }
+          }
         }
       } catch {
         // Non-fatal: log but don't fail the validation save

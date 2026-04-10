@@ -129,8 +129,31 @@ export async function GET(req: Request) {
       const { error: upErr } = await supabase
         .from("competency_profiles")
         .upsert(upsertRows, { onConflict: "user_id,dimension" });
-      if (upErr) { console.error("[nightly-calibration] upsert:", upErr.message); errors++; }
-      else processed++;
+      if (upErr) { console.error("[nightly-calibration] upsert:", upErr.message); errors++; continue; }
+
+      // Persist new MISMATCH flags (resolve old ones first to avoid duplicates)
+      if (result.flags.length > 0) {
+        const dimList = result.flags.filter((f) => f.dimension).map((f) => f.dimension!);
+        if (dimList.length > 0) {
+          await supabase
+            .from("calibration_flags")
+            .update({ resolved: true })
+            .eq("user_id", uid)
+            .in("dimension", dimList)
+            .eq("flag_type", "MISMATCH")
+            .eq("resolved", false);
+        }
+        const flagRows = result.flags.map((f) => ({
+          user_id: uid,
+          flag_type: f.type,
+          dimension: f.dimension ?? null,
+          severity: f.severity,
+          payload: f.payload ?? {},
+        }));
+        await supabase.from("calibration_flags").insert(flagRows);
+      }
+
+      processed++;
     } catch (e) {
       console.error("[nightly-calibration] session error:", e instanceof Error ? e.message : e);
       errors++;
