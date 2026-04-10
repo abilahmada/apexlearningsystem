@@ -22,10 +22,15 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_lesson_progress_pre_required ON public.lesson_progress;
+DO $$
+BEGIN
+  IF to_regclass('public.lesson_progress') IS NOT NULL THEN
+    DROP TRIGGER IF EXISTS trg_lesson_progress_pre_required ON public.lesson_progress;
 
-CREATE TRIGGER trg_lesson_progress_pre_required
-BEFORE INSERT OR UPDATE ON public.lesson_progress
-FOR EACH ROW
-EXECUTE PROCEDURE public.enforce_lesson_progress_pre_required();
+    CREATE TRIGGER trg_lesson_progress_pre_required
+    BEFORE INSERT OR UPDATE ON public.lesson_progress
+    FOR EACH ROW
+    EXECUTE PROCEDURE public.enforce_lesson_progress_pre_required();
+  END IF;
+END $$;
 
