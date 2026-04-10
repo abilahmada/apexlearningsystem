@@ -96,8 +96,11 @@ type GradeArchiveSummary = {
   checkedAt: string
 }
 
+type AdminSubmenu = 'registrations' | 'settings' | 'content'
+
 export function AdminPanel() {
   const CSV_COLUMNS_STORAGE_KEY = 'apex.admin.csvColumns.v1'
+  const ADMIN_SUBMENU_STORAGE_KEY = 'apex.admin.submenu.v1'
   const {
     appName,
     setAppName,
@@ -114,6 +117,7 @@ export function AdminPanel() {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [contentType, setContentType] = useState<ContentType>('courses')
+  const [adminSubmenu, setAdminSubmenu] = useState<AdminSubmenu>('content')
   const [contentEntryMode, setContentEntryMode] = useState<'wizard' | 'tabs'>('wizard')
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1)
   const [contentLoading, setContentLoading] = useState(false)
@@ -812,6 +816,26 @@ export function AdminPanel() {
     void loadItems(activeContentType)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeContentType, filterPhase, filterSubject, filterTrack, filterCode, filterBenchmark])
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(ADMIN_SUBMENU_STORAGE_KEY)
+      if (raw === 'content' || raw === 'registrations' || raw === 'settings') {
+        setAdminSubmenu(raw)
+      }
+    } catch {
+      // Ignore unavailable storage.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ADMIN_SUBMENU_STORAGE_KEY, adminSubmenu)
+    } catch {
+      // Ignore unavailable storage.
+    }
+  }, [ADMIN_SUBMENU_STORAGE_KEY, adminSubmenu])
 
   useEffect(() => {
     try {
@@ -1685,6 +1709,40 @@ export function AdminPanel() {
         )}
       </p>
 
+      <div className="mb-6 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setAdminSubmenu('content')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${adminSubmenu === 'content' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 bg-white'}`}
+        >
+          {t('Konten E-Learning', 'E-Learning Content')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setAdminSubmenu('registrations')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${adminSubmenu === 'registrations' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 bg-white'}`}
+        >
+          {t('Pendaftar', 'Applicants')}
+          {pendingRegs.length > 0 ? (
+            <span
+              className={`ml-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                adminSubmenu === 'registrations' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-700'
+              }`}
+            >
+              {pendingRegs.length}
+            </span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          onClick={() => setAdminSubmenu('settings')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${adminSubmenu === 'settings' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 bg-white'}`}
+        >
+          {t('Pengaturan Aplikasi', 'Application Settings')}
+        </button>
+      </div>
+
+      {adminSubmenu === 'registrations' && (
       <div className="mb-8 pb-8 border-b border-slate-200">
         <h3 className="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
           <UserPlus size={18} className="text-emerald-600" />
@@ -1808,6 +1866,7 @@ export function AdminPanel() {
           })}
         </ul>
       </div>
+      )}
 
       <ConfirmActionModal
         open={Boolean(pendingConfirm)}
@@ -1834,6 +1893,7 @@ export function AdminPanel() {
         onConfirm={() => void confirmRegistrationAction()}
       />
 
+      {adminSubmenu === 'settings' && (
       <div className="space-y-4">
         <div>
           <label className="text-sm font-semibold text-slate-700 mb-1.5 block">
@@ -1886,7 +1946,9 @@ export function AdminPanel() {
           {t('Perubahan berhasil disimpan.', 'Settings saved successfully.')}
         </p>
       )}
+      )}
 
+      {adminSubmenu === 'content' && (
       <div className="mt-8 pt-6 border-t border-slate-200">
         <h3 className="text-base font-bold text-slate-800 mb-2">
           {t('Manajemen Konten E-Learning', 'E-Learning Content Management')}
@@ -3050,6 +3112,7 @@ export function AdminPanel() {
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }
