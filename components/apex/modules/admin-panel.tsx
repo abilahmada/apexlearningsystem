@@ -77,6 +77,13 @@ type PendingConfirmAction = {
   email: string
 }
 
+type AdminHealthSummary = {
+  modulesWithoutLesson: number
+  quizEmptyIssues: number
+  lockReasonMismatch: number | null
+  checkedAt: string
+}
+
 export function AdminPanel() {
   const CSV_COLUMNS_STORAGE_KEY = 'apex.admin.csvColumns.v1'
   const {
@@ -146,6 +153,9 @@ export function AdminPanel() {
   const [pendingRegs, setPendingRegs] = useState<PendingReg[]>([])
   const [pendingLoading, setPendingLoading] = useState(false)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
+  const [healthSummary, setHealthSummary] = useState<AdminHealthSummary | null>(null)
+  const [healthLoading, setHealthLoading] = useState(false)
+  const [healthMessage, setHealthMessage] = useState<string | null>(null)
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirmAction | null>(null)
   const [filterPhase, setFilterPhase] = useState('')
@@ -243,6 +253,36 @@ export function AdminPanel() {
     }
     return Array.from(values).sort((a, b) => a.localeCompare(b))
   }, [moduleFilterCatalog])
+
+  const selectedModuleCourse = useMemo(
+    () => courses.find((c) => c.id === moduleCourseId) ?? null,
+    [courses, moduleCourseId],
+  )
+
+  const canonicalPhaseOptions = useMemo(() => {
+    const base = ['Level 1', 'Level 2', 'Level 3']
+    if (selectedModuleCourse?.grade_level === 'SMK') {
+      base.push('Level 4')
+    }
+    if (modulePhase.trim() && !base.includes(modulePhase.trim())) {
+      base.push(modulePhase.trim())
+    }
+    return base
+  }, [modulePhase, selectedModuleCourse?.grade_level])
+
+  const canonicalSubjectOptions = useMemo(() => {
+    const grade = selectedModuleCourse?.grade_level ?? 'SMP'
+    const map: Record<'SD' | 'SMP' | 'SMK', string[]> = {
+      SD: ['Matematika', 'Bahasa Indonesia', 'IPA', 'IPS', 'Bahasa Inggris', 'PPKn'],
+      SMP: ['Matematika', 'Bahasa Indonesia', 'IPA', 'IPS', 'Bahasa Inggris', 'Informatika'],
+      SMK: ['Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'Produktif', 'Kewirausahaan', 'Informatika'],
+    }
+    const list = [...map[grade]]
+    if (moduleSubject.trim() && !list.includes(moduleSubject.trim())) {
+      list.push(moduleSubject.trim())
+    }
+    return list
+  }, [moduleSubject, selectedModuleCourse?.grade_level])
 
   const lessonCodeOptions = useMemo(() => {
     const values = new Set<string>()
@@ -402,6 +442,28 @@ export function AdminPanel() {
       setPendingMessage(error instanceof Error ? error.message : t('Gagal memuat pendaftar', 'Failed to load registrations'))
     } finally {
       setPendingLoading(false)
+    }
+  }
+
+  const loadAdminHealth = async () => {
+    setHealthLoading(true)
+    setHealthMessage(null)
+    try {
+      const accessToken = await getAccessToken()
+      const res = await fetch('/api/admin/health-learning-flow', {
+        headers: { authorization: `Bearer ${accessToken}` },
+        cache: 'no-store',
+      })
+      const data = (await res.json()) as {
+        summary?: AdminHealthSummary
+        message?: string
+      }
+      if (!res.ok) throw new Error(data.message ?? t('Gagal memuat health check.', 'Failed to load health check.'))
+      setHealthSummary(data.summary ?? null)
+    } catch (error) {
+      setHealthMessage(error instanceof Error ? error.message : t('Gagal memuat health check.', 'Failed to load health check.'))
+    } finally {
+      setHealthLoading(false)
     }
   }
 
@@ -749,6 +811,7 @@ export function AdminPanel() {
 
   useEffect(() => {
     void loadPendingRegs()
+    void loadAdminHealth()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1811,6 +1874,50 @@ export function AdminPanel() {
           </ol>
         </div>
 
+        <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50/80 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-bold text-sky-900">
+              {t('Health ringkas learning flow', 'Learning flow health snapshot')}
+            </p>
+            <button
+              type="button"
+              onClick={() => void loadAdminHealth()}
+              disabled={healthLoading}
+              className="rounded-lg border border-sky-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-sky-700 disabled:opacity-60"
+            >
+              {healthLoading ? t('Memuat...', 'Loading...') : t('Refresh', 'Refresh')}
+            </button>
+          </div>
+          {healthSummary ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                <p className="text-[11px] text-slate-500">{t('Module tanpa lesson', 'Modules without lessons')}</p>
+                <p className="text-base font-bold text-slate-800">{healthSummary.modulesWithoutLesson}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                <p className="text-[11px] text-slate-500">{t('Quiz kosong/kurang', 'Empty/incomplete quizzes')}</p>
+                <p className="text-base font-bold text-slate-800">{healthSummary.quizEmptyIssues}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                <p className="text-[11px] text-slate-500">{t('Lock reason mismatch', 'Lock reason mismatch')}</p>
+                <p className="text-base font-bold text-slate-800">
+                  {healthSummary.lockReasonMismatch == null ? t('N/A', 'N/A') : healthSummary.lockReasonMismatch}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[11px] text-slate-500">
+              {t('Belum ada data health. Tekan Refresh.', 'No health data yet. Press Refresh.')}
+            </p>
+          )}
+          {healthSummary?.checkedAt && (
+            <p className="text-[11px] text-slate-500">
+              {t('Pemeriksaan terakhir:', 'Last check:')} {new Date(healthSummary.checkedAt).toLocaleString()}
+            </p>
+          )}
+          {healthMessage && <p className="text-[11px] font-semibold text-rose-700">{healthMessage}</p>}
+        </div>
+
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <span className="text-xs font-semibold text-slate-600">{t('Mode input', 'Input mode')}</span>
           <button
@@ -2239,21 +2346,33 @@ export function AdminPanel() {
                   <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
                     {t('level (key: phase)', 'level (key: phase)')}
                   </label>
-                  <input
+                  <select
                     value={modulePhase}
                     onChange={(e) => setModulePhase(e.target.value)}
-                    placeholder={t('mis. Level 1', 'e.g. Level 1')}
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                  />
+                  >
+                    <option value="">{t('Pilih level', 'Select level')}</option>
+                    {canonicalPhaseOptions.map((phase) => (
+                      <option key={phase} value={phase}>
+                        {phase}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">subject</label>
-                  <input
+                  <select
                     value={moduleSubject}
                     onChange={(e) => setModuleSubject(e.target.value)}
-                    placeholder={t('mis. Matematika', 'e.g. Mathematics')}
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                  />
+                  >
+                    <option value="">{t('Pilih subject', 'Select subject')}</option>
+                    {canonicalSubjectOptions.map((subject) => (
+                      <option key={subject} value={subject}>
+                        {subject}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">track</label>

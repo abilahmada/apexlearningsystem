@@ -135,6 +135,11 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 - [x] Cek `lock reason mismatch` (API check jika smoke token tersedia).
 - [x] Baseline health saat ini: `modulesWithoutLesson=0`, `quizEmptyIssue=0`, `lockReasonMismatch=0`.
 
+## D2. Runbook operasional rutin
+
+- [x] Runbook mingguan ditambahkan (`RUNBOOK-OPERASIONAL-MINGGUAN.md`).
+- [x] Jalur operasional standar: health check -> audit metadata -> smoke test -> maintenance -> build.
+
 ---
 
 ## E) Test Plan Minimum (Definition of Done)
@@ -185,3 +190,4 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 - [ ] Untuk `SMK/SMA Spesialisasi`: apakah dianggap `phase=4` atau track terpisah? jadikan ini unlock untuk grade SMK/SMA sebagai materi khusus seperti ekstrakulikuler
 - [ ] Jika siswa pindah grade, apakah progression lama direset atau dimigrasikan?
 - [ ] Apakah PRE boleh retake unlimited? (saat ini praktiknya boleh)
+- [x] Nilai default operasional sementara didokumentasikan di `RUNBOOK-OPERASIONAL-MINGGUAN.md` sampai keputusan produk final ditetapkan.
