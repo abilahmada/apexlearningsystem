@@ -98,6 +98,12 @@ export async function POST(req: Request) {
       email_confirm: true,
       user_metadata: metadata,
     });
+    if (createRes.error?.message?.includes("AUTH_PUBLIC_USERS_EMAIL_CONFLICT_DIFFERENT_ID")) {
+      console.warn("[signup-admin-verify][reason]", {
+        reason: "AUTH_PUBLIC_USERS_EMAIL_CONFLICT_DIFFERENT_ID",
+        email,
+      });
+    }
     if (createRes.error) {
       console.error("[signup-admin-verify] auth.admin.createUser failed:", {
         message: createRes.error.message,
@@ -105,7 +111,8 @@ export async function POST(req: Request) {
         status: "status" in createRes.error ? createRes.error.status : undefined,
       });
     }
-    if (createRes.error || !createRes.data.user?.email) {
+    const authUser = createRes.data.user;
+    if (createRes.error || !authUser?.id || !authUser.email) {
       const err = createRes.error;
       const msg = err?.message ?? "Signup gagal.";
       return Response.json(
@@ -118,13 +125,28 @@ export async function POST(req: Request) {
       );
     }
 
+    // Wajib cocok dengan auth.users.id (JWT sub). Jangan ambil baris public.users hanya lewat email —
+    // edge case unique_violation lama bisa memetakan email ke UUID berbeda dari auth.
     const { data: userRow, error: userRowErr } = await supabase
       .from("users")
       .select("id, email, role")
-      .eq("email", email)
-      .single();
-    if (userRowErr || !userRow) {
-      return Response.json({ message: "User row tidak ditemukan setelah signup." }, { status: 500 });
+      .eq("id", authUser.id)
+      .maybeSingle();
+    if (userRowErr) {
+      return Response.json({ message: userRowErr.message }, { status: 500 });
+    }
+    const emailMatches =
+      String(userRow?.email ?? "")
+        .trim()
+        .toLowerCase() === email;
+    if (!userRow || !emailMatches) {
+      return Response.json(
+        {
+          message:
+            "User row tidak ditemukan setelah signup atau ID/email tidak selaras dengan Auth. Cek trigger handle_auth_user_created dan log Postgres.",
+        },
+        { status: 500 },
+      );
     }
 
     const token = randomBytes(32).toString("hex");

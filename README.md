@@ -500,6 +500,71 @@ Jika lolos `test:calibration`, akan muncul output:
 
 Jika repositori Git Anda di-root `APEX-LEARNING-SYSTEM` (folder `apex-frontend` di dalamnya), GitHub Actions menjalankan hal yang sama lewat `.github/workflows/ci.yml`.
 
+## Lesson Assessment Smoke Test (PRE_REQUIRED)
+
+Smoke test ini memverifikasi guard API bahwa POST-test ditolak jika PRE-test belum pernah dikerjakan.
+
+1) Isi env smoke test (copy template):
+
+```bash
+cp .env.smoke.example .env.local
+```
+
+Pastikan variabel berikut terisi:
+- `APEX_SMOKE_BASE_URL` (contoh `http://localhost:3000`)
+- `APEX_SMOKE_TOKEN` (access token siswa)
+- `APEX_SMOKE_LESSON_ID` (lesson UUID yang belum punya pretest untuk siswa tersebut)
+
+2) Jalankan:
+
+```bash
+npm run test:lesson-assessment:smoke
+```
+
+### Cara cepat mencari `APEX_SMOKE_LESSON_ID`
+
+Jalankan query berikut di Supabase SQL Editor (ganti email siswa target):
+
+```sql
+with student_ctx as (
+  select
+    sp.id as student_profile_id,
+    u.id as user_id,
+    u.email
+  from public.users u
+  join public.student_profiles sp on sp.user_id = u.id
+  where lower(trim(u.email)) = lower(trim('student@example.com'))
+  limit 1
+)
+select
+  l.id as lesson_id,
+  l.title as lesson_title,
+  m.title as module_title,
+  c.title as course_title,
+  lp.pretest_score
+from student_ctx s
+join public.courses c on c.grade_level = (
+  select grade_level from public.student_profiles where id = s.student_profile_id
+)
+join public.modules m on m.course_id = c.id
+join public.lessons l on l.module_id = m.id
+join public.quizzes q on q.lesson_id = l.id
+left join public.lesson_progress lp
+  on lp.student_id = s.student_profile_id
+ and lp.lesson_id = l.id
+where lp.pretest_score is null
+order by m.sequence_order, l.created_at
+limit 20;
+```
+
+Ambil salah satu `lesson_id` dari hasil query sebagai `APEX_SMOKE_LESSON_ID`.
+
+Catatan:
+- Jika env belum lengkap, script akan `[SKIP]` dan keluar sukses (exit 0).
+- Test melakukan 2 panggilan endpoint nyata:
+  - `GET /api/learning/lesson-assessment?lessonId=...&assessmentType=POST` → harus `403 PRE_REQUIRED`
+  - `POST /api/learning/lesson-assessment` dengan `assessmentType=POST` → harus `403 PRE_REQUIRED`
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

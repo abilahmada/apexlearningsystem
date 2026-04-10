@@ -12,7 +12,8 @@ export function proxy(req: NextRequest) {
     pathname === "/api/auth/me" ||
     (pathname === "/api/admin/settings" && req.method === "PUT") ||
     pathname === "/api/admin/content" ||
-    pathname === "/api/admin/content/bulk-quiz"
+    pathname === "/api/admin/content/bulk-quiz" ||
+    pathname === "/api/admin/lesson-quiz/generate-from-lesson"
   ) {
     if (!hasBearerToken(req)) {
       return NextResponse.json(
@@ -31,5 +32,6 @@ export const config = {
     "/api/admin/settings",
     "/api/admin/content",
     "/api/admin/content/bulk-quiz",
+    "/api/admin/lesson-quiz/generate-from-lesson",
   ],
 };

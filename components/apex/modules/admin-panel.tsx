@@ -1,12 +1,43 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Shield, Save, UserPlus, CheckCircle2, XCircle } from 'lucide-react'
 import { useApex } from '../apex-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { ConfirmActionModal } from '../shared/confirm-action-modal'
 
 type ContentType = 'courses' | 'modules' | 'lessons' | 'quizzes'
+
+const CONTENT_FLOW: ContentType[] = ['courses', 'modules', 'lessons', 'quizzes']
+
+const DEFAULT_QUIZ_LEGACY_JSON = `[\n  {\n    "question": "Hasil dari 6 + 5?",\n    "options": ["9", "10", "11", "12"],\n    "answer": "C",\n    "hint": "Jumlahkan dari kiri ke kanan."\n  }\n]`
+
+const DEFAULT_QUIZ_BANK_JSON = '[]'
+
+function typeToWizardStep(ct: ContentType): 1 | 2 | 3 | 4 {
+  const i = CONTENT_FLOW.indexOf(ct)
+  return (i >= 0 ? i + 1 : 1) as 1 | 2 | 3 | 4
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim(),
+  )
+}
+
+/** Baris CSV yang diawali # diabaikan saat upload (boleh dihapus manual jika lebih rapi). */
+function csvDataLines(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith('#'))
+}
+
+/** Salin metadata JSONB agar kunci selain phase/subject/track (modul) tidak hilang saat simpan. */
+function cloneMetadataRecord(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  return { ...(raw as Record<string, unknown>) }
+}
 type CourseItem = { id: string; title: string; grade_level: 'SD' | 'SMP' | 'SMK' }
 type ModuleItem = {
   id: string
@@ -58,6 +89,8 @@ export function AdminPanel() {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [contentType, setContentType] = useState<ContentType>('courses')
+  const [contentEntryMode, setContentEntryMode] = useState<'wizard' | 'tabs'>('wizard')
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1)
   const [contentLoading, setContentLoading] = useState(false)
   const [contentMessage, setContentMessage] = useState<string | null>(null)
   const [items, setItems] = useState<Array<Record<string, unknown>>>([])
@@ -81,16 +114,28 @@ export function AdminPanel() {
   const [modulePhase, setModulePhase] = useState('')
   const [moduleSubject, setModuleSubject] = useState('')
   const [moduleTrack, setModuleTrack] = useState('')
+  /** Kunci metadata modul selain phase/subject/track (scheduleDays, phaseOrder, …). */
+  const [moduleMetadataBase, setModuleMetadataBase] = useState<Record<string, unknown>>({})
+  /** Kunci metadata lesson selain code/benchmark (topic, …). */
+  const [lessonMetadataBase, setLessonMetadataBase] = useState<Record<string, unknown>>({})
   const [lessonCode, setLessonCode] = useState('')
   const [lessonBenchmark, setLessonBenchmark] = useState('')
 
   const [quizLessonId, setQuizLessonId] = useState('')
-  const [quizQuestionsJson, setQuizQuestionsJson] = useState(
-    '[{"question":"Contoh soal","options":["A","B","C","D"],"answer":"A","hint":"Pikirkan konsep inti."}]',
-  )
+  const [quizQuestionsJson, setQuizQuestionsJson] = useState(DEFAULT_QUIZ_LEGACY_JSON)
+  const [quizQuestionsPreJson, setQuizQuestionsPreJson] = useState(DEFAULT_QUIZ_BANK_JSON)
+  const [quizQuestionsPostJson, setQuizQuestionsPostJson] = useState(DEFAULT_QUIZ_BANK_JSON)
   const [bulkQuizRows, setBulkQuizRows] = useState<
-    Array<{ lesson_id: string; question: string; options: string[]; answer: string; hint: string }>
+    Array<{
+      lesson_id: string
+      bank?: string
+      question: string
+      options: string[]
+      answer: string
+      hint: string
+    }>
   >([])
+  const [aiQuizOverwrite, setAiQuizOverwrite] = useState(false)
 
   const [pendingRegs, setPendingRegs] = useState<PendingReg[]>([])
   const [pendingLoading, setPendingLoading] = useState(false)
@@ -211,6 +256,29 @@ export function AdminPanel() {
     return Array.from(values).sort((a, b) => a.localeCompare(b))
   }, [lessonFilterCatalog])
 
+  const formatModuleOptionLabel = useCallback(
+    (m: ModuleItem) => {
+      const c = courses.find((x) => x.id === m.course_id)
+      const courseBit = c ? `${c.title} (${c.grade_level})` : String(m.course_id).slice(0, 8)
+      return `#${m.sequence_order} · ${m.title} — ${courseBit}`
+    },
+    [courses],
+  )
+
+  const formatLessonOptionLabel = useCallback(
+    (l: LessonItem) => {
+      const mod = modules.find((x) => x.id === l.module_id)
+      const modBit = mod ? `#${mod.sequence_order} ${mod.title}` : String(l.module_id).slice(0, 8)
+      return `${l.title} (${l.type}) · ${modBit}`
+    },
+    [modules],
+  )
+
+  const activeContentType: ContentType = useMemo(() => {
+    if (contentEntryMode === 'tabs') return contentType
+    return CONTENT_FLOW[(wizardStep - 1) as number] ?? 'courses'
+  }, [contentEntryMode, contentType, wizardStep])
+
   const visibleRecentItems = useMemo(() => {
     const keyword = recentSearch.trim().toLowerCase()
     const base = !keyword
@@ -312,7 +380,7 @@ export function AdminPanel() {
     await runRegistrationAction(verificationId, action)
   }
 
-  const loadItems = async (type: ContentType) => {
+  const loadItems = async (type: ContentType): Promise<Array<Record<string, unknown>>> => {
     try {
       const accessToken = await getAccessToken()
       const query = new URLSearchParams({ type, limit: '500' })
@@ -331,9 +399,12 @@ export function AdminPanel() {
       })
       const data = (await res.json()) as { items?: Array<Record<string, unknown>>; message?: string }
       if (!res.ok) throw new Error(data.message ?? t('Gagal memuat konten', 'Failed to load content'))
-      setItems(data.items ?? [])
+      const list = data.items ?? []
+      setItems(list)
+      return list
     } catch (error) {
       setContentMessage(error instanceof Error ? error.message : t('Gagal memuat konten', 'Failed to load content'))
+      return []
     }
   }
 
@@ -355,7 +426,7 @@ export function AdminPanel() {
 
   const downloadItemJson = (item: Record<string, unknown>, idx: number) => {
     const id = String(item.id ?? `item-${idx}`)
-    const typeLabel = String(contentType ?? 'content').toLowerCase()
+    const typeLabel = String(activeContentType ?? 'content').toLowerCase()
     const filename = `apex-${typeLabel}-${id}.json`.replace(/[^a-z0-9._-]/gi, '_')
     const json = JSON.stringify(item, null, 2)
     const blob = new Blob([json], { type: 'application/json' })
@@ -424,12 +495,12 @@ export function AdminPanel() {
       return
     }
     const payload = {
-      type: contentType,
+      type: activeContentType,
       exported_at: new Date().toISOString(),
       count: selectedItems.length,
       items: selectedItems,
     }
-    const filename = `apex-${String(contentType).toLowerCase()}-selected-${Date.now()}.json`
+    const filename = `apex-${String(activeContentType).toLowerCase()}-selected-${Date.now()}.json`
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
@@ -485,7 +556,7 @@ export function AdminPanel() {
       const row = header.map((key) => rowByKey[key])
       lines.push(row.map(csvEscape).join(','))
     }
-    const filename = `apex-${String(contentType).toLowerCase()}-selected-${Date.now()}.csv`
+    const filename = `apex-${String(activeContentType).toLowerCase()}-selected-${Date.now()}.csv`
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
@@ -570,9 +641,9 @@ export function AdminPanel() {
   }
 
   useEffect(() => {
-    void loadItems(contentType)
+    void loadItems(activeContentType)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contentType, filterPhase, filterSubject, filterTrack, filterCode, filterBenchmark])
+  }, [activeContentType, filterPhase, filterSubject, filterTrack, filterCode, filterBenchmark])
 
   useEffect(() => {
     try {
@@ -600,21 +671,21 @@ export function AdminPanel() {
 
   useEffect(() => {
     setRecentPage(1)
-  }, [contentType, recentSearch, recentPageSize, recentSort, filterPhase, filterSubject, filterTrack, filterCode, filterBenchmark])
+  }, [activeContentType, recentSearch, recentPageSize, recentSort, filterPhase, filterSubject, filterTrack, filterCode, filterBenchmark])
 
   useEffect(() => {
     setSelectedRecent({})
-  }, [contentType, recentSearch, recentPageSize, recentSort, filterPhase, filterSubject, filterTrack, filterCode, filterBenchmark])
+  }, [activeContentType, recentSearch, recentPageSize, recentSort, filterPhase, filterSubject, filterTrack, filterCode, filterBenchmark])
 
   useEffect(() => {
     if (recentPage > recentTotalPages) setRecentPage(recentTotalPages)
   }, [recentPage, recentTotalPages])
 
   useEffect(() => {
-    if (contentType === 'modules') void loadFilterCatalog('modules')
-    if (contentType === 'lessons') void loadFilterCatalog('lessons')
+    if (activeContentType === 'modules') void loadFilterCatalog('modules')
+    if (activeContentType === 'lessons') void loadFilterCatalog('lessons')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contentType])
+  }, [activeContentType])
 
   useEffect(() => {
     void loadPendingRegs()
@@ -646,6 +717,18 @@ export function AdminPanel() {
     void loadLessons(lessonModuleId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonModuleId])
+
+  useEffect(() => {
+    if (activeContentType !== 'quizzes') return
+    void (async () => {
+      try {
+        await loadLessons()
+      } catch {
+        /* dropdown falls back to whatever is already loaded */
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeContentType])
 
   const onSave = async () => {
     setSaving(true)
@@ -692,44 +775,103 @@ export function AdminPanel() {
     }
   }
 
+  const buildPayload = (type: ContentType): Record<string, unknown> => {
+    if (type === 'courses') {
+      return { title: courseTitle, grade_level: courseGradeLevel }
+    }
+    if (type === 'modules') {
+      const meta = cloneMetadataRecord(moduleMetadataBase)
+      const ph = modulePhase.trim()
+      const sub = moduleSubject.trim()
+      const tr = moduleTrack.trim()
+      if (ph) meta.phase = ph
+      else delete meta.phase
+      if (sub) meta.subject = sub
+      else delete meta.subject
+      if (tr) meta.track = tr
+      else delete meta.track
+      return {
+        course_id: moduleCourseId,
+        title: moduleTitle,
+        sequence_order: moduleSequence,
+        mastery_threshold: moduleMastery,
+        metadata: meta,
+      }
+    }
+    if (type === 'lessons') {
+      const meta = cloneMetadataRecord(lessonMetadataBase)
+      const code = lessonCode.trim()
+      const bench = lessonBenchmark.trim()
+      if (code) meta.code = code
+      else delete meta.code
+      if (bench) meta.benchmark = bench
+      else delete meta.benchmark
+      return {
+        module_id: lessonModuleId,
+        title: lessonTitle,
+        type: lessonType,
+        content_url: lessonContentUrl,
+        metadata: meta,
+      }
+    }
+    let legacy: unknown
+    let pre: unknown
+    let post: unknown
+    try {
+      legacy = JSON.parse(quizQuestionsJson)
+      pre = JSON.parse(quizQuestionsPreJson)
+      post = JSON.parse(quizQuestionsPostJson)
+    } catch {
+      throw new Error(
+        t('JSON soal tidak valid (legacy / PRE / POST).', 'Invalid quiz JSON (legacy / PRE / POST).'),
+      )
+    }
+    if (!Array.isArray(legacy) || !Array.isArray(pre) || !Array.isArray(post)) {
+      throw new Error(
+        t('Soal harus berupa array JSON di ketiga kolom.', 'Each quiz field must be a JSON array.'),
+      )
+    }
+    return {
+      lesson_id: quizLessonId,
+      questions: legacy,
+      questions_pre: pre,
+      questions_post: post,
+    }
+  }
+
+  const validateContentPayload = (type: ContentType, payload: Record<string, unknown>): string | null => {
+    if (type === 'lessons') {
+      const moduleId = String(payload.module_id ?? '').trim()
+      const title = String(payload.title ?? '').trim()
+      const lessonType = String(payload.type ?? '').trim()
+      if (!moduleId) return t('Pilih modul induk terlebih dahulu.', 'Select a parent module first.')
+      if (!isUuid(moduleId)) return t('ID modul tidak valid (harus UUID).', 'Invalid module id (must be UUID).')
+      if (!title) return t('Judul pelajaran wajib diisi.', 'Lesson title is required.')
+      if (!['VIDEO', 'ARTICLE', 'INTERACTIVE'].includes(lessonType)) {
+        return t('Tipe pelajaran tidak valid.', 'Invalid lesson type.')
+      }
+    }
+    if (type === 'modules') {
+      const courseId = String(payload.course_id ?? '').trim()
+      if (!courseId) return t('Pilih kursus induk terlebih dahulu.', 'Select a parent course first.')
+      if (!isUuid(courseId)) return t('ID kursus tidak valid (harus UUID).', 'Invalid course id (must be UUID).')
+    }
+    if (type === 'quizzes') {
+      const lessonId = String(payload.lesson_id ?? '').trim()
+      if (!lessonId) return t('Pilih lesson untuk kuis terlebih dahulu.', 'Select a lesson for quiz first.')
+      if (!isUuid(lessonId)) return t('ID lesson tidak valid (harus UUID).', 'Invalid lesson id (must be UUID).')
+    }
+    return null
+  }
+
   const createContent = async () => {
     setContentLoading(true)
     setContentMessage(null)
     try {
       const accessToken = await getAccessToken()
-      let payload: Record<string, unknown> = {}
-      if (contentType === 'courses') {
-        payload = { title: courseTitle, grade_level: courseGradeLevel }
-      } else if (contentType === 'modules') {
-        payload = {
-          course_id: moduleCourseId,
-          title: moduleTitle,
-          sequence_order: moduleSequence,
-          mastery_threshold: moduleMastery,
-          metadata: {
-            phase: modulePhase || undefined,
-            subject: moduleSubject || undefined,
-            track: moduleTrack || undefined,
-          },
-        }
-      } else if (contentType === 'lessons') {
-        payload = {
-          module_id: lessonModuleId,
-          title: lessonTitle,
-          type: lessonType,
-          content_url: lessonContentUrl,
-          metadata: {
-            code: lessonCode || undefined,
-            benchmark: lessonBenchmark || undefined,
-          },
-        }
-      } else {
-        payload = {
-          lesson_id: quizLessonId,
-          questions: JSON.parse(quizQuestionsJson),
-        }
-      }
-
+      const payload = buildPayload(contentType)
+      const payloadError = validateContentPayload(contentType, payload)
+      if (payloadError) throw new Error(payloadError)
       const isEditing = Boolean(editingId)
       const res = await fetch('/api/admin/content', {
         method: isEditing ? 'PUT' : 'POST',
@@ -749,6 +891,10 @@ export function AdminPanel() {
           : t('Konten berhasil ditambahkan.', 'Content created successfully.'),
       )
       setEditingId(null)
+      if (!isEditing) {
+        if (contentType === 'modules') setModuleMetadataBase({})
+        if (contentType === 'lessons') setLessonMetadataBase({})
+      }
       await loadItems(contentType)
       if (contentType === 'modules') await loadFilterCatalog('modules')
       if (contentType === 'lessons') await loadFilterCatalog('lessons')
@@ -762,56 +908,230 @@ export function AdminPanel() {
     }
   }
 
-  const getTemplatePayload = (type: ContentType) => {
+  const wizardSubmit = async () => {
+    if (editingId) {
+      setContentMessage(
+        t('Batalkan edit di daftar bawah atau pindah ke Mode tab.', 'Cancel the edit below or switch to Tab mode.'),
+      )
+      return
+    }
+    setContentLoading(true)
+    setContentMessage(null)
+    try {
+      const accessToken = await getAccessToken()
+      const type = activeContentType
+      const payload = buildPayload(type)
+      const payloadError = validateContentPayload(type, payload)
+      if (payloadError) throw new Error(payloadError)
+      const res = await fetch('/api/admin/content', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ type, payload }),
+      })
+      const data = (await res.json()) as { id?: string; message?: string }
+      if (!res.ok) throw new Error(data.message ?? t('Gagal menyimpan konten', 'Failed to save content'))
+
+      const newId = data.id ? String(data.id) : ''
+      const nextCourseId = type === 'courses' && newId ? newId : moduleCourseId
+      const nextModuleId = type === 'modules' && newId ? newId : lessonModuleId
+
+      if (type === 'courses' && newId) setModuleCourseId(newId)
+      if (type === 'modules' && newId) setLessonModuleId(newId)
+      if (type === 'lessons' && newId) setQuizLessonId(newId)
+
+      setContentMessage(
+        wizardStep < 4
+          ? t('Berhasil. Lanjut ke langkah berikutnya.', 'Saved. Continue to the next step.')
+          : t('Kuis berhasil disimpan.', 'Quiz saved successfully.'),
+      )
+
+      await loadItems(type)
+      if (type === 'modules') await loadFilterCatalog('modules')
+      if (type === 'lessons') await loadFilterCatalog('lessons')
+      await loadCourses()
+      await loadModules(nextCourseId || undefined)
+      await loadLessons(nextModuleId || undefined)
+      if (type === 'lessons') {
+        try {
+          await loadLessons()
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (wizardStep < 4) {
+        setWizardStep((s) => Math.min(4, s + 1) as 1 | 2 | 3 | 4)
+      }
+      if (type === 'modules') setModuleMetadataBase({})
+      if (type === 'lessons') setLessonMetadataBase({})
+    } catch (error) {
+      setContentMessage(error instanceof Error ? error.message : t('Gagal menyimpan konten', 'Failed to save content'))
+    } finally {
+      setContentLoading(false)
+    }
+  }
+
+  const getTemplatePayload = (type: ContentType): Record<string, unknown> => {
+    const petunjukUmumJson = t(
+      'Field yang namanya diawali _apex_ hanya penjelasan untuk manusia. Boleh dihapus dari file; sistem mengabaikannya. Setelah mengisi, pilih Upload Template JSON pada jenis konten yang sama, lalu simpan lewat Wizard atau Tab.',
+      'Keys starting with _apex_ are human-readable notes only. You may delete them; the system ignores them. After editing, use Upload Template JSON on the matching content type, then save via Wizard or Tabs.',
+    )
+
     if (type === 'courses') {
-      return { title: 'Contoh Course APEX', grade_level: 'SMP' }
+      return {
+        _apex_petunjuk_id: [
+          petunjukUmumJson,
+          '',
+          'Wajib:',
+          '- title: nama kursus (mis. "IPA SMP 2024").',
+          '- grade_level: tepat salah satu huruf besar SD, SMP, atau SMK (menentukan siswa mana yang melihat modul ini).',
+          '',
+          'Tidak perlu mengisi ID — kursus baru akan dapat ID otomatis setelah disimpan.',
+        ].join('\n'),
+        _apex_petunjuk_en: [
+          petunjukUmumJson,
+          '',
+          'Required:',
+          '- title: course name (e.g. "Science JHS 2024").',
+          '- grade_level: exactly SD, SMP, or SMK (uppercase) — matches student grade.',
+          '',
+          'No ID needed — a new id is created when you save.',
+        ].join('\n'),
+        title: 'Contoh: Matematika SMP — Semester 1',
+        grade_level: 'SMP',
+      }
     }
     if (type === 'modules') {
       return {
-        course_id: 'UUID_COURSE',
-        title: 'Contoh Modul',
+        _apex_petunjuk_id: [
+          petunjukUmumJson,
+          '',
+          'Wajib:',
+          '- course_id: UUID kursus induk. Salin dari daftar "Konten Terbaru" (jenis courses) atau dari database.',
+          '- title: judul bab/modul.',
+          '- sequence_order: angka urutan di dalam kursus (1, 2, 3, …).',
+          '- mastery_threshold: batas lulus post-test dalam persen (biasanya 80).',
+          '',
+          'Opsional (metadata): level, subject, track — untuk filter admin dan gating level. Kosongkan string jika tidak dipakai.',
+        ].join('\n'),
+        _apex_petunjuk_en: [
+          petunjukUmumJson,
+          '',
+          'Required:',
+          '- course_id: parent course UUID (copy from Recent Items for courses or your DB).',
+          '- title: module/chapter title.',
+          '- sequence_order: order inside the course (1, 2, 3, …).',
+          '- mastery_threshold: post-test pass percent (usually 80).',
+          '',
+          'Optional metadata: level, subject, track — for admin filters / level gating. Use empty string if unused.',
+        ].join('\n'),
+        course_id: 'GANTI_DENGAN_UUID_KURSUS',
+        title: 'Contoh: Bilangan Bulat',
         sequence_order: 1,
         mastery_threshold: 80,
         metadata: {
-          phase: 'Kelas 7 — Transisi & Konsolidasi',
-          subject: 'Matematika Kelas 7',
+          phase: 'Level 1',
+          subject: 'Matematika',
           track: '',
         },
       }
     }
     if (type === 'lessons') {
       return {
-        module_id: 'UUID_MODULE',
-        title: 'Contoh Lesson',
+        _apex_petunjuk_id: [
+          petunjukUmumJson,
+          '',
+          'Wajib:',
+          '- module_id: UUID modul induk.',
+          '- title: judul pelajaran (untuk pre/post test, gunakan judul jelas mis. "Pre-test: …" / "Post-test: …").',
+          '- type: salah satu persis: VIDEO, ARTICLE, atau INTERACTIVE (huruf besar).',
+          '',
+          'Opsional:',
+          '- content_url: tautan video/artikel.',
+          '- metadata.code / metadata.benchmark: kode kurikulum (boleh dikosongkan).',
+        ].join('\n'),
+        _apex_petunjuk_en: [
+          petunjukUmumJson,
+          '',
+          'Required:',
+          '- module_id: parent module UUID.',
+          '- title: lesson title (for pre/post, use clear names like "Pre-test: …").',
+          '- type: exactly VIDEO, ARTICLE, or INTERACTIVE (uppercase).',
+          '',
+          'Optional:',
+          '- content_url: link to material.',
+          '- metadata.code / metadata.benchmark: curriculum codes (may be empty).',
+        ].join('\n'),
+        module_id: 'GANTI_DENGAN_UUID_MODUL',
+        title: 'Contoh: Pre-test — Bilangan Bulat',
         type: 'ARTICLE',
-        content_url: 'https://example.com/lesson',
+        content_url: 'https://contoh.com/materi',
         metadata: {
-          code: '7M.1',
+          code: '7.M.1',
           benchmark: 'Cambridge LS1',
         },
       }
     }
     return {
-      lesson_id: 'UUID_LESSON',
+      _apex_petunjuk_id: [
+        petunjukUmumJson,
+        '',
+        'Wajib:',
+        '- lesson_id: UUID pelajaran yang akan diberi soal (biasanya lesson pre atau post).',
+        '- questions: array legacy (fallback jika questions_pre & questions_post kosong).',
+        '',
+        'Opsional (disarankan untuk pre/post terpisah):',
+        '- questions_pre: array soal PRE (boleh [] jika tidak dipakai).',
+        '- questions_post: array soal POST (boleh [] jika tidak dipakai).',
+        '',
+        'Tiap soal punya: question, options (4 string), answer (A–D), hint.',
+        'Satu baris quiz per lesson. Untuk banyak lesson, ulangi atau pakai CSV Bulk Quiz (kolom opsional bank: kosong=legacy, pre, post).',
+      ].join('\n'),
+      _apex_petunjuk_en: [
+        petunjukUmumJson,
+        '',
+        'Required:',
+        '- lesson_id: UUID of the lesson to attach questions to (often pre or post).',
+        '- questions: legacy array (fallback when questions_pre & questions_post are empty).',
+        '',
+        'Optional (recommended for split PRE/POST):',
+        '- questions_pre: PRE bank (may be []).',
+        '- questions_post: POST bank (may be []).',
+        '',
+        'Each item: question, options (4 strings), answer (A–D), hint.',
+        'One quiz row per lesson. For many lessons use Bulk Quiz CSV (optional bank column: empty=legacy, pre, post).',
+      ].join('\n'),
+      lesson_id: 'GANTI_DENGAN_UUID_LESSON',
       questions: [
         {
-          question: 'Contoh soal',
-          options: ['A', 'B', 'C', 'D'],
-          answer: 'A',
-          hint: 'Berpikir langkah demi langkah.',
+          question: 'Hasil dari 12 + 8 adalah?',
+          options: ['18', '20', '22', '24'],
+          answer: 'B',
+          hint: 'Jumlahkan satuan per satuan.',
+        },
+        {
+          question: 'Manakah yang termasuk bilangan prima?',
+          options: ['4', '9', '11', '15'],
+          answer: 'C',
+          hint: 'Prima hanya habis dibagi 1 dan dirinya sendiri.',
         },
       ],
+      questions_pre: [],
+      questions_post: [],
     }
   }
 
   const downloadTemplate = () => {
-    const payload = getTemplatePayload(contentType)
+    const payload = getTemplatePayload(activeContentType)
     const json = JSON.stringify(payload, null, 2)
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `apex-${contentType}-template.json`
+    a.download = `apex-${activeContentType}-template.json`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -821,31 +1141,35 @@ export function AdminPanel() {
       const text = await file.text()
       const parsed = JSON.parse(text) as Record<string, unknown>
 
-      if (contentType === 'courses') {
+      if (activeContentType === 'courses') {
         setCourseTitle(String(parsed.title ?? ''))
         const grade = String(parsed.grade_level ?? 'SMP')
         if (grade === 'SD' || grade === 'SMP' || grade === 'SMK') setCourseGradeLevel(grade)
-      } else if (contentType === 'modules') {
+      } else if (activeContentType === 'modules') {
         setModuleCourseId(String(parsed.course_id ?? ''))
         setModuleTitle(String(parsed.title ?? ''))
         setModuleSequence(Number(parsed.sequence_order ?? 1))
         setModuleMastery(Number(parsed.mastery_threshold ?? 80))
         const metadata = (parsed.metadata ?? parsed.meta ?? {}) as Record<string, unknown>
+        setModuleMetadataBase(cloneMetadataRecord(metadata))
         setModulePhase(String(metadata.phase ?? ''))
         setModuleSubject(String(metadata.subject ?? ''))
         setModuleTrack(String(metadata.track ?? ''))
-      } else if (contentType === 'lessons') {
+      } else if (activeContentType === 'lessons') {
         setLessonModuleId(String(parsed.module_id ?? ''))
         setLessonTitle(String(parsed.title ?? ''))
         const lType = String(parsed.type ?? 'ARTICLE')
         if (lType === 'VIDEO' || lType === 'ARTICLE' || lType === 'INTERACTIVE') setLessonType(lType)
         setLessonContentUrl(String(parsed.content_url ?? ''))
         const metadata = (parsed.metadata ?? parsed.meta ?? {}) as Record<string, unknown>
+        setLessonMetadataBase(cloneMetadataRecord(metadata))
         setLessonCode(String(metadata.code ?? ''))
         setLessonBenchmark(String(metadata.benchmark ?? ''))
       } else {
         setQuizLessonId(String(parsed.lesson_id ?? ''))
         setQuizQuestionsJson(JSON.stringify(parsed.questions ?? [], null, 2))
+        setQuizQuestionsPreJson(JSON.stringify(parsed.questions_pre ?? [], null, 2))
+        setQuizQuestionsPostJson(JSON.stringify(parsed.questions_post ?? [], null, 2))
       }
 
       setContentMessage(t('Template berhasil diunggah.', 'Template uploaded successfully.'))
@@ -856,8 +1180,20 @@ export function AdminPanel() {
 
   const downloadQuizCsvTemplate = () => {
     const csv =
+      '# ============================================================\n' +
+      '# PETUNJUK (Bahasa Indonesia)\n' +
+      '# - Baris yang diawali # boleh dihapus atau dibiarkan; saat upload baris ini DIABAICAN.\n' +
+      '# - Baris PERTAMA setelah komentar harus tepat header kolom (satu baris).\n' +
+      '# - Kolom answer = huruf A, B, C, atau D (bukan kalimat jawaban).\n' +
+      '# - Satu file = mengisi form satu kuis untuk satu lesson (pilih lesson di admin lalu simpan).\n' +
+      '# ------------------------------------------------------------\n' +
+      '# INSTRUCTIONS (English)\n' +
+      '# - # lines are skipped on upload (optional to delete).\n' +
+      '# - First non-# row must be the header exactly as below.\n' +
+      '# - answer column = A, B, C, or D only.\n' +
+      '# ============================================================\n' +
       'question,option_a,option_b,option_c,option_d,answer,hint\n' +
-      '"Contoh soal APEX?","Pilihan A","Pilihan B","Pilihan C","Pilihan D","A","Gunakan konsep inti materi."\n'
+      '"Berapa hasil 3 x 4?","10","11","12","13","C","Kalikan bertahap."\n'
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -869,10 +1205,19 @@ export function AdminPanel() {
 
   const downloadBulkQuizCsvTemplate = () => {
     const csv =
-      'lesson_id,question,option_a,option_b,option_c,option_d,answer,hint\n' +
-      '"UUID_LESSON_1","Contoh soal 1?","A1","B1","C1","D1","A","Hint 1"\n' +
-      '"UUID_LESSON_1","Contoh soal 2?","A2","B2","C2","D2","B","Hint 2"\n' +
-      '"UUID_LESSON_2","Contoh soal 3?","A3","B3","C3","D3","C","Hint 3"\n'
+      '# ============================================================\n' +
+      '# BULK QUIZ — banyak soal sekaligus, bisa untuk banyak lesson\n' +
+      '# - lesson_id = UUID lesson (sama untuk beberapa baris jika banyak soal untuk lesson yang sama).\n' +
+      '# - bank (opsional): kosong / legacy → kolom questions; pre → questions_pre; post → questions_post.\n' +
+      '# - Hanya bank yang punya baris di CSV yang ditimpa; bank lain di DB tidak diubah.\n' +
+      '# - Baris # diabaikan saat upload.\n' +
+      '# EN: optional bank: empty or legacy → questions; pre → questions_pre; post → questions_post.\n' +
+      '# ============================================================\n' +
+      'lesson_id,bank,question,option_a,option_b,option_c,option_d,answer,hint\n' +
+      '"GANTI_UUID_LESSON_SATU","","Soal legacy 1?","A1","B1","C1","D1","A","Hint 1"\n' +
+      '"GANTI_UUID_LESSON_SATU","pre","Soal PRE 1?","A2","B2","C2","D2","B","Hint 2"\n' +
+      '"GANTI_UUID_LESSON_SATU","post","Soal POST 1?","A3","B3","C3","D3","C","Hint 3"\n' +
+      '"GANTI_UUID_LESSON_LAIN","post","Hanya post untuk lesson lain","X1","X2","X3","X4","D",""\n'
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -909,10 +1254,7 @@ export function AdminPanel() {
   const uploadQuizCsv = async (file: File) => {
     try {
       const text = await file.text()
-      const lines = text
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter(Boolean)
+      const lines = csvDataLines(text)
       if (lines.length < 2) throw new Error(t('CSV kosong atau tidak valid', 'CSV is empty or invalid'))
 
       const header = parseCsvLine(lines[0]).map((h) => h.toLowerCase())
@@ -923,26 +1265,29 @@ export function AdminPanel() {
       }
 
       const idx = (key: string) => header.indexOf(key)
-      const questions = lines.slice(1).map((line) => {
-        const cols = parseCsvLine(line)
-        const answer = (cols[idx('answer')] || '').toUpperCase()
-        const optionA = cols[idx('option_a')] || ''
-        const optionB = cols[idx('option_b')] || ''
-        const optionC = cols[idx('option_c')] || ''
-        const optionD = cols[idx('option_d')] || ''
-        const optionMap: Record<string, string> = {
-          A: optionA,
-          B: optionB,
-          C: optionC,
-          D: optionD,
-        }
-        return {
-          question: cols[idx('question')] || '',
-          options: [optionA, optionB, optionC, optionD],
-          answer: optionMap[answer] ? answer : 'A',
-          hint: cols[idx('hint')] || '',
-        }
-      })
+      const questions = lines
+        .slice(1)
+        .map((line) => {
+          const cols = parseCsvLine(line)
+          const answer = (cols[idx('answer')] || '').toUpperCase()
+          const optionA = cols[idx('option_a')] || ''
+          const optionB = cols[idx('option_b')] || ''
+          const optionC = cols[idx('option_c')] || ''
+          const optionD = cols[idx('option_d')] || ''
+          const optionMap: Record<string, string> = {
+            A: optionA,
+            B: optionB,
+            C: optionC,
+            D: optionD,
+          }
+          return {
+            question: cols[idx('question')] || '',
+            options: [optionA, optionB, optionC, optionD],
+            answer: optionMap[answer] ? answer : 'A',
+            hint: cols[idx('hint')] || '',
+          }
+        })
+        .filter((q) => q.question.trim().length > 0)
 
       setQuizQuestionsJson(JSON.stringify(questions, null, 2))
       setContentMessage(t('CSV quiz berhasil diunggah.', 'Quiz CSV uploaded successfully.'))
@@ -954,10 +1299,7 @@ export function AdminPanel() {
   const uploadBulkQuizCsv = async (file: File) => {
     try {
       const text = await file.text()
-      const lines = text
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter(Boolean)
+      const lines = csvDataLines(text)
       if (lines.length < 2) throw new Error(t('CSV bulk quiz kosong atau tidak valid', 'Bulk quiz CSV is empty or invalid'))
 
       const header = parseCsvLine(lines[0]).map((h) => h.toLowerCase())
@@ -966,21 +1308,27 @@ export function AdminPanel() {
       if (missing.length > 0) throw new Error(t(`Header CSV kurang: ${missing.join(', ')}`, `CSV header missing: ${missing.join(', ')}`))
 
       const idx = (key: string) => header.indexOf(key)
-      const rows = lines.slice(1).map((line) => {
-        const cols = parseCsvLine(line)
-        const answer = (cols[idx('answer')] || '').toUpperCase()
-        const optionA = cols[idx('option_a')] || ''
-        const optionB = cols[idx('option_b')] || ''
-        const optionC = cols[idx('option_c')] || ''
-        const optionD = cols[idx('option_d')] || ''
-        return {
-          lesson_id: cols[idx('lesson_id')] || '',
-          question: cols[idx('question')] || '',
-          options: [optionA, optionB, optionC, optionD],
-          answer: ['A', 'B', 'C', 'D'].includes(answer) ? answer : 'A',
-          hint: cols[idx('hint')] || '',
-        }
-      })
+      const hasBank = header.includes('bank')
+      const rows = lines
+        .slice(1)
+        .map((line) => {
+          const cols = parseCsvLine(line)
+          const answer = (cols[idx('answer')] || '').toUpperCase()
+          const optionA = cols[idx('option_a')] || ''
+          const optionB = cols[idx('option_b')] || ''
+          const optionC = cols[idx('option_c')] || ''
+          const optionD = cols[idx('option_d')] || ''
+          const bankRaw = hasBank ? (cols[idx('bank')] || '').trim() : ''
+          return {
+            lesson_id: cols[idx('lesson_id')] || '',
+            ...(bankRaw ? { bank: bankRaw } : {}),
+            question: cols[idx('question')] || '',
+            options: [optionA, optionB, optionC, optionD],
+            answer: ['A', 'B', 'C', 'D'].includes(answer) ? answer : 'A',
+            hint: cols[idx('hint')] || '',
+          }
+        })
+        .filter((r) => r.lesson_id.trim().length > 0 && r.question.trim().length > 0)
       setBulkQuizRows(rows)
       setContentMessage(
         t(
@@ -990,6 +1338,47 @@ export function AdminPanel() {
       )
     } catch (error) {
       setContentMessage(error instanceof Error ? error.message : t('CSV bulk quiz tidak valid', 'Invalid bulk quiz CSV'))
+    }
+  }
+
+  const generateAiPrePostQuizzes = async () => {
+    if (!quizLessonId.trim()) {
+      setContentMessage(t('Pilih lesson dulu.', 'Select a lesson first.'))
+      return
+    }
+    setContentLoading(true)
+    setContentMessage(null)
+    try {
+      const accessToken = await getAccessToken()
+      const res = await fetch('/api/admin/lesson-quiz/generate-from-lesson', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ lessonId: quizLessonId, overwrite: aiQuizOverwrite }),
+      })
+      const data = (await res.json()) as { message?: string; preCount?: number; postCount?: number }
+      if (!res.ok) throw new Error(data.message ?? t('Gagal generate quiz AI.', 'AI quiz generation failed.'))
+      setContentMessage(
+        t(
+          `Claude selesai: ${data.preCount ?? 0} soal PRE + ${data.postCount ?? 0} soal POST disimpan (kolom questions_pre / questions_post).`,
+          `Claude finished: saved ${data.preCount ?? 0} PRE + ${data.postCount ?? 0} POST questions (questions_pre / questions_post).`,
+        ),
+      )
+      const list = await loadItems('quizzes')
+      const row = list.find((q) => String(q.lesson_id ?? '') === quizLessonId)
+      if (row) {
+        setQuizQuestionsJson(JSON.stringify(row.questions ?? [], null, 2))
+        setQuizQuestionsPreJson(JSON.stringify(row.questions_pre ?? [], null, 2))
+        setQuizQuestionsPostJson(JSON.stringify(row.questions_post ?? [], null, 2))
+      }
+    } catch (error) {
+      setContentMessage(
+        error instanceof Error ? error.message : t('Gagal generate quiz AI.', 'AI quiz generation failed.'),
+      )
+    } finally {
+      setContentLoading(false)
     }
   }
 
@@ -1030,37 +1419,43 @@ export function AdminPanel() {
   const startEdit = (item: Record<string, unknown>) => {
     const id = String(item.id ?? '')
     if (!id) return
+    setContentEntryMode('tabs')
+    setContentType(activeContentType)
     setEditingId(id)
-    if (contentType === 'courses') {
+    if (activeContentType === 'courses') {
       setCourseTitle(String(item.title ?? ''))
       const grade = String(item.grade_level ?? 'SMP')
       if (grade === 'SD' || grade === 'SMP' || grade === 'SMK') setCourseGradeLevel(grade)
       return
     }
-    if (contentType === 'modules') {
+    if (activeContentType === 'modules') {
       setModuleCourseId(String(item.course_id ?? ''))
       setModuleTitle(String(item.title ?? ''))
       setModuleSequence(Number(item.sequence_order ?? 1))
       setModuleMastery(Number(item.mastery_threshold ?? 80))
       const metadata = (item.metadata ?? {}) as Record<string, unknown>
+      setModuleMetadataBase(cloneMetadataRecord(metadata))
       setModulePhase(String(metadata.phase ?? ''))
       setModuleSubject(String(metadata.subject ?? ''))
       setModuleTrack(String(metadata.track ?? ''))
       return
     }
-    if (contentType === 'lessons') {
+    if (activeContentType === 'lessons') {
       setLessonModuleId(String(item.module_id ?? ''))
       setLessonTitle(String(item.title ?? ''))
       const lType = String(item.type ?? 'ARTICLE')
       if (lType === 'VIDEO' || lType === 'ARTICLE' || lType === 'INTERACTIVE') setLessonType(lType)
       setLessonContentUrl(String(item.content_url ?? ''))
       const metadata = (item.metadata ?? {}) as Record<string, unknown>
+      setLessonMetadataBase(cloneMetadataRecord(metadata))
       setLessonCode(String(metadata.code ?? ''))
       setLessonBenchmark(String(metadata.benchmark ?? ''))
       return
     }
     setQuizLessonId(String(item.lesson_id ?? ''))
     setQuizQuestionsJson(JSON.stringify(item.questions ?? [], null, 2))
+    setQuizQuestionsPreJson(JSON.stringify(item.questions_pre ?? [], null, 2))
+    setQuizQuestionsPostJson(JSON.stringify(item.questions_post ?? [], null, 2))
   }
 
   const removeContent = async (id: string) => {
@@ -1069,7 +1464,7 @@ export function AdminPanel() {
     setContentMessage(null)
     try {
       const accessToken = await getAccessToken()
-      const res = await fetch(`/api/admin/content?type=${contentType}&id=${id}`, {
+      const res = await fetch(`/api/admin/content?type=${activeContentType}&id=${id}`, {
         method: 'DELETE',
         headers: { authorization: `Bearer ${accessToken}` },
       })
@@ -1077,9 +1472,9 @@ export function AdminPanel() {
       if (!res.ok) throw new Error(data.message ?? t('Gagal menghapus konten', 'Failed to delete content'))
       if (editingId === id) setEditingId(null)
       setContentMessage(t('Konten berhasil dihapus.', 'Content deleted successfully.'))
-      await loadItems(contentType)
-      if (contentType === 'modules') await loadFilterCatalog('modules')
-      if (contentType === 'lessons') await loadFilterCatalog('lessons')
+      await loadItems(activeContentType)
+      if (activeContentType === 'modules') await loadFilterCatalog('modules')
+      if (activeContentType === 'lessons') await loadFilterCatalog('lessons')
       await loadCourses()
       await loadModules(moduleCourseId || undefined)
       await loadLessons(lessonModuleId || undefined)
@@ -1309,30 +1704,164 @@ export function AdminPanel() {
         <h3 className="text-base font-bold text-slate-800 mb-2">
           {t('Manajemen Konten E-Learning', 'E-Learning Content Management')}
         </h3>
-        <p className="text-xs text-slate-500 mb-4">
+        <p className="text-xs text-slate-500 mb-3">
           {t(
-            'Tambah materi course/module/lesson/quiz langsung dari panel admin.',
-            'Create course/module/lesson/quiz materials directly from admin panel.',
+            'Mode Wizard memandu langkah 1→4 otomatis. Mode Tab untuk edit cepat per jenis. Isi selalu “nempel” ke induk di dropdown.',
+            'Wizard mode guides you through steps 1→4. Tab mode is for quick edits per type. Entries always attach to the parent you select in the dropdowns.',
           )}
         </p>
 
-        <div className="flex flex-wrap gap-2 mb-4">
-          {(['courses', 'modules', 'lessons', 'quizzes'] as ContentType[]).map((type) => (
-            <button
-              key={type}
-              onClick={() => setContentType(type)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${contentType === type ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600'}`}
-            >
-              {type === 'courses'
-                ? t('Kursus', 'Courses')
-                : type === 'modules'
-                  ? t('Modul', 'Modules')
-                  : type === 'lessons'
-                    ? t('Pelajaran', 'Lessons')
-                    : t('Kuis', 'Quizzes')}
-            </button>
-          ))}
+        <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50/90 p-4 text-xs text-slate-700 space-y-2">
+          <p className="font-bold text-blue-900">
+            {t('Alur kurikulum (disarankan berurutan)', 'Curriculum flow (recommended order)')}
+          </p>
+          <ol className="list-decimal list-inside space-y-1.5 leading-relaxed">
+            <li>
+              <strong>{t('Kursus', 'Course')}</strong> —{' '}
+              {t(
+                'Wadah per jalur kurikulum + jenjang (SD/SMP/SMK). Contoh: “IPA SMP 2024”.',
+                'Container per curriculum line + level (SD/SMP/SMK). E.g. “Science JHS 2024”.',
+              )}
+            </li>
+            <li>
+              <strong>{t('Modul', 'Module')}</strong> —{' '}
+              {t(
+                'Bab di dalam kursus. Urutan = nomor di Learning Hub. Metadata level/mapel dipakai filter admin & gating level.',
+                'Chapter inside a course. Order = sequence in Learning Hub. Level/subject metadata powers admin filters & level gating.',
+              )}
+            </li>
+            <li>
+              <strong>{t('Pelajaran', 'Lesson')}</strong> —{' '}
+              {t(
+                'Satu aktivitas (video/artikel/interaktif). Pre-test & post-test = dua pelajaran terpisah dengan judul jelas (mis. “Pre: …” / “Post: …”).',
+                'One activity (video/article/interactive). Pre- & post-test = two separate lessons with clear titles (e.g. “Pre: …” / “Post: …”).',
+              )}
+            </li>
+            <li>
+              <strong>{t('Kuis', 'Quiz')}</strong> —{' '}
+              {t(
+                'Soal JSON (atau CSV bulk) untuk satu pelajaran. Biasanya satu kuis untuk lesson pre dan satu lagi untuk lesson post.',
+                'JSON questions (or bulk CSV) for one lesson. Usually one quiz on the pre lesson and one on the post lesson.',
+              )}
+            </li>
+          </ol>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <span className="text-xs font-semibold text-slate-600">{t('Mode input', 'Input mode')}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setWizardStep(typeToWizardStep(contentType))
+              setEditingId(null)
+              setContentEntryMode('wizard')
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${contentEntryMode === 'wizard' ? 'bg-emerald-600 text-white border-emerald-600' : 'border-slate-200 text-slate-600 bg-white'}`}
+          >
+            {t('Wizard (disarankan)', 'Wizard (recommended)')}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setContentType(CONTENT_FLOW[wizardStep - 1] ?? 'courses')
+              setEditingId(null)
+              setContentEntryMode('tabs')
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${contentEntryMode === 'tabs' ? 'bg-emerald-600 text-white border-emerald-600' : 'border-slate-200 text-slate-600 bg-white'}`}
+          >
+            {t('Tab (lanjutan)', 'Tabs (advanced)')}
+          </button>
+        </div>
+
+        {contentEntryMode === 'wizard' && (
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 space-y-2">
+            <p className="text-xs font-bold text-emerald-900">
+              {t(`Langkah ${wizardStep} dari 4`, `Step ${wizardStep} of 4`)} —{' '}
+              {wizardStep === 1
+                ? t('Buat kursus', 'Create course')
+                : wizardStep === 2
+                  ? t('Tambah modul', 'Add module')
+                  : wizardStep === 3
+                    ? t('Tambah pelajaran', 'Add lesson')
+                    : t('Pasang kuis', 'Attach quiz')}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {([1, 2, 3, 4] as const).map((step) => (
+                <button
+                  key={step}
+                  type="button"
+                  onClick={() => setWizardStep(step)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold border ${wizardStep === step ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                >
+                  {step}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              {wizardStep === 1 && courses.length > 0 && (
+                <button type="button" className="text-emerald-800 underline font-semibold" onClick={() => setWizardStep(2)}>
+                  {t('Lewati — kursus sudah ada', 'Skip — I already have a course')}
+                </button>
+              )}
+              {wizardStep === 2 && modules.length > 0 && (
+                <button type="button" className="text-emerald-800 underline font-semibold" onClick={() => setWizardStep(3)}>
+                  {t('Lewati — modul sudah ada', 'Skip — I already have a module')}
+                </button>
+              )}
+              {wizardStep === 3 && lessons.length > 0 && (
+                <button type="button" className="text-emerald-800 underline font-semibold" onClick={() => setWizardStep(4)}>
+                  {t('Lewati — pelajaran sudah ada', 'Skip — I already have lessons')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {contentEntryMode === 'tabs' && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {(['courses', 'modules', 'lessons', 'quizzes'] as ContentType[]).map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setContentType(type)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${contentType === type ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 bg-white'}`}
+              >
+                {type === 'courses'
+                  ? t('1 · Kursus', '1 · Courses')
+                  : type === 'modules'
+                    ? t('2 · Modul', '2 · Modules')
+                    : type === 'lessons'
+                      ? t('3 · Pelajaran', '3 · Lessons')
+                      : t('4 · Kuis', '4 · Quizzes')}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {activeContentType === 'modules' && courses.length === 0 && (
+          <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {t(
+              'Belum ada kursus. Buka tab “1 · Kursus”, buat minimal satu kursus dulu, lalu kembali ke tab Modul.',
+              'No courses yet. Open tab “1 · Courses”, create at least one course, then return to Modules.',
+            )}
+          </div>
+        )}
+        {activeContentType === 'lessons' && modules.length === 0 && (
+          <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {t(
+              'Belum ada modul. Lengkapi tab Kursus lalu Modul dulu (satu modul per bab).',
+              'No modules yet. Complete Courses then Modules first (one module per chapter).',
+            )}
+          </div>
+        )}
+        {activeContentType === 'quizzes' && lessons.length === 0 && (
+          <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {t(
+              'Belum ada pelajaran. Buat lesson (mis. pre/post) di tab Pelajaran, baru tempel kuis di sini.',
+              'No lessons yet. Create lessons (e.g. pre/post) under Lessons, then attach quizzes here.',
+            )}
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <button
@@ -1354,7 +1883,7 @@ export function AdminPanel() {
               }}
             />
           </label>
-          {contentType === 'quizzes' && (
+          {activeContentType === 'quizzes' && (
             <>
               <button
                 onClick={downloadQuizCsvTemplate}
@@ -1405,19 +1934,57 @@ export function AdminPanel() {
           )}
         </div>
 
-        {(contentType === 'modules' || contentType === 'lessons') && (
+        <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50/90 p-3 text-[11px] text-amber-950 space-y-1.5 leading-relaxed">
+          <p className="font-bold text-amber-900">
+            {t('Petunjuk singkat template unduhan', 'Quick guide: downloaded templates')}
+          </p>
+          <ul className="list-disc list-inside space-y-1">
+            <li>
+              {t(
+                'JSON: unduh → sunting di Notepad / VS Code / Excel (ekspor hati-hati) → unggah lagi pada jenis konten yang sama. Field _apex_* hanya penjelasan; boleh dihapus.',
+                'JSON: download → edit in Notepad / VS Code → upload again on the same content type. _apex_* keys are notes only; safe to delete.',
+              )}
+            </li>
+            <li>
+              {t(
+                'CSV kuis: baris yang diawali # adalah bantuan; saat unggah otomatis diabaikan. Kolom answer wajib A, B, C, atau D.',
+                'Quiz CSV: lines starting with # are help text and are ignored on upload. The answer column must be A, B, C, or D.',
+              )}
+            </li>
+            <li>
+              {t(
+                'CSV Bulk Quiz: kolom opsional bank — kosong atau legacy → questions; pre → questions_pre; post → questions_post. File lama tanpa kolom bank tetap hanya mengisi legacy.',
+                'Bulk Quiz CSV: optional bank column — empty or legacy → questions; pre → questions_pre; post → questions_post. Old files without bank still fill legacy only.',
+              )}
+            </li>
+            <li>
+              {t(
+                'Ganti teks seperti GANTI_DENGAN_UUID_* dengan ID asli dari tabel Konten Terbaru di bawah atau dari Supabase.',
+                'Replace placeholders like GANTI_DENGAN_UUID_* with real ids from the Recent Items table below or from Supabase.',
+              )}
+            </li>
+            <li>
+              {t(
+                'Urutan kerja ideal: Kursus → Modul → Pelajaran → Kuis (atau pakai Mode Wizard).',
+                'Recommended order: Course → Module → Lesson → Quiz (or use Wizard mode).',
+              )}
+            </li>
+          </ul>
+        </div>
+
+        {(activeContentType === 'modules' || activeContentType === 'lessons') && (
           <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
             <p className="text-xs font-semibold text-slate-700">
               {t('Filter metadata', 'Metadata filters')}
             </p>
-            {contentType === 'modules' && (
+            {activeContentType === 'modules' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 <select
                   value={filterPhase}
                   onChange={(e) => setFilterPhase(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
                 >
-                  <option value="">{t('Semua phase', 'All phases')}</option>
+                  <option value="">{t('Semua level', 'All levels')}</option>
                   {modulePhaseOptions.map((phase) => (
                     <option key={phase} value={phase}>
                       {phase}
@@ -1450,7 +2017,7 @@ export function AdminPanel() {
                 </select>
               </div>
             )}
-            {contentType === 'lessons' && (
+            {activeContentType === 'lessons' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 <select
                   value={filterCode}
@@ -1495,187 +2062,397 @@ export function AdminPanel() {
         )}
 
         <div className="space-y-3">
-          {contentType === 'courses' && (
+          {activeContentType === 'courses' && (
             <>
-              <input
-                value={courseTitle}
-                onChange={(e) => setCourseTitle(e.target.value)}
-                placeholder={t('Judul course', 'Course title')}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              />
-              <select
-                value={courseGradeLevel}
-                onChange={(e) => setCourseGradeLevel(e.target.value as 'SD' | 'SMP' | 'SMK')}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              >
-                <option value="SD">SD</option>
-                <option value="SMP">SMP</option>
-                <option value="SMK">SMK</option>
-              </select>
-            </>
-          )}
-
-          {contentType === 'modules' && (
-            <>
-              <select
-                value={moduleCourseId}
-                onChange={(e) => setModuleCourseId(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              >
-                {courses.length === 0 && (
-                  <option value="">{t('Belum ada course', 'No courses yet')}</option>
+              <p className="text-xs text-slate-500">
+                {t(
+                  'Satu kursus = satu “jalur” konten untuk satu jenjang. Modul siswa di Learning Hub diambil dari kursus yang grade-nya sama dengan profil siswa.',
+                  'One course = one content track for one level. Student modules come from courses matching the student profile grade.',
                 )}
-                {courses.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.title} ({course.grade_level})
-                  </option>
-                ))}
-              </select>
-              <input
-                value={moduleTitle}
-                onChange={(e) => setModuleTitle(e.target.value)}
-                placeholder={t('Judul module', 'Module title')}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              />
-              <div className="grid grid-cols-2 gap-2">
+              </p>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  {t('Judul kursus', 'Course title')}
+                </label>
                 <input
-                  type="number"
-                  min={1}
-                  value={moduleSequence}
-                  onChange={(e) => setModuleSequence(Number(e.target.value))}
-                  placeholder={t('urutan_modul', 'sequence_order')}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                />
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={moduleMastery}
-                  onChange={(e) => setModuleMastery(Number(e.target.value))}
-                  placeholder={t('batas_mastery', 'mastery_threshold')}
+                  value={courseTitle}
+                  onChange={(e) => setCourseTitle(e.target.value)}
+                  placeholder={t('mis. Matematika SMP — Semester 1', 'e.g. Math JHS — Semester 1')}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  {t('Jenjang (filter siswa)', 'Level (student filter)')}
+                </label>
+                <select
+                  value={courseGradeLevel}
+                  onChange={(e) => setCourseGradeLevel(e.target.value as 'SD' | 'SMP' | 'SMK')}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                >
+                  <option value="SD">SD</option>
+                  <option value="SMP">SMP</option>
+                  <option value="SMK">SMK</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          {activeContentType === 'modules' && (
+            <>
+              <p className="text-xs text-slate-500">
+                {t(
+                  'Pilih kursus induk, lalu isi judul bab. Urutan menentukan posisi di daftar modul; threshold mastery dipakai untuk logika post-test (biasanya 80%).',
+                  'Pick the parent course, then the chapter title. Order controls module list position; mastery threshold drives post-test logic (usually 80%).',
+                )}
+              </p>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  {t('Kursus induk', 'Parent course')}
+                </label>
+                <select
+                  value={moduleCourseId}
+                  onChange={(e) => setModuleCourseId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                >
+                  {courses.length === 0 && (
+                    <option value="">{t('Belum ada course', 'No courses yet')}</option>
+                  )}
+                  {courses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.title} ({course.grade_level})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  {t('Judul modul (bab)', 'Module title (chapter)')}
+                </label>
+                <input
+                  value={moduleTitle}
+                  onChange={(e) => setModuleTitle(e.target.value)}
+                  placeholder={t('mis. Bilangan Bulat', 'e.g. Integers')}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    {t('Urutan dalam kursus', 'Sequence in course')}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={moduleSequence}
+                    onChange={(e) => setModuleSequence(Number(e.target.value))}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-0.5">1, 2, 3 …</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    {t('Batas mastery post-test (%)', 'Post-test mastery threshold (%)')}
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={moduleMastery}
+                    onChange={(e) => setModuleMastery(Number(e.target.value))}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-0.5">{t('Umumnya 80', 'Typically 80')}</p>
+                </div>
+              </div>
+              <p className="text-[11px] font-semibold text-slate-500">
+                {t('Metadata (opsional, untuk filter & gating level)', 'Metadata (optional, for filters & level gating)')}
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <input
-                  value={modulePhase}
-                  onChange={(e) => setModulePhase(e.target.value)}
-                  placeholder={t('phase (metadata)', 'phase (metadata)')}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                />
-                <input
-                  value={moduleSubject}
-                  onChange={(e) => setModuleSubject(e.target.value)}
-                  placeholder={t('subject (metadata)', 'subject (metadata)')}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                />
-                <input
-                  value={moduleTrack}
-                  onChange={(e) => setModuleTrack(e.target.value)}
-                  placeholder={t('track (metadata, opsional)', 'track (metadata, optional)')}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                />
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
+                    {t('level (key: phase)', 'level (key: phase)')}
+                  </label>
+                  <input
+                    value={modulePhase}
+                    onChange={(e) => setModulePhase(e.target.value)}
+                    placeholder={t('mis. Level 1', 'e.g. Level 1')}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">subject</label>
+                  <input
+                    value={moduleSubject}
+                    onChange={(e) => setModuleSubject(e.target.value)}
+                    placeholder={t('mis. Matematika', 'e.g. Mathematics')}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">track</label>
+                  <input
+                    value={moduleTrack}
+                    onChange={(e) => setModuleTrack(e.target.value)}
+                    placeholder={t('opsional', 'optional')}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  />
+                </div>
               </div>
             </>
           )}
 
-          {contentType === 'lessons' && (
+          {activeContentType === 'lessons' && (
             <>
-              <select
-                value={lessonModuleId}
-                onChange={(e) => setLessonModuleId(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              >
-                {modules.length === 0 && (
-                  <option value="">{t('Belum ada module', 'No modules yet')}</option>
+              <p className="text-xs text-slate-500">
+                {t(
+                  'Satu baris = satu pelajaran di dalam modul. Untuk pre/post test: buat dua lesson (tipe bebas), lalu di tab Kuis pasang soal ke masing-masing lesson.',
+                  'One row = one lesson inside a module. For pre/post tests: create two lessons (any type), then in Quizzes attach questions to each lesson.',
                 )}
-                {modules.map((module) => (
-                  <option key={module.id} value={module.id}>
-                    #{module.sequence_order} - {module.title}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={lessonTitle}
-                onChange={(e) => setLessonTitle(e.target.value)}
-                placeholder={t('Judul lesson', 'Lesson title')}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              />
-              <select
-                value={lessonType}
-                onChange={(e) => setLessonType(e.target.value as 'VIDEO' | 'ARTICLE' | 'INTERACTIVE')}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              >
-                <option value="VIDEO">VIDEO</option>
-                <option value="ARTICLE">ARTICLE</option>
-                <option value="INTERACTIVE">INTERACTIVE</option>
-              </select>
-              <input
-                value={lessonContentUrl}
-                onChange={(e) => setLessonContentUrl(e.target.value)}
-                placeholder={t('content_url (opsional)', 'content_url (optional)')}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              />
+              </p>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  {t('Modul induk', 'Parent module')}
+                </label>
+                <select
+                  value={lessonModuleId}
+                  onChange={(e) => setLessonModuleId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                >
+                  {modules.length === 0 && (
+                    <option value="">{t('Belum ada module', 'No modules yet')}</option>
+                  )}
+                  {modules.map((module) => (
+                    <option key={module.id} value={module.id}>
+                      {formatModuleOptionLabel(module)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  {t('Judul pelajaran', 'Lesson title')}
+                </label>
+                <input
+                  value={lessonTitle}
+                  onChange={(e) => setLessonTitle(e.target.value)}
+                  placeholder={t('mis. Pre-test: Bilangan Bulat', 'e.g. Pre-test: Integers')}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  {t('Tipe konten', 'Content type')}
+                </label>
+                <select
+                  value={lessonType}
+                  onChange={(e) => setLessonType(e.target.value as 'VIDEO' | 'ARTICLE' | 'INTERACTIVE')}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                >
+                  <option value="VIDEO">VIDEO</option>
+                  <option value="ARTICLE">ARTICLE</option>
+                  <option value="INTERACTIVE">INTERACTIVE</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  {t('URL materi (opsional)', 'Content URL (optional)')}
+                </label>
+                <input
+                  value={lessonContentUrl}
+                  onChange={(e) => setLessonContentUrl(e.target.value)}
+                  placeholder="https://…"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
+              </div>
+              <p className="text-[11px] font-semibold text-slate-500">
+                {t('Metadata kurikulum (opsional)', 'Curriculum metadata (optional)')}
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <input
-                  value={lessonCode}
-                  onChange={(e) => setLessonCode(e.target.value)}
-                  placeholder={t('code (metadata, contoh 7M.1)', 'code (metadata)')}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                />
-                <input
-                  value={lessonBenchmark}
-                  onChange={(e) => setLessonBenchmark(e.target.value)}
-                  placeholder={t('benchmark (metadata)', 'benchmark (metadata)')}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                />
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">code</label>
+                  <input
+                    value={lessonCode}
+                    onChange={(e) => setLessonCode(e.target.value)}
+                    placeholder="7M.1"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">benchmark</label>
+                  <input
+                    value={lessonBenchmark}
+                    onChange={(e) => setLessonBenchmark(e.target.value)}
+                    placeholder={t('mis. Cambridge LS1', 'e.g. Cambridge LS1')}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  />
+                </div>
               </div>
             </>
           )}
 
-          {contentType === 'quizzes' && (
+          {activeContentType === 'quizzes' && (
             <>
-              <select
-                value={quizLessonId}
-                onChange={(e) => setQuizLessonId(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              >
-                {lessons.length === 0 && (
-                  <option value="">{t('Belum ada lesson', 'No lessons yet')}</option>
+              <p className="text-xs text-slate-500">
+                {t(
+                  'Satu lesson = satu baris quiz. Isi JSON di bawah: legacy `questions` (fallback), plus `questions_pre` / `questions_post` untuk pre/post terpisah. Generator Claude mengisi PRE+POST; simpan lewat Wizard/Tab mengirim ketiga kolom ke API.',
+                  'One lesson = one quiz row. Use JSON below: legacy `questions` (fallback), plus `questions_pre` / `questions_post` for split banks. Claude fills PRE+POST; Wizard/Tab save sends all three columns to the API.',
                 )}
-                {lessons.map((lesson) => (
-                  <option key={lesson.id} value={lesson.id}>
-                    {lesson.title} ({lesson.type})
-                  </option>
-                ))}
-              </select>
-              <textarea
-                value={quizQuestionsJson}
-                onChange={(e) => setQuizQuestionsJson(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm min-h-28"
-              />
+              </p>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  {t('Pelajaran yang dikuis', 'Lesson to attach quiz to')}
+                </label>
+                <select
+                  value={quizLessonId}
+                  onChange={(e) => setQuizLessonId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                >
+                  {lessons.length === 0 && (
+                    <option value="">{t('Belum ada lesson', 'No lessons yet')}</option>
+                  )}
+                  {lessons.map((lesson) => (
+                    <option key={lesson.id} value={lesson.id}>
+                      {formatLessonOptionLabel(lesson)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {t(
+                    'Saat tab ini dibuka, daftar memuat sampai 100 pelajaran dari semua modul (bukan hanya modul yang dipilih di tab Pelajaran).',
+                    'When this tab opens, the list loads up to 100 lessons across all modules (not only the module selected on the Lessons tab).',
+                  )}
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    {t('Legacy questions (JSON)', 'Legacy questions (JSON)')}
+                  </label>
+                  <p className="text-[11px] text-slate-400 mb-1">
+                    {t(
+                      'Dipakai jika PRE dan POST kosong. Format sama untuk ketiga kolom.',
+                      'Used when PRE and POST are empty. Same item shape for all three banks.',
+                    )}
+                  </p>
+                  <textarea
+                    value={quizQuestionsJson}
+                    onChange={(e) => setQuizQuestionsJson(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm min-h-28 font-mono text-[13px]"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">
+                      {t('PRE — questions_pre (JSON)', 'PRE — questions_pre (JSON)')}
+                    </label>
+                    <textarea
+                      value={quizQuestionsPreJson}
+                      onChange={(e) => setQuizQuestionsPreJson(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm min-h-28 font-mono text-[13px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">
+                      {t('POST — questions_post (JSON)', 'POST — questions_post (JSON)')}
+                    </label>
+                    <textarea
+                      value={quizQuestionsPostJson}
+                      onChange={(e) => setQuizQuestionsPostJson(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm min-h-28 font-mono text-[13px]"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-violet-200 bg-violet-50/80 p-3 space-y-2 mt-2">
+                <p className="text-xs font-bold text-violet-900">
+                  {t('Generator AI (Claude)', 'AI generator (Claude)')}
+                </p>
+                <p className="text-[11px] text-violet-950 leading-relaxed">
+                  {t(
+                    'Membuat 5 soal pilihan ganda untuk PRE dan 10 untuk POST dari judul lesson + isi URL content_url. Wajib ANTHROPIC_API_KEY. Limit dan billing dipantau di konsol Anthropic.',
+                    'Creates 5 PRE and 10 POST MCQs from the lesson title + content_url body. Requires ANTHROPIC_API_KEY. Limits and billing are managed in the Anthropic console.',
+                  )}
+                </p>
+                <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={aiQuizOverwrite}
+                    onChange={(e) => setAiQuizOverwrite(e.target.checked)}
+                  />
+                  {t('Timpa quiz yang sudah ada untuk lesson ini', 'Overwrite existing quiz for this lesson')}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void generateAiPrePostQuizzes()}
+                  disabled={contentLoading || !quizLessonId}
+                  className="w-full rounded-lg bg-violet-700 hover:bg-violet-800 text-white py-2 text-xs font-bold disabled:opacity-50"
+                >
+                  {t('Generate PRE (5) + POST (10) dari materi', 'Generate PRE (5) + POST (10) from material')}
+                </button>
+              </div>
             </>
           )}
         </div>
 
-        <button
-          onClick={createContent}
-          disabled={contentLoading}
-          className="mt-4 w-full rounded-xl bg-violet-600 hover:bg-violet-700 text-white py-2.5 text-sm font-bold"
-        >
-          {contentLoading
-            ? t('Memproses...', 'Processing...')
-            : editingId
-              ? t('Simpan Perubahan', 'Save Changes')
-              : t('Tambah Konten', 'Create Content')}
-        </button>
-        {editingId && (
-          <button
-            onClick={() => setEditingId(null)}
-            className="mt-2 w-full rounded-xl border border-slate-200 text-slate-600 py-2 text-xs font-semibold"
-          >
-            {t('Batal Edit', 'Cancel Edit')}
-          </button>
+        {contentEntryMode === 'wizard' && !editingId && (
+          <div className="mt-4 flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={() => void wizardSubmit()}
+              disabled={contentLoading}
+              className="flex-1 rounded-xl bg-violet-600 hover:bg-violet-700 text-white py-2.5 text-sm font-bold disabled:opacity-60"
+            >
+              {contentLoading
+                ? t('Memproses...', 'Processing...')
+                : wizardStep < 4
+                  ? t('Simpan & lanjut ke langkah berikutnya', 'Save & go to next step')
+                  : t('Simpan kuis', 'Save quiz')}
+            </button>
+            {wizardStep > 1 && (
+              <button
+                type="button"
+                onClick={() => setWizardStep((s) => Math.max(1, s - 1) as 1 | 2 | 3 | 4)}
+                disabled={contentLoading}
+                className="rounded-xl border border-slate-300 bg-white text-slate-700 py-2.5 px-4 text-sm font-semibold"
+              >
+                {t('Kembali', 'Back')}
+              </button>
+            )}
+          </div>
+        )}
+
+        {contentEntryMode === 'tabs' && (
+          <>
+            <button
+              type="button"
+              onClick={() => void createContent()}
+              disabled={contentLoading}
+              className="mt-4 w-full rounded-xl bg-violet-600 hover:bg-violet-700 text-white py-2.5 text-sm font-bold"
+            >
+              {contentLoading
+                ? t('Memproses...', 'Processing...')
+                : editingId
+                  ? t('Simpan Perubahan', 'Save Changes')
+                  : t('Tambah Konten', 'Create Content')}
+            </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null)
+                  setModuleMetadataBase({})
+                  setLessonMetadataBase({})
+                  setQuizQuestionsJson(DEFAULT_QUIZ_LEGACY_JSON)
+                  setQuizQuestionsPreJson(DEFAULT_QUIZ_BANK_JSON)
+                  setQuizQuestionsPostJson(DEFAULT_QUIZ_BANK_JSON)
+                }}
+                className="mt-2 w-full rounded-xl border border-slate-200 text-slate-600 py-2 text-xs font-semibold"
+              >
+                {t('Batal Edit', 'Cancel Edit')}
+              </button>
+            )}
+          </>
         )}
 
         {contentMessage && (

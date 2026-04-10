@@ -42,7 +42,7 @@ const VIEW_META: Record<ViewType, { id: string; en: string; icon: React.ReactNod
   'portfolio':  { id: 'Karya Global',        en: 'Global Portfolio',   icon: <Globe size={18} />,         section: 'student' },
   'pomodoro':   { id: 'Pomodoro Timer',      en: 'Pomodoro Timer',     icon: <Timer size={18} />,         section: 'tools' },
   'schedule':   { id: 'Jadwal Mingguan',     en: 'Weekly Schedule',    icon: <Calendar size={18} />,      section: 'tools' },
-  'materials':  { id: 'Modul Materi',        en: 'Module Materials',   icon: <BookOpen size={18} />,       section: 'student' },
+  'materials':  { id: 'Modul Materi (Ringkasan)', en: 'Module Summary', icon: <BookOpen size={18} />,       section: 'student' },
   'brain-dump': { id: 'Brain Dump',          en: 'Brain Dump',         icon: <BrainCircuit size={18} />,  section: 'tools' },
   'reflection': { id: 'Refleksi Mingguan',   en: 'Weekly Reflection',  icon: <BookOpen size={18} />,      section: 'tools' },
   'assessment': { id: 'Penilaian Holistik',  en: 'Holistic Assessment',icon: <ClipboardList size={18} />, section: 'eval' },
@@ -435,7 +435,7 @@ function LoginGate() {
                 type="button"
                 disabled={loading}
                 onClick={() => void onLoginOnly()}
-                className="w-full rounded-xl py-2.5 text-sm font-bold text-white min-h-[44px]"
+                className="w-full rounded-xl py-2.5 text-sm font-bold text-white min-h-[44px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
                 style={{ background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)' }}
               >
                 {loading ? t('Memproses…', 'Processing…') : t('Masuk', 'Sign in')}
@@ -853,7 +853,7 @@ function LoginGate() {
             type="button"
             onClick={onSubmit}
             disabled={loading}
-            className="w-full sm:w-auto sm:min-w-[200px] rounded-xl px-6 py-3 text-base font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 min-h-[48px] shadow-sm shadow-blue-600/20"
+            className="w-full sm:w-auto sm:min-w-[200px] rounded-xl px-6 py-3 text-base font-bold text-white min-h-[48px] shadow-sm shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
             style={{ background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)' }}
           >
             {loading
@@ -1244,7 +1244,9 @@ function ApexAppContent() {
             {safeActiveView === 'mentor'     && <MentorPortal />}
             {safeActiveView === 'pomodoro'   && <PomodoroTimer />}
             {safeActiveView === 'schedule'   && <WeeklySchedule />}
-            {safeActiveView === 'materials'  && <ModuleMaterials />}
+            {safeActiveView === 'materials' && (
+              <ModuleMaterials onOpenLearningHub={() => setActiveView('hub')} />
+            )}
             {safeActiveView === 'brain-dump' && <BrainDump />}
             {safeActiveView === 'reflection' && <WeeklyReflection />}
             {safeActiveView === 'assessment' && <AssessmentHub />}

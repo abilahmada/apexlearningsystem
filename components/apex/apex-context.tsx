@@ -162,10 +162,30 @@ export function ApexProvider({ children }: { children: ReactNode }) {
     try {
       const supabase = createSupabaseBrowserClient()
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error || !data.session?.access_token) {
-        return { ok: false as const, message: error?.message ?? 'Login gagal' }
+      if (error) {
+        return { ok: false as const, message: error.message }
       }
-      return await fetchAppRole(data.session.access_token)
+
+      let accessToken = data.session?.access_token ?? null
+      if (!accessToken) {
+        // Fallback: on some clients, session can be set a moment after signIn resolves.
+        const { data: sessionData, error: sessionErr } = await supabase.auth.getSession()
+        accessToken = sessionData.session?.access_token ?? null
+        if (sessionErr) {
+          return { ok: false as const, message: sessionErr.message }
+        }
+      }
+
+      if (!accessToken) {
+        return {
+          ok: false as const,
+          message: t(
+            'Login berhasil tetapi token sesi belum tersedia. Coba lagi dalam beberapa detik.',
+            'Login succeeded but session token is not available yet. Please try again in a few seconds.',
+          ),
+        }
+      }
+      return await fetchAppRole(accessToken)
     } catch (error) {
       return { ok: false as const, message: error instanceof Error ? error.message : 'Login gagal' }
     }
@@ -173,6 +193,12 @@ export function ApexProvider({ children }: { children: ReactNode }) {
 
   const mapSignupDbError = (raw: string) => {
     const lower = raw.toLowerCase()
+    if (raw.includes('AUTH_PUBLIC_USERS_EMAIL_CONFLICT_DIFFERENT_ID')) {
+      return t(
+        'Email sudah dipakai baris lama di database yang tidak selaras dengan Auth (beda ID). Hubungi admin untuk merapikan public.users atau gunakan email lain.',
+        'This email is tied to a legacy public.users row with a different id than Auth. Ask an admin to fix the data or use another email.',
+      )
+    }
     if (
       lower.includes('already registered') ||
       lower.includes('already been registered') ||

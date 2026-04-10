@@ -3,6 +3,7 @@ import {
   assessmentLayerForPhase,
   resolvePlacementProductPhase,
   type AssessmentSessionStatus,
+  type PlacementProductPhase,
 } from "@/lib/assessment/placement-lifecycle";
 
 type GradeApi = "SD" | "SMP" | "SMK";
@@ -14,16 +15,20 @@ function parseGrade(raw: string | null): GradeApi | null {
   return null;
 }
 
-type ProductPhase =
+type ModuleAllowedPhase =
   | "BASELINE"
   | "CALIBRATION_ACTIVE"
   | "PARENT_VALIDATION_PENDING"
   | "PLACEMENT_STABLE"
-  | "CONTINUOUS_REVIEW_DUE";
+  | "CONTINUOUS_REVIEW_DUE"
+  | "L1_INTAKE"
+  | "L2_CALIBRATION"
+  | "L3_RADAR_PROVISIONAL"
+  | "L4_PARENT_VALIDATION_PENDING";
 
-function normalizePhaseList(raw: unknown): ProductPhase[] {
+function normalizePhaseList(raw: unknown): ModuleAllowedPhase[] {
   if (!Array.isArray(raw)) return [];
-  const out: ProductPhase[] = [];
+  const out: ModuleAllowedPhase[] = [];
   for (const x of raw) {
     const t = String(x ?? "").trim().toUpperCase();
     if (
@@ -31,18 +36,65 @@ function normalizePhaseList(raw: unknown): ProductPhase[] {
       t === "CALIBRATION_ACTIVE" ||
       t === "PARENT_VALIDATION_PENDING" ||
       t === "PLACEMENT_STABLE" ||
-      t === "CONTINUOUS_REVIEW_DUE"
+      t === "CONTINUOUS_REVIEW_DUE" ||
+      t === "L1_INTAKE" ||
+      t === "L2_CALIBRATION" ||
+      t === "L3_RADAR_PROVISIONAL" ||
+      t === "L4_PARENT_VALIDATION_PENDING"
     ) {
-      out.push(t);
+      out.push(t as ModuleAllowedPhase);
     }
   }
   return out;
+}
+
+function normalizeCurrentPhaseForMetadata(phase: PlacementProductPhase): ModuleAllowedPhase {
+  switch (phase) {
+    case "L1_INTAKE":
+      return "L1_INTAKE";
+    case "L2_CALIBRATION":
+    case "L3_RADAR_PROVISIONAL":
+      // Backward compatibility untuk metadata lama.
+      return "CALIBRATION_ACTIVE";
+    case "L4_PARENT_VALIDATION_PENDING":
+      return "PARENT_VALIDATION_PENDING";
+    case "PLACEMENT_STABLE":
+      return "PLACEMENT_STABLE";
+    case "CONTINUOUS_REVIEW_DUE":
+      return "CONTINUOUS_REVIEW_DUE";
+  }
 }
 
 function parsePhaseOrder(raw: unknown): number | null {
   const n = Number(raw);
   if (!Number.isFinite(n)) return null;
   return Math.max(1, Math.round(n));
+}
+
+function parseModulePhaseNumber(metadata: Record<string, unknown>): number {
+  const numeric =
+    parsePhaseOrder(metadata.phaseOrder) ??
+    parsePhaseOrder(metadata.phase_order) ??
+    parsePhaseOrder(metadata.phase);
+  if (numeric) return numeric;
+  const phaseText = String(metadata.phase ?? "").trim();
+  const m = phaseText.match(/(\d+)/);
+  if (m) return Math.max(1, Number(m[1]));
+  return 1;
+}
+
+function placementBaselinePhaseFromProductPhase(phase: PlacementProductPhase): number {
+  switch (phase) {
+    case "L1_INTAKE":
+      return 1;
+    case "L2_CALIBRATION":
+    case "L3_RADAR_PROVISIONAL":
+      return 2;
+    case "L4_PARENT_VALIDATION_PENDING":
+    case "PLACEMENT_STABLE":
+    case "CONTINUOUS_REVIEW_DUE":
+      return 3;
+  }
 }
 
 function parseBool(raw: string | null): boolean {
@@ -131,8 +183,10 @@ export async function GET(req: Request) {
         ? String(session.last_continuous_review_at)
         : null,
       now: new Date(),
-    }) as ProductPhase;
+    });
+    const metadataCurrentPhase = normalizeCurrentPhaseForMetadata(productPhase);
     const assessmentLayer = assessmentLayerForPhase(productPhase);
+    const placementBaselinePhase = placementBaselinePhaseFromProductPhase(productPhase);
 
     const { data: courses, error: courseErr } = await auth.supabase
       .from("courses")
@@ -161,7 +215,7 @@ export async function GET(req: Request) {
         return false;
       }
       const allowedPhases = normalizePhaseList(meta.allowedProductPhases);
-      if (allowedPhases.length > 0 && !allowedPhases.includes(productPhase)) {
+      if (allowedPhases.length > 0 && !allowedPhases.includes(metadataCurrentPhase)) {
         return false;
       }
       return true;
@@ -174,8 +228,7 @@ export async function GET(req: Request) {
           ? (m.metadata as Record<string, unknown>)
           : {};
       const phaseKey = String(metadata.phase ?? "Phase 1").trim() || "Phase 1";
-      const phaseOrder =
-        parsePhaseOrder(metadata.phaseOrder) ?? parsePhaseOrder(metadata.phase_order);
+      const phaseOrder = parseModulePhaseNumber(metadata);
       if (!phaseFirstSeen.has(phaseKey)) phaseFirstSeen.set(phaseKey, idx);
       return {
         row: m,
@@ -207,38 +260,58 @@ export async function GET(req: Request) {
     const lessonIds = (lessons ?? []).map((l) => String(l.id));
     const { data: progressRows, error: progressErr } = await auth.supabase
       .from("lesson_progress")
-      .select("lesson_id, posttest_score")
+      .select("lesson_id, pretest_score, posttest_score, posttest_passed")
       .eq("student_id", String(studentProfile.id))
       .in("lesson_id", lessonIds.length > 0 ? lessonIds : ["00000000-0000-0000-0000-000000000000"]);
     if (progressErr) return Response.json({ message: progressErr.message }, { status: 500 });
 
-    const posttestScoreByLesson = new Map<string, number>();
+    const lessonProgressByLesson = new Map<
+      string,
+      { pretestScore: number | null; posttestScore: number | null; posttestPassed: boolean }
+    >();
     for (const p of progressRows ?? []) {
-      if (typeof p.posttest_score === "number") {
-        posttestScoreByLesson.set(String(p.lesson_id), Number(p.posttest_score));
-      }
+      const lid = String(p.lesson_id);
+      lessonProgressByLesson.set(lid, {
+        pretestScore: typeof p.pretest_score === "number" ? Number(p.pretest_score) : null,
+        posttestScore: typeof p.posttest_score === "number" ? Number(p.posttest_score) : null,
+        posttestPassed: Boolean(p.posttest_passed),
+      });
     }
 
     const moduleToPhase = new Map<string, string>();
     for (const m of enriched) moduleToPhase.set(String(m.row.id), m.phaseKey);
 
-    const phaseStats = new Map<string, { totalLessons: number; scoredLessons: number; scoreSum: number }>();
+    const phaseStats = new Map<
+      string,
+      { totalLessons: number; scoredLessons: number; scoreSum: number; passedCount: number }
+    >();
     for (const lesson of lessons ?? []) {
       const phaseKey = moduleToPhase.get(String(lesson.module_id));
       if (!phaseKey) continue;
-      const current = phaseStats.get(phaseKey) ?? { totalLessons: 0, scoredLessons: 0, scoreSum: 0 };
+      const current = phaseStats.get(phaseKey) ?? {
+        totalLessons: 0,
+        scoredLessons: 0,
+        scoreSum: 0,
+        passedCount: 0,
+      };
       current.totalLessons += 1;
-      const score = posttestScoreByLesson.get(String(lesson.id));
+      const prog = lessonProgressByLesson.get(String(lesson.id));
+      const score = prog?.posttestScore ?? null;
       if (typeof score === "number") {
         current.scoredLessons += 1;
         current.scoreSum += score;
       }
+      if (prog?.posttestPassed) current.passedCount += 1;
       phaseStats.set(phaseKey, current);
     }
 
     const orderedPhases: string[] = [];
+    const phaseOrderByKey = new Map<string, number>();
     for (const m of enriched) {
       if (!orderedPhases.includes(m.phaseKey)) orderedPhases.push(m.phaseKey);
+      if (!phaseOrderByKey.has(m.phaseKey)) {
+        phaseOrderByKey.set(m.phaseKey, m.phaseOrder ?? 1);
+      }
     }
 
     const unlockedPhaseSet = new Set<string>();
@@ -251,15 +324,22 @@ export async function GET(req: Request) {
       passedForNext: boolean;
     }> = [];
 
-    let previousPassed = true;
+    let previousPassed: boolean = true;
     for (let i = 0; i < orderedPhases.length; i += 1) {
       const phase = orderedPhases[i];
-      const stats = phaseStats.get(phase) ?? { totalLessons: 0, scoredLessons: 0, scoreSum: 0 };
+      const stats = phaseStats.get(phase) ?? {
+        totalLessons: 0,
+        scoredLessons: 0,
+        scoreSum: 0,
+        passedCount: 0,
+      };
       const avg =
         stats.scoredLessons > 0 ? Math.round((stats.scoreSum / stats.scoredLessons) * 100) / 100 : 0;
       const passedForNext =
-        stats.totalLessons === 0 || (stats.scoredLessons === stats.totalLessons && avg >= 80);
-      const unlocked = i === 0 ? true : previousPassed;
+        stats.totalLessons === 0 || stats.passedCount === stats.totalLessons;
+      const phaseNumber = phaseOrderByKey.get(phase) ?? i + 1;
+      const isBaselineUnlocked = phaseNumber <= placementBaselinePhase;
+      const unlocked: boolean = isBaselineUnlocked || previousPassed;
       if (unlocked) unlockedPhaseSet.add(phase);
       phaseProgress.push({
         phase,
@@ -273,21 +353,31 @@ export async function GET(req: Request) {
     }
 
     const phaseGatedItems = enriched.filter((x) => unlockedPhaseSet.has(x.phaseKey));
+    const baseItemsForVisibility = enriched;
 
     const lessonByModule = new Map<
       string,
-      Array<{ id: string; title: string; posttestScore: number | null; posttestPassed: boolean }>
+      Array<{
+        id: string;
+        title: string;
+        pretestScore: number | null;
+        posttestScore: number | null;
+        posttestPassed: boolean;
+      }>
     >();
     const passedCountByModule = new Map<string, number>();
     const totalCountByModule = new Map<string, number>();
     for (const lesson of lessons ?? []) {
       const moduleId = String(lesson.module_id);
-      const score = posttestScoreByLesson.get(String(lesson.id));
-      const passed = typeof score === "number" && score >= 80;
+      const prog = lessonProgressByLesson.get(String(lesson.id));
+      const score = prog?.posttestScore ?? null;
+      const preScore = prog?.pretestScore ?? null;
+      const passed = Boolean(prog?.posttestPassed);
       const arr = lessonByModule.get(moduleId) ?? [];
       arr.push({
         id: String(lesson.id),
         title: "",
+        pretestScore: typeof preScore === "number" ? preScore : null,
         posttestScore: typeof score === "number" ? score : null,
         posttestPassed: passed,
       });
@@ -299,20 +389,22 @@ export async function GET(req: Request) {
     if (includeLessons) {
       const { data: lessonRows, error: lessonRowsErr } = await auth.supabase
         .from("lessons")
-        .select("id, module_id, title, created_at")
+        .select("id, module_id, title")
         .in("module_id", moduleIds.length > 0 ? moduleIds : ["00000000-0000-0000-0000-000000000000"])
-        .order("created_at", { ascending: true })
+        .order("title", { ascending: true })
         .order("id", { ascending: true });
       if (lessonRowsErr) return Response.json({ message: lessonRowsErr.message }, { status: 500 });
       for (const row of lessonRows ?? []) {
         const moduleId = String(row.module_id);
         const arr = lessonByModule.get(moduleId) ?? [];
         const idx = arr.findIndex((x) => x.id === String(row.id));
+        const progRow = lessonProgressByLesson.get(String(row.id));
         const base = {
           id: String(row.id),
           title: String(row.title ?? ""),
-          posttestScore: null as number | null,
-          posttestPassed: false,
+          pretestScore: typeof progRow?.pretestScore === "number" ? progRow.pretestScore : null,
+          posttestScore: typeof progRow?.posttestScore === "number" ? progRow.posttestScore : null,
+          posttestPassed: Boolean(progRow?.posttestPassed),
         };
         if (idx >= 0) {
           arr[idx] = { ...arr[idx], title: base.title };
@@ -325,17 +417,18 @@ export async function GET(req: Request) {
     }
 
     const effectiveTodayKey = todayKeyFromDate(new Date());
-    const visibleBySchedule = phaseGatedItems.filter((x) => {
+    const visibleBySchedule = baseItemsForVisibility.filter((x) => {
       if (!todayOnly) return true;
       const days = normalizeScheduleDays(x.metadata.scheduleDays);
-      if (days.length === 0) return true;
-      return days.includes(effectiveTodayKey);
+      // todayOnly mode is strict: module must explicitly include today's day key.
+      return days.length > 0 && days.includes(effectiveTodayKey);
     });
 
     return Response.json({
       effectiveGrade: dbGrade,
       assessmentPhase: productPhase,
       assessmentLayer,
+      placementBaselinePhase,
       todayKey: effectiveTodayKey,
       phaseProgress,
       items: visibleBySchedule.map((m) => ({
@@ -345,6 +438,10 @@ export async function GET(req: Request) {
         sequenceOrder: Number(m.row.sequence_order ?? 0),
         masteryThreshold: Number(m.row.mastery_threshold ?? 80),
         metadata: m.metadata,
+        unlocked: phaseGatedItems.some((x) => String(x.row.id) === String(m.row.id)),
+        lockReason: phaseGatedItems.some((x) => String(x.row.id) === String(m.row.id))
+          ? null
+          : "PHASE_LOCKED",
         progress: {
           totalLessons: totalCountByModule.get(String(m.row.id)) ?? 0,
           passedLessons: passedCountByModule.get(String(m.row.id)) ?? 0,

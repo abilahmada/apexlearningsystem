@@ -53,19 +53,37 @@ const HABITS = [
 
 const DEMO_MODULE_ID = 'demo-python-loops'
 
+const MODULE_STATUS_COPY = {
+  phaseLocked: { id: 'Level Terkunci', en: 'Level Locked' },
+  ready: { id: 'Siap Mulai', en: 'Ready' },
+  inProgress: { id: 'Berjalan', en: 'In Progress' },
+  completed: { id: 'Selesai', en: 'Completed' },
+} as const
+
 export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubProps) {
   const { t, language, gradeLevel, userRole } = useApex()
   const mastery = TODAY_MISSION.mastery
   const masteryPassed = mastery >= 80
   const [eventNote, setEventNote] = useState<string | null>(null)
   const [sendingEvent, setSendingEvent] = useState(false)
-  const [moduleItems, setModuleItems] = useState<Array<{ id: string; title: string; sequenceOrder: number }>>([])
+  const [moduleItems, setModuleItems] = useState<
+    Array<{
+      id: string
+      title: string
+      sequenceOrder: number
+      unlocked?: boolean
+      lockReason?: string | null
+      progress?: { completionPct?: number; totalLessons?: number; passedLessons?: number }
+      metadata?: Record<string, unknown>
+    }>
+  >([])
   const [selectedModuleId, setSelectedModuleId] = useState<string>('')
   const [lessonItems, setLessonItems] = useState<
     Array<{
       lessonId: string
       title: string
       unlocked: boolean
+      lockReason?: string | null
       pretestScore: number | null
       posttestScore: number | null
       posttestPassed: boolean
@@ -73,10 +91,12 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
   >([])
   const [lessonLoading, setLessonLoading] = useState(false)
   const [lessonMessage, setLessonMessage] = useState<string | null>(null)
+  const [modulePostPassThreshold, setModulePostPassThreshold] = useState(80)
   const [activeTest, setActiveTest] = useState<{ lessonId: string; type: 'PRE' | 'POST' } | null>(null)
   const [testQuestions, setTestQuestions] = useState<Array<{ question: string; options: string[]; hint?: string | null }>>([])
   const [testAnswers, setTestAnswers] = useState<string[]>([])
   const [submittingTest, setSubmittingTest] = useState(false)
+  const [openingTestLessonId, setOpeningTestLessonId] = useState<string | null>(null)
   const [lastAssessmentResult, setLastAssessmentResult] = useState<{
     lessonId: string
     assessmentType: 'PRE' | 'POST'
@@ -84,11 +104,20 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
     correctAnswers: number
     totalQuestions: number
     passed: boolean
+    passThreshold: number
   } | null>(null)
 
   const dailyMindsetGreeting = useMemo(() => {
     return getDailyGrowthMindsetMessage(t, 'dashboard', TODAY_MISSION.subject)
   }, [t])
+  const toLevelLabel = (raw: unknown) => {
+    const text = String(raw ?? '').trim()
+    if (!text) return ''
+    if (/^\d+$/.test(text)) return `${t('Level', 'Level')} ${text}`
+    return text.replace(/^(fase|phase)/i, t('Level', 'Level'))
+  }
+  const normalizeModuleTitle = (raw: unknown) =>
+    String(raw ?? '').replace(/\b(Fase|Phase)\b/gi, t('Level', 'Level'))
 
   const getAccessToken = async () => {
     const supabase = createSupabaseBrowserClient()
@@ -114,14 +143,21 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
           lessonId: string
           title: string
           unlocked: boolean
+          lockReason?: string | null
           pretestScore: number | null
           posttestScore: number | null
           posttestPassed: boolean
         }>
+        postPassThreshold?: number
         message?: string
       }
       if (!res.ok) throw new Error(json.message ?? 'Failed to load lessons')
       setLessonItems(json.items ?? [])
+      setModulePostPassThreshold(
+        typeof json.postPassThreshold === 'number' && Number.isFinite(json.postPassThreshold)
+          ? json.postPassThreshold
+          : 80,
+      )
     } catch (error) {
       setLessonMessage(error instanceof Error ? error.message : t('Gagal memuat lesson.', 'Failed to load lessons.'))
     } finally {
@@ -140,7 +176,15 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
           cache: 'no-store',
         })
         const json = (await res.json()) as {
-          items?: Array<{ id: string; title: string; sequenceOrder: number }>
+          items?: Array<{
+            id: string
+            title: string
+            sequenceOrder: number
+            unlocked?: boolean
+            lockReason?: string | null
+            progress?: { completionPct?: number; totalLessons?: number; passedLessons?: number }
+            metadata?: Record<string, unknown>
+          }>
           todayKey?: string
           message?: string
         }
@@ -159,8 +203,13 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
             ),
           )
         }
-      } catch {
+      } catch (error) {
         setModuleItems([])
+        setLessonMessage(
+          error instanceof Error
+            ? error.message
+            : t('Gagal memuat modul terjadwal hari ini.', 'Failed to load today scheduled modules.'),
+        )
       }
     }
     void loadModules()
@@ -174,28 +223,79 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
 
   const openTest = async (lessonId: string, type: 'PRE' | 'POST') => {
     setLessonMessage(null)
+    setOpeningTestLessonId(lessonId)
     try {
       const token = await getAccessToken()
       if (!token) {
         setLessonMessage(t('Perlu login untuk mulai test.', 'Sign in required to start test.'))
         return
       }
-      const res = await fetch(`/api/learning/lesson-assessment?lessonId=${encodeURIComponent(lessonId)}`, {
-        headers: { authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      })
+      const res = await fetch(
+        `/api/learning/lesson-assessment?lessonId=${encodeURIComponent(lessonId)}&assessmentType=${encodeURIComponent(type)}`,
+        {
+          headers: { authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        },
+      )
       const json = (await res.json()) as {
         lessonId?: string
         questions?: Array<{ question: string; options: string[]; hint?: string | null }>
         message?: string
+        reason?: string
       }
-      if (!res.ok) throw new Error(json.message ?? 'Failed to load quiz')
+      if (!res.ok) {
+        if (json.reason === 'PHASE_LOCKED') {
+          throw new Error('PHASE_LOCKED')
+        }
+        if (json.reason === 'PRE_REQUIRED') {
+          throw new Error('PRE_REQUIRED')
+        }
+        if (json.reason === 'LESSON_LOCKED') {
+          throw new Error('LESSON_LOCKED')
+        }
+        throw new Error(json.message ?? 'Failed to load quiz')
+      }
       const questions = json.questions ?? []
+      if (questions.length === 0) {
+        throw new Error(
+          t(
+            'Soal untuk lesson ini belum tersedia. Isi quiz dulu di Admin Panel.',
+            'No questions are available for this lesson yet. Please add quiz content in Admin Panel.',
+          ),
+        )
+      }
       setActiveTest({ lessonId, type })
       setTestQuestions(questions)
       setTestAnswers(new Array(questions.length).fill(''))
     } catch (error) {
-      setLessonMessage(error instanceof Error ? error.message : t('Gagal memuat quiz.', 'Failed to load quiz.'))
+      const fallback = t('Gagal memuat quiz.', 'Failed to load quiz.')
+      const raw = error instanceof Error ? error.message : fallback
+      if (raw.includes('PHASE_LOCKED')) {
+        setLessonMessage(
+          t(
+            'Level modul masih terkunci. Selesaikan level saat ini dulu untuk membuka level berikutnya.',
+            'Module level is still locked. Complete your current level to unlock the next one.',
+          ),
+        )
+      } else if (raw.includes('PRE_REQUIRED')) {
+        setLessonMessage(
+          t(
+            'Kerjakan Pre-test dulu sebelum membuka Post-test.',
+            'Complete the Pre-test before opening the Post-test.',
+          ),
+        )
+      } else if (raw.includes('LESSON_LOCKED')) {
+        setLessonMessage(
+          t(
+            'Lesson masih terkunci. Lulus post-test lesson sebelumnya terlebih dahulu.',
+            'Lesson is still locked. Pass the previous lesson post-test first.',
+          ),
+        )
+      } else {
+        setLessonMessage(raw)
+      }
+    } finally {
+      setOpeningTestLessonId(null)
     }
   }
 
@@ -227,13 +327,30 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
         correctAnswers?: number
         totalQuestions?: number
         passed?: boolean
+        passThreshold?: number
         message?: string
+        reason?: string
       }
-      if (!res.ok) throw new Error(json.message ?? 'Failed to submit assessment')
+      if (!res.ok) {
+        if (json.reason === 'PHASE_LOCKED') {
+          throw new Error('PHASE_LOCKED')
+        }
+        if (json.reason === 'PRE_REQUIRED') {
+          throw new Error('PRE_REQUIRED')
+        }
+        if (json.reason === 'LESSON_LOCKED') {
+          throw new Error('LESSON_LOCKED')
+        }
+        throw new Error(json.message ?? 'Failed to submit assessment')
+      }
       const scorePct = Number(json.scorePct ?? 0)
       const correctAnswers = Number(json.correctAnswers ?? 0)
       const totalQuestions = Number(json.totalQuestions ?? 0)
       const passed = Boolean(json.passed)
+      const passTh =
+        typeof json.passThreshold === 'number' && Number.isFinite(json.passThreshold)
+          ? json.passThreshold
+          : modulePostPassThreshold
       setLastAssessmentResult({
         lessonId: activeTest.lessonId,
         assessmentType: activeTest.type,
@@ -241,6 +358,7 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
         correctAnswers,
         totalQuestions,
         passed,
+        passThreshold: passTh,
       })
       setLessonMessage(
         t(
@@ -248,14 +366,14 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
             activeTest.type === 'POST' && passed
               ? 'Lulus, lesson berikutnya terbuka.'
               : activeTest.type === 'POST'
-                ? 'Belum lulus 80%, ulangi sampai lulus.'
+                ? `Belum lulus ${passTh}%, ulangi sampai lulus.`
                 : ''
           }`,
           `${activeTest.type} test submitted: score ${scorePct}%. ${
             activeTest.type === 'POST' && passed
               ? 'Passed, next lesson unlocked.'
               : activeTest.type === 'POST'
-                ? 'Below 80%, retry to unlock next lesson.'
+                ? `Below ${passTh}%, retry to unlock next lesson.`
                 : ''
           }`,
         ),
@@ -265,7 +383,29 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
       setTestAnswers([])
       await loadLessons(selectedModuleId)
     } catch (error) {
-      setLessonMessage(error instanceof Error ? error.message : t('Gagal submit test.', 'Failed to submit test.'))
+      const fallback = t('Gagal submit test.', 'Failed to submit test.')
+      const raw = error instanceof Error ? error.message : fallback
+      if (raw.includes('PHASE_LOCKED')) {
+        setLessonMessage(
+          t(
+            'Level modul masih terkunci. Selesaikan level saat ini dulu.',
+            'Module level is still locked. Complete your current level first.',
+          ),
+        )
+      } else if (raw.includes('PRE_REQUIRED')) {
+        setLessonMessage(
+          t('Kerjakan Pre-test dulu sebelum Post-test.', 'Complete Pre-test before Post-test.'),
+        )
+      } else if (raw.includes('LESSON_LOCKED')) {
+        setLessonMessage(
+          t(
+            'Lesson masih terkunci. Lulus post-test lesson sebelumnya terlebih dahulu.',
+            'Lesson is still locked. Pass the previous lesson post-test first.',
+          ),
+        )
+      } else {
+        setLessonMessage(raw)
+      }
     } finally {
       setSubmittingTest(false)
     }
@@ -447,31 +587,103 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
         </div>
       </div>
 
-      {/* ── Lesson Gating (Pre/Post >= 80) ─────────────────────────── */}
+      {/* ── Lesson gating: pre lalu post, ambang lulus = mastery_threshold modul ── */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
         <h3 className="text-sm font-bold text-slate-800">
           {t('Progress Lesson per Modul (Pre/Post Test)', 'Module Lesson Progress (Pre/Post Test)')}
         </h3>
         <p className="text-xs text-slate-500">
           {t(
-            'Aturan: lesson berikutnya terbuka hanya jika post-test lesson saat ini >= 80%.',
-            'Rule: next lesson unlocks only if current lesson post-test is >= 80%.',
+            `Aturan: kerjakan Pre-test dulu, lalu Post-test. Lulus post-test = ≥ ${modulePostPassThreshold}% (ambang modul). Lesson berikutnya terbuka jika post-test lesson sebelumnya lulus.`,
+            `Rule: complete Pre-test first, then Post-test. Pass post-test = ≥ ${modulePostPassThreshold}% (module threshold). Next lesson unlocks when the previous lesson’s post-test passes.`,
           )}
         </p>
-        <select
-          value={selectedModuleId}
-          onChange={(e) => setSelectedModuleId(e.target.value)}
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-        >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {moduleItems.length === 0 ? (
-            <option value="">{t('Belum ada modul', 'No modules yet')}</option>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+              {t('Belum ada modul terjadwal untuk hari ini.', 'No modules scheduled for today.')}
+            </div>
           ) : null}
-          {moduleItems.map((m) => (
-            <option key={m.id} value={m.id}>
-              #{m.sequenceOrder} - {m.title}
-            </option>
-          ))}
-        </select>
+          {moduleItems.map((m) => {
+            const selected = selectedModuleId === m.id
+            const completionPct = Number(m.progress?.completionPct ?? 0)
+            const totalLessons = Number(m.progress?.totalLessons ?? 0)
+            const passedLessons = Number(m.progress?.passedLessons ?? 0)
+            const phase = toLevelLabel(m.metadata?.phase)
+            const moduleUnlocked = Boolean(m.unlocked)
+            const statusText = !moduleUnlocked
+              ? t(MODULE_STATUS_COPY.phaseLocked.id, MODULE_STATUS_COPY.phaseLocked.en)
+              : totalLessons > 0 && passedLessons >= totalLessons
+                ? t(MODULE_STATUS_COPY.completed.id, MODULE_STATUS_COPY.completed.en)
+                : passedLessons > 0
+                  ? t(MODULE_STATUS_COPY.inProgress.id, MODULE_STATUS_COPY.inProgress.en)
+                  : t(MODULE_STATUS_COPY.ready.id, MODULE_STATUS_COPY.ready.en)
+            const statusClass = !moduleUnlocked
+              ? 'bg-slate-100 text-slate-600 border-slate-200'
+              : totalLessons > 0 && passedLessons >= totalLessons
+                ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                : passedLessons > 0
+                  ? 'bg-amber-100 text-amber-700 border-amber-200'
+                  : 'bg-blue-100 text-blue-700 border-blue-200'
+            return (
+              <button
+                key={m.id}
+                type="button"
+                disabled={!moduleUnlocked}
+                onClick={() => {
+                  if (!moduleUnlocked) {
+                    setLessonMessage(
+                      t(
+                        'Level modul ini masih terkunci untuk levelmu saat ini.',
+                        'This module level is still locked for your current level.',
+                      ),
+                    )
+                    return
+                  }
+                  setSelectedModuleId(m.id)
+                }}
+                className={`text-left rounded-xl border p-3 transition-all ${
+                  selected
+                    ? 'border-cyan-300 bg-cyan-50 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-cyan-200 hover:bg-cyan-50/40'
+                } ${!moduleUnlocked ? 'opacity-80 cursor-not-allowed hover:border-slate-200 hover:bg-white' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold text-slate-800">
+                    {normalizeModuleTitle(m.title)}
+                  </p>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusClass}`}>
+                    {statusText}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {phase ? `${phase} · ` : ''}
+                  {passedLessons}/{totalLessons} {t('lesson lulus', 'passed lessons')}
+                </p>
+                {!moduleUnlocked && m.lockReason === 'PHASE_LOCKED' ? (
+                  <p className="mt-1 text-[11px] text-amber-700">
+                    {t(
+                      'Selesaikan level saat ini terlebih dahulu untuk membuka modul ini.',
+                      'Complete your current level first to unlock this module.',
+                    )}
+                  </p>
+                ) : null}
+                <div className="mt-2 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.max(0, Math.min(100, completionPct))}%`,
+                      background:
+                        completionPct >= 80
+                          ? 'linear-gradient(90deg, #34D399, #059669)'
+                          : 'linear-gradient(90deg, #60A5FA, #2563EB)',
+                    }}
+                  />
+                </div>
+              </button>
+            )
+          })}
+        </div>
         {lessonLoading ? <p className="text-xs text-slate-500">{t('Memuat lesson...', 'Loading lessons...')}</p> : null}
         <div className="space-y-2">
           {lessonItems.map((lesson) => (
@@ -504,6 +716,54 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
                   {!lesson.unlocked ? <Lock size={14} className="text-slate-400" /> : null}
                 </div>
               </div>
+              {!lesson.unlocked ? (
+                <p className="mt-1 text-[11px] text-amber-700">
+                  {lesson.lockReason === 'PHASE_LOCKED'
+                    ? t(
+                        'Level modul terkunci untuk levelmu saat ini.',
+                        'This module level is locked for your current level.',
+                      )
+                    : t(
+                        'Lesson terkunci: lulus Post-test lesson sebelumnya terlebih dahulu.',
+                        'Lesson locked: pass the previous lesson post-test first.',
+                      )}
+                </p>
+              ) : null}
+              <div className="mt-2 space-y-1.5">
+                <div>
+                  <div className="mb-0.5 flex justify-between text-[10px] text-slate-500">
+                    <span>{t('Progress PRE', 'PRE progress')}</span>
+                    <span>{lesson.pretestScore ?? 0}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.max(0, Math.min(100, Number(lesson.pretestScore ?? 0)))}%`,
+                        background: 'linear-gradient(90deg, #60A5FA, #2563EB)',
+                      }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-0.5 flex justify-between text-[10px] text-slate-500">
+                    <span>{t('Progress POST', 'POST progress')}</span>
+                    <span>{lesson.posttestScore ?? 0}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.max(0, Math.min(100, Number(lesson.posttestScore ?? 0)))}%`,
+                        background:
+                          Number(lesson.posttestScore ?? 0) >= modulePostPassThreshold
+                            ? 'linear-gradient(90deg, #34D399, #059669)'
+                            : 'linear-gradient(90deg, #FBBF24, #F97316)',
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
@@ -511,7 +771,7 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
                   onClick={() => void openTest(lesson.lessonId, 'PRE')}
                   className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold disabled:opacity-40"
                 >
-                  {t('Pre-test', 'Pre-test')}
+                  {openingTestLessonId === lesson.lessonId ? t('Memuat...', 'Loading...') : t('Pre-test', 'Pre-test')}
                 </button>
                 <button
                   type="button"
@@ -519,7 +779,7 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
                   onClick={() => void openTest(lesson.lessonId, 'POST')}
                   className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold disabled:opacity-40"
                 >
-                  {t('Post-test', 'Post-test')}
+                  {openingTestLessonId === lesson.lessonId ? t('Memuat...', 'Loading...') : t('Post-test', 'Post-test')}
                 </button>
               </div>
               {lesson.unlocked && lesson.pretestScore == null ? (
@@ -531,62 +791,6 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
           ))}
         </div>
 
-        {activeTest ? (
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 space-y-2">
-            <p className="text-xs font-semibold text-blue-700">
-              {activeTest.type === 'PRE' ? t('Sesi Pre-test', 'Pre-test session') : t('Sesi Post-test', 'Post-test session')}
-            </p>
-            {testQuestions.map((q, qi) => (
-              <div key={`${activeTest.lessonId}-${qi}`} className="rounded-lg border border-blue-100 bg-white p-2">
-                <p className="text-xs font-semibold text-slate-700 mb-1">{qi + 1}. {q.question}</p>
-                <div className="grid grid-cols-1 gap-1">
-                  {(q.options ?? []).map((opt, oi) => {
-                    const letter = String.fromCharCode(65 + oi)
-                    return (
-                      <label key={`${qi}-${letter}`} className="text-xs text-slate-600 inline-flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name={`q-${qi}`}
-                          checked={testAnswers[qi] === letter}
-                          onChange={() =>
-                            setTestAnswers((prev) => {
-                              const next = [...prev]
-                              next[qi] = letter
-                              return next
-                            })
-                          }
-                        />
-                        <span>{letter}. {opt}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-                {q.hint ? <p className="mt-1 text-[11px] text-blue-700">{t('Hint', 'Hint')}: {q.hint}</p> : null}
-              </div>
-            ))}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={submittingTest}
-                onClick={() => void submitTest()}
-                className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold disabled:opacity-50"
-              >
-                {submittingTest ? t('Mengirim...', 'Submitting...') : t('Submit Test', 'Submit Test')}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTest(null)
-                  setTestQuestions([])
-                  setTestAnswers([])
-                }}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold"
-              >
-                {t('Tutup', 'Close')}
-              </button>
-            </div>
-          </div>
-        ) : null}
         {lastAssessmentResult ? (
           <div
             className={`rounded-xl border p-3 ${
@@ -607,8 +811,14 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
             {lastAssessmentResult.assessmentType === 'POST' ? (
               <p className="text-xs font-semibold mt-1">
                 {lastAssessmentResult.passed
-                  ? t('Lulus >= 80%. Lesson berikutnya terbuka.', 'Passed >= 80%. Next lesson is unlocked.')
-                  : t('Belum mencapai 80%. Ulangi Post-test untuk lanjut.', 'Below 80%. Retry Post-test to continue.')}
+                  ? t(
+                      `Lulus ≥ ${lastAssessmentResult.passThreshold}%. Lesson berikutnya terbuka.`,
+                      `Passed ≥ ${lastAssessmentResult.passThreshold}%. Next lesson is unlocked.`,
+                    )
+                  : t(
+                      `Belum mencapai ${lastAssessmentResult.passThreshold}%. Ulangi Post-test untuk lanjut.`,
+                      `Below ${lastAssessmentResult.passThreshold}%. Retry Post-test to continue.`,
+                    )}
               </p>
             ) : (
               <p className="text-xs mt-1 text-slate-600">
@@ -628,6 +838,77 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
         ) : null}
         {lessonMessage ? <p className="text-xs text-slate-600">{lessonMessage}</p> : null}
       </div>
+
+      {activeTest ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4">
+          <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-2xl space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-blue-700">
+                {activeTest.type === 'PRE'
+                  ? t('Sesi Pre-test', 'Pre-test session')
+                  : t('Sesi Post-test', 'Post-test session')}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTest(null)
+                  setTestQuestions([])
+                  setTestAnswers([])
+                }}
+                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700"
+              >
+                {t('Tutup', 'Close')}
+              </button>
+            </div>
+            {testQuestions.map((q, qi) => (
+              <div key={`${activeTest.lessonId}-${qi}`} className="rounded-lg border border-blue-100 bg-white p-2.5">
+                <p className="text-xs font-semibold text-slate-700 mb-1">
+                  {qi + 1}. {q.question}
+                </p>
+                <div className="grid grid-cols-1 gap-1">
+                  {(q.options ?? []).map((opt, oi) => {
+                    const letter = String.fromCharCode(65 + oi)
+                    return (
+                      <label key={`${qi}-${letter}`} className="text-xs text-slate-600 inline-flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`q-${qi}`}
+                          checked={testAnswers[qi] === letter}
+                          onChange={() =>
+                            setTestAnswers((prev) => {
+                              const next = [...prev]
+                              next[qi] = letter
+                              return next
+                            })
+                          }
+                        />
+                        <span>
+                          {letter}. {opt}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+                {q.hint ? (
+                  <p className="mt-1 text-[11px] text-blue-700">
+                    {t('Hint', 'Hint')}: {q.hint}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+            <div className="sticky bottom-0 bg-blue-50 pt-2">
+              <button
+                type="button"
+                disabled={submittingTest}
+                onClick={() => void submitTest()}
+                className="w-full px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold disabled:opacity-50"
+              >
+                {submittingTest ? t('Mengirim...', 'Submitting...') : t('Submit Test', 'Submit Test')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* ── Spaced Repetition Panel (brand Coral Orange) ─────────────── */}
       <div

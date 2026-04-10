@@ -4,11 +4,26 @@ type Supabase = ReturnType<typeof createSupabaseAdminClient>;
 
 export type AssessmentType = "PRE" | "POST";
 
+/** Ambang lulus post-test modul: 0–100, default 80 jika tidak valid. */
+export function clampModuleMasteryThreshold(raw: number): number {
+  if (!Number.isFinite(raw)) return 80;
+  return Math.max(0, Math.min(100, Math.round(raw)));
+}
+
+export async function fetchModuleMasteryThreshold(supabase: Supabase, moduleId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("modules")
+    .select("mastery_threshold")
+    .eq("id", moduleId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return clampModuleMasteryThreshold(Number(data?.mastery_threshold ?? 80));
+}
+
 export type LessonRow = {
   id: string;
   module_id: string;
   title: string;
-  created_at: string | null;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -80,12 +95,12 @@ export async function fetchLessonWithModule(
   if (error) throw new Error(error.message);
   if (!data) return null;
   const mod = Array.isArray(data.modules) ? data.modules[0] : data.modules;
-  const threshold = Number(mod?.mastery_threshold ?? 80);
+  const threshold = clampModuleMasteryThreshold(Number(mod?.mastery_threshold ?? 80));
   return {
     id: String(data.id),
     module_id: String(data.module_id),
     title: String(data.title ?? ""),
-    module_mastery_threshold: Number.isFinite(threshold) ? threshold : 80,
+    module_mastery_threshold: threshold,
   };
 }
 
@@ -95,16 +110,15 @@ export async function fetchModuleLessons(
 ): Promise<LessonRow[]> {
   const { data, error } = await supabase
     .from("lessons")
-    .select("id, module_id, title, created_at, metadata")
+    .select("id, module_id, title, metadata")
     .eq("module_id", moduleId)
-    .order("created_at", { ascending: true })
+    .order("title", { ascending: true })
     .order("id", { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => ({
     id: String(r.id),
     module_id: String(r.module_id),
     title: String(r.title ?? ""),
-    created_at: (r.created_at as string | null) ?? null,
     metadata: (r.metadata as Record<string, unknown> | null) ?? null,
   }));
 }
@@ -160,6 +174,7 @@ export async function upsertLessonProgress(
   assessmentType: AssessmentType,
   scorePct: number,
   passed: boolean,
+  pretestScoreForPost?: number | null,
 ) {
   const nowIso = new Date().toISOString();
   const payload: Record<string, unknown> = {
@@ -170,6 +185,9 @@ export async function upsertLessonProgress(
   if (assessmentType === "PRE") {
     payload.pretest_score = scorePct;
   } else {
+    if (typeof pretestScoreForPost === "number" && Number.isFinite(pretestScoreForPost)) {
+      payload.pretest_score = pretestScoreForPost;
+    }
     payload.posttest_score = scorePct;
     payload.posttest_passed = passed;
     if (passed) payload.completed_at = nowIso;
