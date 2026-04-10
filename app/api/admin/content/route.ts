@@ -2,6 +2,14 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type ContentType = "courses" | "modules" | "lessons" | "quizzes";
 
+function parseNullableThreshold(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Math.round(n);
+  return Math.max(0, Math.min(100, rounded));
+}
+
 function getBearerToken(req: Request) {
   const auth = req.headers.get("authorization");
   if (!auth?.startsWith("Bearer ")) return null;
@@ -114,6 +122,173 @@ function validateModuleMetadata(metadata: unknown): { ok: true; normalized: Reco
   };
 }
 
+function normalizeCurriculumCode(raw: unknown): string | null {
+  const source = String(raw ?? "")
+    .trim()
+    .toUpperCase();
+  if (!source) return null;
+  const normalized = source.replace(/[^A-Z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  if (!normalized) return null;
+  if (!/^[A-Z0-9][A-Z0-9_-]{2,63}$/.test(normalized)) return null;
+  return normalized;
+}
+
+function normalizeLessonMetadata(metadata: unknown): Record<string, unknown> {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return {};
+  const out = { ...(metadata as Record<string, unknown>) };
+  const lessonCode = normalizeCurriculumCode(out.lesson_code ?? out.code);
+  if (lessonCode) {
+    out.lesson_code = lessonCode;
+    out.code = lessonCode; // Backward compatibility for existing filters/UI.
+  } else {
+    delete out.lesson_code;
+    delete out.code;
+  }
+  return out;
+}
+
+async function loadGradeForModule(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  moduleId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("modules")
+    .select("courses!inner(grade_level)")
+    .eq("id", moduleId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const courseNode = Array.isArray(data.courses) ? data.courses[0] : data.courses;
+  const grade = String(courseNode?.grade_level ?? "")
+    .trim()
+    .toUpperCase();
+  if (!grade) return null;
+  return grade;
+}
+
+function normalizeModuleMetadataWithCode(metadata: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...metadata };
+  const moduleCode = normalizeCurriculumCode(out.module_code ?? out.code);
+  if (moduleCode) {
+    out.module_code = moduleCode;
+  } else {
+    delete out.module_code;
+  }
+  return out;
+}
+
+async function ensureUniqueModuleCode(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  args: {
+    courseId: string;
+    metadata: Record<string, unknown>;
+    selfModuleId?: string;
+  },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const moduleCode = String(args.metadata.module_code ?? "").trim();
+  if (!moduleCode) return { ok: true };
+
+  const { data: targetCourse, error: targetCourseErr } = await supabase
+    .from("courses")
+    .select("grade_level")
+    .eq("id", args.courseId)
+    .maybeSingle();
+  if (targetCourseErr || !targetCourse?.grade_level) {
+    return { ok: false, message: "Tidak bisa memverifikasi module_code: course tidak ditemukan." };
+  }
+  const gradeLevel = String(targetCourse.grade_level);
+
+  const { data: gradeCourses, error: gradeCoursesErr } = await supabase
+    .from("courses")
+    .select("id")
+    .eq("grade_level", gradeLevel);
+  if (gradeCoursesErr) return { ok: false, message: gradeCoursesErr.message };
+  const gradeCourseIds = (gradeCourses ?? []).map((c) => String(c.id));
+  if (gradeCourseIds.length === 0) return { ok: true };
+
+  const { data: modules, error: modulesErr } = await supabase
+    .from("modules")
+    .select("id, metadata")
+    .in("course_id", gradeCourseIds);
+  if (modulesErr) return { ok: false, message: modulesErr.message };
+
+  const duplicate = (modules ?? []).find((m) => {
+    if (args.selfModuleId && String(m.id) === args.selfModuleId) return false;
+    const meta =
+      m.metadata && typeof m.metadata === "object" ? (m.metadata as Record<string, unknown>) : {};
+    const existingCode = String(meta.module_code ?? "").trim().toUpperCase();
+    return existingCode === moduleCode.toUpperCase();
+  });
+  if (duplicate) {
+    return { ok: false, message: `module_code "${moduleCode}" sudah dipakai pada grade ${gradeLevel}.` };
+  }
+  return { ok: true };
+}
+
+async function ensureUniqueLessonCode(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  args: {
+    moduleId: string;
+    metadata: Record<string, unknown>;
+    selfLessonId?: string;
+  },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const lessonCode = String(args.metadata.lesson_code ?? args.metadata.code ?? "").trim();
+  if (!lessonCode) return { ok: true };
+
+  const { data: targetModule, error: targetModuleErr } = await supabase
+    .from("modules")
+    .select("course_id")
+    .eq("id", args.moduleId)
+    .maybeSingle();
+  if (targetModuleErr || !targetModule?.course_id) {
+    return { ok: false, message: "Tidak bisa memverifikasi lesson_code: module tidak ditemukan." };
+  }
+
+  const { data: targetCourse, error: targetCourseErr } = await supabase
+    .from("courses")
+    .select("grade_level")
+    .eq("id", String(targetModule.course_id))
+    .maybeSingle();
+  if (targetCourseErr || !targetCourse?.grade_level) {
+    return { ok: false, message: "Tidak bisa memverifikasi lesson_code: course tidak ditemukan." };
+  }
+  const gradeLevel = String(targetCourse.grade_level);
+
+  const { data: gradeCourses, error: gradeCoursesErr } = await supabase
+    .from("courses")
+    .select("id")
+    .eq("grade_level", gradeLevel);
+  if (gradeCoursesErr) return { ok: false, message: gradeCoursesErr.message };
+  const gradeCourseIds = (gradeCourses ?? []).map((c) => String(c.id));
+  if (gradeCourseIds.length === 0) return { ok: true };
+
+  const { data: gradeModules, error: gradeModulesErr } = await supabase
+    .from("modules")
+    .select("id")
+    .in("course_id", gradeCourseIds);
+  if (gradeModulesErr) return { ok: false, message: gradeModulesErr.message };
+  const gradeModuleIds = (gradeModules ?? []).map((m) => String(m.id));
+  if (gradeModuleIds.length === 0) return { ok: true };
+
+  const { data: lessons, error: lessonsErr } = await supabase
+    .from("lessons")
+    .select("id, metadata")
+    .in("module_id", gradeModuleIds);
+  if (lessonsErr) return { ok: false, message: lessonsErr.message };
+
+  const duplicate = (lessons ?? []).find((l) => {
+    if (args.selfLessonId && String(l.id) === args.selfLessonId) return false;
+    const meta =
+      l.metadata && typeof l.metadata === "object" ? (l.metadata as Record<string, unknown>) : {};
+    const existingCode = String(meta.lesson_code ?? meta.code ?? "").trim().toUpperCase();
+    return existingCode === lessonCode.toUpperCase();
+  });
+  if (duplicate) {
+    return { ok: false, message: `lesson_code "${lessonCode}" sudah dipakai pada grade ${gradeLevel}.` };
+  }
+  return { ok: true };
+}
+
 type SeedQuestion = {
   question: string;
   options: string[];
@@ -202,7 +377,7 @@ export async function GET(req: Request) {
     if (typeParam === "courses") {
       const res = await supabase
         .from("courses")
-        .select("id, title, grade_level")
+        .select("id, title, grade_level, mastery_threshold")
         .order("grade_level", { ascending: true })
         .order("title", { ascending: true })
         .limit(safeLimit);
@@ -277,13 +452,14 @@ export async function POST(req: Request) {
     if (body.type === "courses") {
       const title = String(body.payload.title ?? "").trim();
       const gradeLevel = String(body.payload.grade_level ?? "").trim();
+      const masteryThreshold = parseNullableThreshold(body.payload.mastery_threshold);
       if (!title || !["SD", "SMP", "SMK"].includes(gradeLevel)) {
         return Response.json({ message: "Invalid course payload" }, { status: 400 });
       }
       const { data, error } = await supabase
         .from("courses")
-        .insert({ title, grade_level: gradeLevel })
-        .select("id, title, grade_level")
+        .insert({ title, grade_level: gradeLevel, mastery_threshold: masteryThreshold })
+        .select("id, title, grade_level, mastery_threshold")
         .single();
       if (error) return Response.json({ message: error.message }, { status: 500 });
       return Response.json(data, { status: 201 });
@@ -313,6 +489,12 @@ export async function POST(req: Request) {
       if (!metadataCheck.ok) {
         return Response.json({ message: metadataCheck.message }, { status: 400 });
       }
+      const normalizedMetadata = normalizeModuleMetadataWithCode(metadataCheck.normalized);
+      const moduleCodeUnique = await ensureUniqueModuleCode(supabase, {
+        courseId,
+        metadata: normalizedMetadata,
+      });
+      if (!moduleCodeUnique.ok) return Response.json({ message: moduleCodeUnique.message }, { status: 400 });
       const { data, error } = await supabase
         .from("modules")
         .insert({
@@ -320,7 +502,7 @@ export async function POST(req: Request) {
           title,
           sequence_order: sequenceOrder,
           mastery_threshold: masteryThreshold,
-          metadata: metadataCheck.normalized,
+          metadata: normalizedMetadata,
         })
         .select("id, course_id, title, sequence_order, metadata")
         .single();
@@ -339,6 +521,7 @@ export async function POST(req: Request) {
           : body.payload.metadata && typeof body.payload.metadata === "object"
             ? body.payload.metadata
             : {};
+      const normalizedLessonMetadata = normalizeLessonMetadata(metadata);
       if (!moduleId || !title || !["VIDEO", "ARTICLE", "INTERACTIVE"].includes(lessonType)) {
         return Response.json({ message: "Invalid lesson payload" }, { status: 400 });
       }
@@ -348,6 +531,13 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
+      const gradeForLesson = await loadGradeForModule(supabase, moduleId);
+      if (gradeForLesson) normalizedLessonMetadata.grade = gradeForLesson;
+      const lessonCodeUnique = await ensureUniqueLessonCode(supabase, {
+        moduleId,
+        metadata: normalizedLessonMetadata,
+      });
+      if (!lessonCodeUnique.ok) return Response.json({ message: lessonCodeUnique.message }, { status: 400 });
       const { data, error } = await supabase
         .from("lessons")
         .insert({
@@ -355,7 +545,7 @@ export async function POST(req: Request) {
           title,
           type: lessonType,
           content_url: contentUrl || null,
-          metadata,
+          metadata: normalizedLessonMetadata,
         })
         .select("id, module_id, title, type, metadata")
         .single();
@@ -459,14 +649,15 @@ export async function PUT(req: Request) {
     if (body.type === "courses") {
       const title = String(body.payload.title ?? "").trim();
       const gradeLevel = String(body.payload.grade_level ?? "").trim();
+      const masteryThreshold = parseNullableThreshold(body.payload.mastery_threshold);
       if (!title || !["SD", "SMP", "SMK"].includes(gradeLevel)) {
         return Response.json({ message: "Invalid course payload" }, { status: 400 });
       }
       const { data, error } = await supabase
         .from("courses")
-        .update({ title, grade_level: gradeLevel })
+        .update({ title, grade_level: gradeLevel, mastery_threshold: masteryThreshold })
         .eq("id", body.id)
-        .select("id, title, grade_level")
+        .select("id, title, grade_level, mastery_threshold")
         .single();
       if (error) return Response.json({ message: error.message }, { status: 500 });
       return Response.json(data);
@@ -496,6 +687,13 @@ export async function PUT(req: Request) {
       if (!metadataCheck.ok) {
         return Response.json({ message: metadataCheck.message }, { status: 400 });
       }
+      const normalizedMetadata = normalizeModuleMetadataWithCode(metadataCheck.normalized);
+      const moduleCodeUnique = await ensureUniqueModuleCode(supabase, {
+        courseId,
+        metadata: normalizedMetadata,
+        selfModuleId: body.id,
+      });
+      if (!moduleCodeUnique.ok) return Response.json({ message: moduleCodeUnique.message }, { status: 400 });
       const { data, error } = await supabase
         .from("modules")
         .update({
@@ -503,7 +701,7 @@ export async function PUT(req: Request) {
           title,
           sequence_order: sequenceOrder,
           mastery_threshold: masteryThreshold,
-          metadata: metadataCheck.normalized,
+          metadata: normalizedMetadata,
         })
         .eq("id", body.id)
         .select("id, course_id, title, sequence_order, metadata")
@@ -523,6 +721,7 @@ export async function PUT(req: Request) {
           : body.payload.metadata && typeof body.payload.metadata === "object"
             ? body.payload.metadata
             : {};
+      const normalizedLessonMetadata = normalizeLessonMetadata(metadata);
       if (!moduleId || !title || !["VIDEO", "ARTICLE", "INTERACTIVE"].includes(lessonType)) {
         return Response.json({ message: "Invalid lesson payload" }, { status: 400 });
       }
@@ -532,6 +731,14 @@ export async function PUT(req: Request) {
           { status: 400 },
         );
       }
+      const gradeForLesson = await loadGradeForModule(supabase, moduleId);
+      if (gradeForLesson) normalizedLessonMetadata.grade = gradeForLesson;
+      const lessonCodeUnique = await ensureUniqueLessonCode(supabase, {
+        moduleId,
+        metadata: normalizedLessonMetadata,
+        selfLessonId: body.id,
+      });
+      if (!lessonCodeUnique.ok) return Response.json({ message: lessonCodeUnique.message }, { status: 400 });
       const { data, error } = await supabase
         .from("lessons")
         .update({
@@ -539,7 +746,7 @@ export async function PUT(req: Request) {
           title,
           type: lessonType,
           content_url: contentUrl || null,
-          metadata,
+          metadata: normalizedLessonMetadata,
         })
         .eq("id", body.id)
         .select("id, module_id, title, type, metadata")

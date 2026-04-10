@@ -37,6 +37,8 @@ type QuizRow = {
   bank?: string;
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function normalizeBank(value: unknown): QuizBank {
   const s = String(value ?? "")
     .trim()
@@ -46,12 +48,43 @@ function normalizeBank(value: unknown): QuizBank {
   return "legacy";
 }
 
+function normalizeAnswerLetter(answerRaw: unknown, options: string[]): string | null {
+  const raw = String(answerRaw ?? "")
+    .trim()
+    .toUpperCase();
+  if (!raw) return null;
+  if (["A", "B", "C", "D"].includes(raw)) return raw;
+  const idx = options.findIndex((opt) => opt.trim().toUpperCase() === raw);
+  if (idx < 0 || idx > 3) return null;
+  return ["A", "B", "C", "D"][idx];
+}
+
+function validateQuizRow(row: QuizRow, index: number): string | null {
+  const lessonId = String(row.lesson_id ?? "").trim();
+  const question = String(row.question ?? "").trim();
+  const options = Array.isArray(row.options) ? row.options.map((x) => String(x ?? "").trim()) : [];
+  if (!UUID_RE.test(lessonId)) return `Row ${index + 1}: lesson_id harus UUID valid.`;
+  if (question.length < 10) return `Row ${index + 1}: question minimal 10 karakter.`;
+  if (options.length !== 4) return `Row ${index + 1}: options harus tepat 4 pilihan (A-D).`;
+  if (options.some((opt) => opt.length < 1)) {
+    return `Row ${index + 1}: semua opsi A-D wajib terisi.`;
+  }
+  if (new Set(options.map((opt) => opt.toLowerCase())).size < 4) {
+    return `Row ${index + 1}: opsi A-D tidak boleh duplikat.`;
+  }
+  const answerLetter = normalizeAnswerLetter(row.answer, options);
+  if (!answerLetter) return `Row ${index + 1}: answer harus A/B/C/D atau sama dengan teks salah satu opsi.`;
+  return null;
+}
+
 function rowToMcq(r: QuizRow) {
+  const options = r.options.map((x) => String(x ?? "").trim());
+  const answer = normalizeAnswerLetter(r.answer, options) ?? "A";
   return {
-    question: r.question,
-    options: r.options,
-    answer: r.answer,
-    hint: r.hint ?? "",
+    question: String(r.question ?? "").trim(),
+    options,
+    answer,
+    hint: String(r.hint ?? "").trim(),
   };
 }
 
@@ -68,14 +101,11 @@ export async function POST(req: Request) {
     type LessonBuckets = { legacy: QuizRow[]; pre: QuizRow[]; post: QuizRow[] };
     const grouped = new Map<string, LessonBuckets>();
 
-    for (const row of body.rows) {
-      if (
-        !row.lesson_id ||
-        !row.question ||
-        !Array.isArray(row.options) ||
-        row.options.length < 2
-      ) {
-        return Response.json({ message: "Invalid quiz row payload" }, { status: 400 });
+    for (let i = 0; i < body.rows.length; i += 1) {
+      const row = body.rows[i];
+      const validationError = validateQuizRow(row, i);
+      if (validationError) {
+        return Response.json({ message: validationError }, { status: 400 });
       }
       const lessonId = String(row.lesson_id).trim();
       const bank = normalizeBank(row.bank);

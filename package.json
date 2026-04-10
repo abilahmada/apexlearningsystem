@@ -34,6 +34,7 @@
     "test:learning-flow:live": "node scripts/test-learning-flow-live-smoke.mjs",
     "test:learning-flow:submit": "node scripts/test-learning-flow-submit-smoke.mjs",
     "health:learning-flow": "node scripts/health-learning-flow.mjs",
+    "verify:sql:grade-archive": "echo \"Run supabase/verify_grade_change_archive_operational.sql in Supabase SQL Editor\"",
     "import:curriculum": "node scripts/import-curriculum-master.mjs",
     "extract:curriculum:sd": "node scripts/extract-curriculum-sd-from-html.mjs",
     "extract:curriculum:all": "node scripts/extract-curriculum-sd-from-html.mjs",

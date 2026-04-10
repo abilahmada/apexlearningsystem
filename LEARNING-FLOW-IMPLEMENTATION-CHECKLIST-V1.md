@@ -2,6 +2,11 @@
 
 Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi teknis.
 
+## Status Implementasi
+
+- Status saat ini: **Phase v1 stabil (siap operasional)**.
+- Fokus tersisa: backlog non-blokir release (penyempurnaan metadata kode, placement source-of-truth, hardening quiz quality).
+
 ## A) Database & Metadata Contract
 
 ## A1. Contract metadata module (wajib)
@@ -18,16 +23,17 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 
 ## A2. Contract kode human-readable (disarankan kuat)
 
-- [ ] Tambah standar metadata:
-  - [ ] `module_code` (contoh `SD-F2-MATH-M1`)
-  - [ ] `lesson_code` (contoh `SD-F2-MATH-M1-L2`)
-- [ ] Validasi unik secara aplikasi (minimum) + SQL guard (opsional tahap 2).
+- [x] Tambah standar metadata:
+  - [x] `module_code` (contoh `SD-F2-MATH-M1`)
+  - [x] `lesson_code` (contoh `SD-F2-MATH-M1-L2`)
+- [x] Validasi unik secara aplikasi (minimum).
+- [x] SQL guard unik (opsional tahap lanjutan) — sudah ditambahkan via migration `20260411103000_curriculum_code_unique_guards.sql`.
 
 ## A3. Student placement baseline
 
-- [ ] Pastikan ada sumber kebenaran `placement_phase` untuk user student.
-- [ ] Definisikan fallback jika `placement_phase` belum ada:
-  - [ ] default ke `phase=1` (atau kebijakan bisnis lain, harus eksplisit).
+- [x] Sumber kebenaran `placement_phase` untuk user student sudah dipakai di API flow belajar.
+- [x] Fallback saat `placement_phase` belum ada sudah didefinisikan eksplisit:
+  - [x] fallback ke baseline dari `assessment_session` (mapping product phase), bukan hard default statis.
 
 ## A4. Assessment progress fields
 
@@ -80,8 +86,8 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
    - [x] `todayOnly` strict filter berdasarkan `scheduleDays`.
    - [x] Output modul dipakai untuk kartu Learning Hub.
    - [x] Baseline unlock phase sudah diterapkan (mapping dari placement product phase).
-   - [ ] Migrasi ke field `placement_phase` eksplisit jika/ketika field itu sudah menjadi source of truth.
-   - [ ] Pisahkan mode `todayOnly` vs `progression-only` agar debugging mudah.
+  - [x] Migrasi ke field `placement_phase` eksplisit sudah diterapkan (dengan fallback aman saat field kosong).
+  - [x] Pisahkan mode `todayOnly` vs `progression-only` agar debugging mudah (query `mode` pada API modules).
 
 2. `app/api/learning/lesson-assessment/route.ts`
    - [x] PRE required sebelum POST.
@@ -95,7 +101,7 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 
 4. `app/api/admin/content/bulk-quiz/route.ts`
    - [x] Support bank `legacy/pre/post`.
-   - [ ] Tambahkan validasi `answer` format + minimum kualitas soal.
+   - [x] Tambahkan validasi `answer` format + minimum kualitas soal.
 
 ## C2. UI yang harus ikut sinkron
 
@@ -125,6 +131,8 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
   - cek PRE required dan lock behavior.
 - [x] `supabase/verify_auth_signup_operational.sql`
   - cek integritas signup trigger.
+- [x] `supabase/verify_grade_change_archive_operational.sql`
+  - cek trigger archive grade change + integritas snapshot.
 
 ## D1. Health monitoring & alert readiness
 
@@ -168,8 +176,8 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 
 ## E4. Skenario Modul Materi
 
-- [ ] Konten unlocked tetap dapat diakses ulang tanpa tes.
-- [ ] Tidak ada hard-block test di halaman review.
+- [x] Konten unlocked tetap dapat diakses ulang tanpa tes.
+- [x] Tidak ada hard-block test di halaman review.
 
 ---
 
@@ -184,10 +192,27 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 
 ---
 
-## G) Keputusan Pending (Butuh Keputusan Produk)
+## G) Keputusan Produk (Final)
 
-- [ ] Threshold naik fase: tetap 80% atau beda per grade?
-- [ ] Untuk `SMK/SMA Spesialisasi`: apakah dianggap `phase=4` atau track terpisah? jadikan ini unlock untuk grade SMK/SMA sebagai materi khusus seperti ekstrakulikuler
-- [ ] Jika siswa pindah grade, apakah progression lama direset atau dimigrasikan?
-- [ ] Apakah PRE boleh retake unlimited? (saat ini praktiknya boleh)
-- [x] Nilai default operasional sementara didokumentasikan di `RUNBOOK-OPERASIONAL-MINGGUAN.md` sampai keputusan produk final ditetapkan.
+- [x] Threshold naik fase: `80%` global default (opsi override per grade/course di fase lanjutan).
+- [x] `SMK/SMA Spesialisasi` ditetapkan sebagai track terpisah (bukan phase wajib global).
+- [x] Jika siswa pindah grade: progression lama diarsipkan, grade baru mulai baseline baru.
+- [x] PRE retake: diizinkan dengan cooldown ringan, dan nilai PRE terbaru dipakai untuk gating POST.
+- [x] Nilai operasional final didokumentasikan di `RUNBOOK-OPERASIONAL-MINGGUAN.md`.
+
+## G1) Implementasi Pasca-Keputusan (Bertahap)
+
+- [x] Tahap 1: finalisasi dokumen keputusan (`RULEBOOK` + `CHECKLIST`).
+- [x] Tahap 1: PRE cooldown guard ditambahkan di `lesson-assessment` API (`PRE_RETAKE_COOLDOWN`).
+- [x] Tahap 2: arsip progression saat grade berubah (migration trigger + snapshot archive table).
+- [x] Tahap 2: opsi override threshold per grade/course (fallback `module -> course -> 80`).
+- [x] Tahap 3: endpoint + panel admin untuk monitoring archive (`/api/admin/grade-change-archives`).
+- [x] Tahap 3: SQL verify pack untuk archive grade change ditambahkan.
+
+## H) Backlog Lanjutan (Non-Blocking)
+
+- [x] Finalkan source-of-truth `placement_phase` eksplisit end-to-end di API flow belajar (fallback aman ke assessment session).
+- [x] Lengkapi smoke test live untuk assertion source baseline (`placementBaselineSource`).
+- [x] Tambahkan validasi kualitas jawaban quiz (`answer` + minimum kualitas soal) di `app/api/admin/content/bulk-quiz/route.ts`.
+- [x] Standarkan `module_code` dan `lesson_code` + aturan unik app-level.
+- [x] Tambahkan SQL guard unik untuk `module_code` / `lesson_code`.

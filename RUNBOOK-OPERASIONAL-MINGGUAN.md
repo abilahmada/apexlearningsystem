@@ -58,7 +58,24 @@ Tujuan:
 - submit PRE/POST tidak rusak
 - schedule harian tetap ada per grade
 
-## 5) Maintenance data bila ada temuan
+Opsional untuk verifikasi source baseline:
+
+- set `APEX_FLOW_SMOKE_EXPECT_BASELINE_SOURCE=student_profile` sebelum `npm run test:learning-flow:live`.
+
+## 5) SQL verify tambahan (grade change archive)
+
+Jalankan di Supabase SQL Editor:
+
+- `supabase/verify_grade_change_archive_operational.sql`
+- opsional helper lokal: `npm run verify:sql:grade-archive`
+
+Lolos jika:
+
+- tabel + trigger arsip tersedia
+- tidak ada mismatch pada query integritas snapshot vs counter
+- tidak ada event invalid (`from_grade = to_grade`, grade kosong)
+
+## 6) Maintenance data bila ada temuan
 
 Jika ada temuan duplikasi/kosong:
 
@@ -74,7 +91,7 @@ Jika ada quiz kosong:
 npm run fill:quizzes:ai:missing
 ```
 
-## 6) Checklist deploy/PR
+## 7) Checklist deploy/PR
 
 - Cek build:
 
@@ -86,7 +103,7 @@ npm run build
   - Vercel: Ready
   - Supabase preview/migrations: success atau expected skip (jika tidak ada perubahan `supabase/`)
 
-## 7) Rollback cepat
+## 8) Rollback cepat
 
 Jika deploy regress:
 
@@ -95,10 +112,11 @@ Jika deploy regress:
 3. Pastikan Vercel redeploy dari commit revert.
 4. Ulangi langkah 2-4 runbook ini sebelum merge ulang.
 
-## 8) Default operasional sementara (menunggu keputusan produk final)
+## 9) Kebijakan operasional final v1
 
-- Threshold kelulusan post-test: `80` (berlaku umum).
-- PRE retake: diizinkan.
+- Threshold kelulusan post-test: `80` (default global).
+- PRE retake: diizinkan dengan cooldown ringan (guard API aktif).
 - Baseline level siswa: mengikuti hasil placement saat ini.
-- Spesialisasi SMK/SMA: sementara diperlakukan sebagai perluasan level/track tanpa memaksa migrasi progres lama.
+- Spesialisasi SMK/SMA: diperlakukan sebagai track terpisah (bukan phase wajib global).
+- Pindah grade: progres grade lama diarsipkan, grade baru mulai baseline baru.
 

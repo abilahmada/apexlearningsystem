@@ -97,10 +97,30 @@ function placementBaselinePhaseFromProductPhase(phase: PlacementProductPhase): n
   }
 }
 
+function parsePlacementPhase(raw: unknown): number | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Math.max(1, Math.round(n));
+  return Number.isFinite(rounded) ? rounded : null;
+}
+
 function parseBool(raw: string | null): boolean {
   if (!raw) return false;
   const t = raw.trim().toLowerCase();
   return t === "1" || t === "true" || t === "yes";
+}
+
+type ModulesViewMode = "default" | "todayOnly" | "progression-only";
+
+function parseViewMode(raw: string | null): ModulesViewMode {
+  const t = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (t === "todayonly" || t === "today_only" || t === "today-only") return "todayOnly";
+  if (t === "progression-only" || t === "progression_only" || t === "progressiononly") {
+    return "progression-only";
+  }
+  return "default";
 }
 
 const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
@@ -145,10 +165,11 @@ export async function GET(req: Request) {
     const requestedGrade = parseGrade(url.searchParams.get("grade"));
     const includeLessons = parseBool(url.searchParams.get("withLessons"));
     const todayOnly = parseBool(url.searchParams.get("todayOnly"));
+    const mode = parseViewMode(url.searchParams.get("mode"));
 
     const { data: studentProfile, error: studentErr } = await auth.supabase
       .from("student_profiles")
-      .select("id, grade_level")
+      .select("id, grade_level, placement_phase")
       .eq("user_id", auth.userId)
       .maybeSingle();
     if (studentErr || !studentProfile) {
@@ -186,7 +207,9 @@ export async function GET(req: Request) {
     });
     const metadataCurrentPhase = normalizeCurrentPhaseForMetadata(productPhase);
     const assessmentLayer = assessmentLayerForPhase(productPhase);
-    const placementBaselinePhase = placementBaselinePhaseFromProductPhase(productPhase);
+    const placementPhaseFromProfile = parsePlacementPhase(studentProfile.placement_phase);
+    const placementBaselinePhase =
+      placementPhaseFromProfile ?? placementBaselinePhaseFromProductPhase(productPhase);
 
     const { data: courses, error: courseErr } = await auth.supabase
       .from("courses")
@@ -417,8 +440,9 @@ export async function GET(req: Request) {
     }
 
     const effectiveTodayKey = todayKeyFromDate(new Date());
-    const visibleBySchedule = baseItemsForVisibility.filter((x) => {
-      if (!todayOnly) return true;
+    const scheduleOnly = mode === "todayOnly" || (mode === "default" && todayOnly);
+    const visibleItems = baseItemsForVisibility.filter((x) => {
+      if (!scheduleOnly) return true;
       const days = normalizeScheduleDays(x.metadata.scheduleDays);
       // todayOnly mode is strict: module must explicitly include today's day key.
       return days.length > 0 && days.includes(effectiveTodayKey);
@@ -429,9 +453,11 @@ export async function GET(req: Request) {
       assessmentPhase: productPhase,
       assessmentLayer,
       placementBaselinePhase,
+      placementBaselineSource: placementPhaseFromProfile != null ? "student_profile" : "assessment_session",
       todayKey: effectiveTodayKey,
+      viewMode: mode === "default" ? (scheduleOnly ? "todayOnly" : "progression-only") : mode,
       phaseProgress,
-      items: visibleBySchedule.map((m) => ({
+      items: visibleItems.map((m) => ({
         id: String(m.row.id),
         courseId: String(m.row.course_id),
         title: String(m.row.title ?? ""),

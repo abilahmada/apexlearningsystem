@@ -28,6 +28,7 @@ import { pickQuestionsForAssessment } from "@/lib/learning/quiz-assessment-pick"
 
 const MIN_SUBMIT_INTERVAL_MS = 8_000;
 const IDEMPOTENCY_WINDOW_MS = 60_000;
+const PRE_RETAKE_COOLDOWN_MS = 60_000;
 
 function logAssessmentReason(reason: string, detail: Record<string, unknown>) {
   console.warn("[lesson-assessment][reason]", {
@@ -79,18 +80,25 @@ function placementBaselinePhaseFromProductPhase(phase: PlacementProductPhase): n
   }
 }
 
+function parsePlacementPhase(raw: unknown): number | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(1, Math.round(n));
+}
+
 async function isModulePhaseLocked(
   supabase: { from: (table: string) => any },
   userId: string,
   moduleId: string,
 ): Promise<boolean> {
-  const [{ data: session }, { data: moduleRow, error: moduleErr }] = await Promise.all([
+  const [{ data: session }, { data: moduleRow, error: moduleErr }, { data: studentProfile }] = await Promise.all([
     supabase
       .from("assessment_sessions")
       .select("status, sessions_completed, parent_validated_at, placement_locked_at, last_continuous_review_at")
       .eq("user_id", userId)
       .maybeSingle(),
     supabase.from("modules").select("metadata").eq("id", moduleId).maybeSingle(),
+    supabase.from("student_profiles").select("placement_phase").eq("user_id", userId).maybeSingle(),
   ]);
   if (moduleErr) throw new Error(moduleErr.message);
   const productPhase = resolvePlacementProductPhase({
@@ -103,7 +111,9 @@ async function isModulePhaseLocked(
       : null,
     now: new Date(),
   });
-  const baseline = placementBaselinePhaseFromProductPhase(productPhase);
+  const baseline =
+    parsePlacementPhase(studentProfile?.placement_phase) ??
+    placementBaselinePhaseFromProductPhase(productPhase);
   const metadata =
     moduleRow?.metadata && typeof moduleRow.metadata === "object"
       ? (moduleRow.metadata as Record<string, unknown>)
@@ -255,6 +265,22 @@ export async function POST(req: Request) {
     );
     if (latestAttempt?.createdAt) {
       const elapsedMs = Date.now() - new Date(latestAttempt.createdAt).getTime();
+      if (
+        assessmentType === "PRE" &&
+        Number.isFinite(elapsedMs) &&
+        elapsedMs >= 0 &&
+        elapsedMs < PRE_RETAKE_COOLDOWN_MS
+      ) {
+        const retryAfterMs = Math.max(0, PRE_RETAKE_COOLDOWN_MS - elapsedMs);
+        return Response.json(
+          {
+            message: "Retake Pre-test terlalu cepat. Tunggu sebentar sebelum mencoba lagi.",
+            reason: "PRE_RETAKE_COOLDOWN",
+            retryAfterMs,
+          },
+          { status: 429 },
+        );
+      }
       if (Number.isFinite(elapsedMs) && elapsedMs >= 0 && elapsedMs < MIN_SUBMIT_INTERVAL_MS) {
         const retryAfterMs = Math.max(0, MIN_SUBMIT_INTERVAL_MS - elapsedMs);
         return Response.json(

@@ -10,14 +10,26 @@ export function clampModuleMasteryThreshold(raw: number): number {
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
 
+function parseOptionalThreshold(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string" && raw.trim()) {
+    const n = Number(raw);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
 export async function fetchModuleMasteryThreshold(supabase: Supabase, moduleId: string): Promise<number> {
   const { data, error } = await supabase
     .from("modules")
-    .select("mastery_threshold")
+    .select("mastery_threshold, courses(mastery_threshold)")
     .eq("id", moduleId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return clampModuleMasteryThreshold(Number(data?.mastery_threshold ?? 80));
+  const courseNode = Array.isArray(data?.courses) ? data?.courses[0] : data?.courses;
+  const moduleThreshold = parseOptionalThreshold(data?.mastery_threshold);
+  const courseThreshold = parseOptionalThreshold(courseNode?.mastery_threshold);
+  return clampModuleMasteryThreshold(moduleThreshold ?? courseThreshold ?? 80);
 }
 
 export type LessonRow = {
@@ -89,13 +101,16 @@ export async function fetchLessonWithModule(
 ): Promise<{ id: string; module_id: string; title: string; module_mastery_threshold: number } | null> {
   const { data, error } = await supabase
     .from("lessons")
-    .select("id, module_id, title, modules!inner(mastery_threshold)")
+    .select("id, module_id, title, modules!inner(mastery_threshold, courses(mastery_threshold))")
     .eq("id", lessonId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
   const mod = Array.isArray(data.modules) ? data.modules[0] : data.modules;
-  const threshold = clampModuleMasteryThreshold(Number(mod?.mastery_threshold ?? 80));
+  const courseNode = Array.isArray(mod?.courses) ? mod?.courses[0] : mod?.courses;
+  const moduleThreshold = parseOptionalThreshold(mod?.mastery_threshold);
+  const courseThreshold = parseOptionalThreshold(courseNode?.mastery_threshold);
+  const threshold = clampModuleMasteryThreshold(moduleThreshold ?? courseThreshold ?? 80);
   return {
     id: String(data.id),
     module_id: String(data.module_id),

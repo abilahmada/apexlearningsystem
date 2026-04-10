@@ -73,11 +73,11 @@ Ini berarti siswa tidak dipaksa membuka fase di bawah/tepat placement lewat post
 
 ## 4.3 Syarat naik fase
 
-Default v1 (disarankan sederhana):
+Default v1 (disepakati):
 
 - `next phase` terbuka jika `>= 80%` lesson pada fase aktif lulus post-test.
-
-Nilai default ini bisa dikonfigurasi global (opsional), tapi tidak berubah per user.
+- Nilai `80` digunakan sebagai default global untuk stabilitas operasional.
+- Override per grade/course boleh ditambahkan di fase berikutnya tanpa mengubah histori user lama.
 
 ## 5) Perilaku Halaman
 
@@ -166,3 +166,15 @@ Urutan rollout yang direkomendasikan:
 - Learning Hub = jadwal + evaluasi.
 - Modul Materi = review materi unlocked.
 - UUID tetap teknis; admin melihat kode akademik yang manusiawi.
+- Spesialisasi SMK/SMA diperlakukan sebagai track terpisah (bukan phase wajib global).
+- Pindah grade: progres lama diarsipkan, grade baru mulai baseline baru.
+- PRE retake diizinkan dengan cooldown ringan; gating memakai nilai PRE terbaru.
+
+## 11) Catatan Operasional v1
+
+- Monitoring operasional memakai kombinasi:
+  - health API (`/api/admin/health-learning-flow`),
+  - snapshot archive grade-change (`/api/admin/grade-change-archives`),
+  - SQL verify pack di folder `supabase/verify_*_operational.sql`.
+- Override threshold berjalan dengan fallback berurutan: `module.mastery_threshold -> course.mastery_threshold -> 80`.
+- Perubahan grade siswa diperlakukan sebagai boundary akademik baru: progres lama diarsipkan untuk audit, progres aktif dimulai ulang sesuai baseline grade baru.
