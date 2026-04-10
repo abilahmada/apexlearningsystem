@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Database, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { useApex } from '../apex-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
@@ -65,11 +65,60 @@ type EditDraft = {
   mentorExpertiseArea: string
 }
 
+type CreateDraft = {
+  email: string
+  password: string
+  role: 'STUDENT' | 'PARENT' | 'MENTOR' | 'ADMIN'
+  registrationApproved: boolean
+  fullName: string
+  gradeLevel: 'SD' | 'SMP' | 'SMK'
+  birthDate: string
+  schoolOrigin: string
+  learningVision: string
+  parentLinkCode: string
+  phoneNumber: string
+  expertiseArea: string
+}
+
 type ConfirmAction =
+  | { kind: 'create'; draft: CreateDraft }
   | { kind: 'update'; draft: EditDraft }
   | { kind: 'delete'; row: MemberRow }
 
+type NoticeTone = 'error' | 'success' | 'info'
+
 const PAGE_SIZE = 25
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+}
+
+function generateStrongPassword(length = 12): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+  const lower = 'abcdefghijkmnopqrstuvwxyz'
+  const digits = '23456789'
+  const symbols = '!@#$%^&*'
+  const all = `${upper}${lower}${digits}${symbols}`
+
+  const rand = (chars: string) => chars[Math.floor(Math.random() * chars.length)]
+  const out = [rand(upper), rand(lower), rand(digits), rand(symbols)]
+  while (out.length < length) out.push(rand(all))
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out.join('')
+}
+
+async function readJsonSafe<T>(res: Response): Promise<T | null> {
+  const contentType = String(res.headers.get('content-type') ?? '').toLowerCase()
+  if (!contentType.includes('application/json')) return null
+  try {
+    return (await res.json()) as T
+  } catch {
+    return null
+  }
+}
 
 export function AdminMembersDatabase() {
   const { t } = useApex()
@@ -78,6 +127,8 @@ export function AdminMembersDatabase() {
   const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
+  const [messageTone, setMessageTone] = useState<NoticeTone>('info')
+  const [toast, setToast] = useState<{ text: string; tone: NoticeTone } | null>(null)
 
   const [role, setRole] = useState<string>('ALL')
   const [approval, setApproval] = useState<string>('all')
@@ -86,19 +137,35 @@ export function AdminMembersDatabase() {
   const [sort, setSort] = useState<'created_at' | 'email' | 'role'>('created_at')
   const [order, setOrder] = useState<'asc' | 'desc'>('desc')
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null)
+  const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null)
+  const [createPasswordVisible, setCreatePasswordVisible] = useState(false)
+  const [createPasswordCopied, setCreatePasswordCopied] = useState(false)
   const [actingId, setActingId] = useState<string | null>(null)
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
 
+  const notify = useCallback((text: string, tone: NoticeTone) => {
+    setMessage(text)
+    setMessageTone(tone)
+    setToast({ text, tone })
+  }, [])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 3600)
+    return () => window.clearTimeout(timer)
+  }, [toast])
+
   const load = useCallback(async () => {
     setLoading(true)
     setMessage(null)
+    setMessageTone('info')
     try {
       const supabase = createSupabaseBrowserClient()
       const { data: s } = await supabase.auth.getSession()
       const token = s.session?.access_token
       if (!token) {
-        setMessage(t('Sesi tidak ditemukan.', 'Session not found.'))
+        notify(t('Sesi tidak ditemukan.', 'Session not found.'), 'error')
         return
       }
       const params = new URLSearchParams({
@@ -114,23 +181,23 @@ export function AdminMembersDatabase() {
         headers: { authorization: `Bearer ${token}` },
         cache: 'no-store',
       })
-      const data = (await res.json()) as {
+      const data = (await readJsonSafe<{
         items?: MemberRow[]
         total?: number
         message?: string
-      }
+      }>(res)) ?? {}
       if (!res.ok) {
-        setMessage(data.message ?? t('Gagal memuat data.', 'Failed to load data.'))
+        notify(data.message ?? t('Gagal memuat data.', 'Failed to load data.'), 'error')
         return
       }
       setItems(data.items ?? [])
       setTotal(typeof data.total === 'number' ? data.total : 0)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Error')
+      notify(e instanceof Error ? e.message : 'Error', 'error')
     } finally {
       setLoading(false)
     }
-  }, [approval, offset, order, q, role, sort, t])
+  }, [approval, notify, offset, order, q, role, sort, t])
 
   useEffect(() => {
     void load()
@@ -166,6 +233,36 @@ export function AdminMembersDatabase() {
   const page = Math.floor(offset / PAGE_SIZE) + 1
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
+  const createValidationErrors = useMemo(() => {
+    if (!createDraft) return []
+    const errors: string[] = []
+    const email = createDraft.email.trim()
+    const pwd = createDraft.password
+    const fullName = createDraft.fullName.trim()
+    if (!email) errors.push(t('Email wajib diisi.', 'Email is required.'))
+    else if (!isValidEmail(email)) errors.push(t('Format email tidak valid.', 'Invalid email format.'))
+    if (pwd.length < 6) errors.push(t('Password minimal 6 karakter.', 'Password must be at least 6 characters.'))
+    if (!fullName) errors.push(t('Nama lengkap wajib diisi.', 'Full name is required.'))
+    if (createDraft.role === 'STUDENT') {
+      if (!createDraft.parentLinkCode.trim()) {
+        errors.push(t('Parent Link Code siswa wajib diisi.', 'Student parent link code is required.'))
+      }
+    }
+    if (createDraft.role === 'PARENT') {
+      if (!createDraft.parentLinkCode.trim()) {
+        errors.push(t('Parent Link Code orang tua wajib diisi.', 'Parent link code is required.'))
+      }
+      if (!createDraft.phoneNumber.trim()) {
+        errors.push(t('Nomor HP orang tua wajib diisi.', 'Parent phone number is required.'))
+      }
+    }
+    if (createDraft.role === 'MENTOR' && !createDraft.expertiseArea.trim()) {
+      errors.push(t('Keahlian mentor wajib diisi.', 'Mentor expertise is required.'))
+    }
+    return errors
+  }, [createDraft, t])
+  const createDraftValid = createValidationErrors.length === 0
+
   const roleLabel = (r: string) => {
     if (r === 'STUDENT') return t('Siswa', 'Student')
     if (r === 'PARENT') return t('Orang tua', 'Parent')
@@ -192,9 +289,80 @@ export function AdminMembersDatabase() {
     })
   }
 
+  const beginCreate = () => {
+    setCreatePasswordVisible(false)
+    setCreatePasswordCopied(false)
+    setCreateDraft({
+      email: '',
+      password: '',
+      role: 'STUDENT',
+      registrationApproved: true,
+      fullName: '',
+      gradeLevel: 'SMP',
+      birthDate: '',
+      schoolOrigin: '',
+      learningVision: '',
+      parentLinkCode: '',
+      phoneNumber: '',
+      expertiseArea: '',
+    })
+  }
+
+  const doCreateMember = async (draft: CreateDraft) => {
+    setActingId('create')
+    setMessage(null)
+    setMessageTone('info')
+    try {
+      const supabase = createSupabaseBrowserClient()
+      const { data: s } = await supabase.auth.getSession()
+      const token = s.session?.access_token
+      if (!token) throw new Error(t('Sesi tidak ditemukan.', 'Session not found.'))
+
+      const profile: Record<string, unknown> = { fullName: draft.fullName }
+      if (draft.role === 'STUDENT') {
+        profile.gradeLevel = draft.gradeLevel
+        profile.birthDate = draft.birthDate || null
+        profile.schoolOrigin = draft.schoolOrigin || null
+        profile.learningVision = draft.learningVision || null
+        profile.parentLinkCode = draft.parentLinkCode || null
+      } else if (draft.role === 'PARENT') {
+        profile.phoneNumber = draft.phoneNumber || null
+        profile.parentLinkCode = draft.parentLinkCode || null
+      } else if (draft.role === 'MENTOR') {
+        profile.expertiseArea = draft.expertiseArea || null
+      }
+
+      const res = await fetch('/api/admin/members', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          email: draft.email,
+          password: draft.password,
+          role: draft.role,
+          registrationApproved: draft.registrationApproved,
+          profile,
+        }),
+      })
+      const data = (await readJsonSafe<{ message?: string }>(res)) ?? {}
+      if (!res.ok) throw new Error(data.message ?? t('Gagal membuat member.', 'Failed to create member.'))
+      notify(data.message ?? t('Member berhasil ditambahkan.', 'Member created successfully.'), 'success')
+      setCreateDraft(null)
+      setOffset(0)
+      await load()
+    } catch (e) {
+      notify(e instanceof Error ? e.message : t('Gagal membuat member.', 'Failed to create member.'), 'error')
+    } finally {
+      setActingId(null)
+    }
+  }
+
   const doUpdateMember = async (draft: EditDraft) => {
     setActingId(draft.id)
     setMessage(null)
+    setMessageTone('info')
     try {
       const supabase = createSupabaseBrowserClient()
       const { data: s } = await supabase.auth.getSession()
@@ -234,13 +402,13 @@ export function AdminMembersDatabase() {
         },
         body: JSON.stringify(body),
       })
-      const data = (await res.json()) as { message?: string }
+      const data = (await readJsonSafe<{ message?: string }>(res)) ?? {}
       if (!res.ok) throw new Error(data.message ?? t('Gagal mengubah data.', 'Failed to update data.'))
-      setMessage(data.message ?? t('Perubahan disimpan.', 'Changes saved.'))
+      notify(data.message ?? t('Perubahan disimpan.', 'Changes saved.'), 'success')
       setEditDraft(null)
       await load()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('Gagal mengubah data.', 'Failed to update data.'))
+      notify(e instanceof Error ? e.message : t('Gagal mengubah data.', 'Failed to update data.'), 'error')
     } finally {
       setActingId(null)
     }
@@ -249,6 +417,7 @@ export function AdminMembersDatabase() {
   const doDeleteMember = async (row: MemberRow) => {
     setActingId(row.id)
     setMessage(null)
+    setMessageTone('info')
     try {
       const supabase = createSupabaseBrowserClient()
       const { data: s } = await supabase.auth.getSession()
@@ -258,13 +427,13 @@ export function AdminMembersDatabase() {
         method: 'DELETE',
         headers: { authorization: `Bearer ${token}` },
       })
-      const data = (await res.json()) as { message?: string }
+      const data = (await readJsonSafe<{ message?: string }>(res)) ?? {}
       if (!res.ok) throw new Error(data.message ?? t('Gagal menghapus data.', 'Failed to delete data.'))
-      setMessage(data.message ?? t('Member dihapus.', 'Member deleted.'))
+      notify(data.message ?? t('Member dihapus.', 'Member deleted.'), 'success')
       if (editDraft?.id === row.id) setEditDraft(null)
       await load()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('Gagal menghapus data.', 'Failed to delete data.'))
+      notify(e instanceof Error ? e.message : t('Gagal menghapus data.', 'Failed to delete data.'), 'error')
     } finally {
       setActingId(null)
     }
@@ -283,6 +452,10 @@ export function AdminMembersDatabase() {
     if (!confirmAction) return
     const action = confirmAction
     setConfirmAction(null)
+    if (action.kind === 'create') {
+      await doCreateMember(action.draft)
+      return
+    }
     if (action.kind === 'update') {
       await doUpdateMember(action.draft)
       return
@@ -305,6 +478,14 @@ export function AdminMembersDatabase() {
             )}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={beginCreate}
+          disabled={actingId === 'create'}
+          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+        >
+          {t('Tambah member manual', 'Add member manually')}
+        </button>
         <button
           type="button"
           onClick={() => void load()}
@@ -404,7 +585,35 @@ export function AdminMembersDatabase() {
       </div>
 
       {message ? (
-        <p className="text-sm text-red-600 rounded-xl bg-red-50 border border-red-100 px-3 py-2">{message}</p>
+        <p
+          className={`text-sm rounded-xl border px-3 py-2 ${
+            messageTone === 'success'
+              ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+              : messageTone === 'error'
+                ? 'text-red-600 bg-red-50 border-red-100'
+                : 'text-slate-700 bg-slate-50 border-slate-100'
+          }`}
+        >
+          {message}
+        </p>
+      ) : null}
+      {toast ? (
+        <div
+          aria-live="polite"
+          className="fixed right-4 top-4 z-50 pointer-events-none w-[min(92vw,360px)]"
+        >
+          <div
+            className={`rounded-xl border px-3 py-2 text-sm shadow-lg ${
+              toast.tone === 'success'
+                ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                : toast.tone === 'error'
+                  ? 'text-red-700 bg-red-50 border-red-200'
+                  : 'text-slate-700 bg-slate-50 border-slate-200'
+            }`}
+          >
+            {toast.text}
+          </div>
+        </div>
       ) : null}
 
       <div className="text-xs text-slate-500">
@@ -796,12 +1005,19 @@ export function AdminMembersDatabase() {
       <ConfirmActionModal
         open={Boolean(confirmAction)}
         title={
-          confirmAction?.kind === 'update'
+          confirmAction?.kind === 'create'
+            ? t('Konfirmasi tambah member', 'Confirm member creation')
+            : confirmAction?.kind === 'update'
             ? t('Konfirmasi perubahan data', 'Confirm data update')
             : t('Konfirmasi hapus data', 'Confirm member deletion')
         }
         description={
-          confirmAction?.kind === 'update'
+          confirmAction?.kind === 'create'
+            ? t(
+                `Tambahkan member baru dengan email ${confirmAction?.kind === 'create' ? confirmAction.draft.email : ''}?`,
+                `Create new member with email ${confirmAction?.kind === 'create' ? confirmAction.draft.email : ''}?`,
+              )
+            : confirmAction?.kind === 'update'
             ? t(
                 'Apakah Anda yakin ingin menyimpan perubahan pada data member ini?',
                 'Are you sure you want to save changes to this member?',
@@ -811,12 +1027,234 @@ export function AdminMembersDatabase() {
                 `Are you sure to delete member ${confirmAction?.kind === 'delete' ? confirmAction.row.email : ''}? This action cannot be undone.`,
               )
         }
-        confirmLabel={confirmAction?.kind === 'update' ? t('Ya, simpan', 'Yes, save') : t('Ya, hapus', 'Yes, delete')}
+        confirmLabel={
+          confirmAction?.kind === 'create'
+            ? t('Ya, tambah', 'Yes, create')
+            : confirmAction?.kind === 'update'
+              ? t('Ya, simpan', 'Yes, save')
+              : t('Ya, hapus', 'Yes, delete')
+        }
         cancelLabel={t('Batal', 'Cancel')}
-        tone={confirmAction?.kind === 'update' ? 'primary' : 'danger'}
+        tone={confirmAction?.kind === 'delete' ? 'danger' : 'primary'}
         onCancel={() => setConfirmAction(null)}
         onConfirm={() => void runConfirmedAction()}
       />
+
+      {createDraft ? (
+        <div className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xl space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="text-base font-bold text-slate-900">{t('Tambah Member Manual', 'Add member manually')}</h3>
+              <button
+                type="button"
+                onClick={() => setCreateDraft(null)}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                {t('Tutup', 'Close')}
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Email</label>
+                <input
+                  value={createDraft.email}
+                  onChange={(e) => setCreateDraft((p) => (p ? { ...p, email: e.target.value } : p))}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Password awal', 'Initial password')}</label>
+                <div className="flex gap-2">
+                  <input
+                    type={createPasswordVisible ? 'text' : 'password'}
+                    value={createDraft.password}
+                    onChange={(e) => setCreateDraft((p) => (p ? { ...p, password: e.target.value } : p))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCreatePasswordVisible((v) => !v)}
+                    className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    {createPasswordVisible ? t('Sembunyikan', 'Hide') : t('Lihat', 'Show')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(createDraft.password)
+                        setCreatePasswordCopied(true)
+                        window.setTimeout(() => setCreatePasswordCopied(false), 1600)
+                      } catch {
+                        notify(t('Gagal menyalin password.', 'Failed to copy password.'), 'error')
+                      }
+                    }}
+                    className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    {createPasswordCopied ? t('Tersalin', 'Copied') : t('Salin', 'Copy')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCreateDraft((p) => (p ? { ...p, password: generateStrongPassword(12) } : p))
+                    }
+                    className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    {t('Generate', 'Generate')}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Peran', 'Role')}</label>
+                <select
+                  value={createDraft.role}
+                  onChange={(e) =>
+                    setCreateDraft((p) => (p ? { ...p, role: e.target.value as CreateDraft['role'] } : p))
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="STUDENT">{t('Siswa', 'Student')}</option>
+                  <option value="PARENT">{t('Orang tua', 'Parent')}</option>
+                  <option value="MENTOR">{t('Mentor', 'Mentor')}</option>
+                  <option value="ADMIN">{t('Admin', 'Admin')}</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Status verifikasi', 'Approval status')}</label>
+                <select
+                  value={createDraft.registrationApproved ? 'approved' : 'pending'}
+                  onChange={(e) =>
+                    setCreateDraft((p) =>
+                      p ? { ...p, registrationApproved: e.target.value === 'approved' } : p,
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="approved">{t('Disetujui', 'Approved')}</option>
+                  <option value="pending">{t('Menunggu', 'Pending')}</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Nama lengkap', 'Full name')}</label>
+                <input
+                  value={createDraft.fullName}
+                  onChange={(e) => setCreateDraft((p) => (p ? { ...p, fullName: e.target.value } : p))}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                />
+              </div>
+              {createDraft.role === 'STUDENT' ? (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Jenjang', 'Grade level')}</label>
+                    <select
+                      value={createDraft.gradeLevel}
+                      onChange={(e) =>
+                        setCreateDraft((p) =>
+                          p ? { ...p, gradeLevel: e.target.value as CreateDraft['gradeLevel'] } : p,
+                        )
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="SD">SD</option>
+                      <option value="SMP">SMP</option>
+                      <option value="SMK">SMK</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Tanggal lahir', 'Birth date')}</label>
+                    <input
+                      type="date"
+                      value={createDraft.birthDate}
+                      onChange={(e) => setCreateDraft((p) => (p ? { ...p, birthDate: e.target.value } : p))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Asal sekolah', 'School origin')}</label>
+                    <input
+                      value={createDraft.schoolOrigin}
+                      onChange={(e) => setCreateDraft((p) => (p ? { ...p, schoolOrigin: e.target.value } : p))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Parent Link Code', 'Parent link code')}</label>
+                    <input
+                      value={createDraft.parentLinkCode}
+                      onChange={(e) => setCreateDraft((p) => (p ? { ...p, parentLinkCode: e.target.value } : p))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Visi belajar', 'Learning vision')}</label>
+                    <textarea
+                      value={createDraft.learningVision}
+                      onChange={(e) => setCreateDraft((p) => (p ? { ...p, learningVision: e.target.value } : p))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm min-h-[86px]"
+                    />
+                  </div>
+                </>
+              ) : null}
+              {createDraft.role === 'PARENT' ? (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Nomor HP', 'Phone')}</label>
+                    <input
+                      value={createDraft.phoneNumber}
+                      onChange={(e) => setCreateDraft((p) => (p ? { ...p, phoneNumber: e.target.value } : p))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Parent Link Code', 'Parent link code')}</label>
+                    <input
+                      value={createDraft.parentLinkCode}
+                      onChange={(e) => setCreateDraft((p) => (p ? { ...p, parentLinkCode: e.target.value } : p))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono"
+                    />
+                  </div>
+                </>
+              ) : null}
+              {createDraft.role === 'MENTOR' ? (
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">{t('Keahlian mentor', 'Mentor expertise')}</label>
+                  <input
+                    value={createDraft.expertiseArea}
+                    onChange={(e) => setCreateDraft((p) => (p ? { ...p, expertiseArea: e.target.value } : p))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  />
+                </div>
+              ) : null}
+            </div>
+            {!createDraftValid ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                {createValidationErrors[0]}
+              </div>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCreateDraft(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+              >
+                {t('Batal', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={actingId === 'create' || !createDraftValid}
+                onClick={() => {
+                  const draftSnapshot = { ...createDraft }
+                  setCreateDraft(null)
+                  setConfirmAction({ kind: 'create', draft: draftSnapshot })
+                }}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {actingId === 'create' ? t('Memproses…', 'Processing…') : t('Tambah member', 'Create member')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {totalPages > 1 ? (
         <div className="flex items-center justify-between gap-3">

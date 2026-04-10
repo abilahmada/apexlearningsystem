@@ -22,6 +22,29 @@ function getAppBaseUrl(req: Request) {
   return `${url.protocol}//${url.host}`;
 }
 
+async function hasParentLinkCode(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  rawCode: string,
+): Promise<{ exists: boolean; error: string | null }> {
+  const code = String(rawCode ?? "").trim().toUpperCase();
+  if (!code) return { exists: false, error: null };
+
+  const rpcRes = await supabase.rpc("apex_parent_link_code_exists", { p_code: code });
+  if (!rpcRes.error) {
+    return { exists: rpcRes.data === true, error: null };
+  }
+
+  // Fallback when RPC is unavailable or not synced.
+  const fallback = await supabase
+    .from("parent_profiles")
+    .select("id")
+    .ilike("parent_link_code", code)
+    .limit(1)
+    .maybeSingle();
+  if (fallback.error) return { exists: false, error: fallback.error.message };
+  return { exists: Boolean(fallback.data?.id), error: null };
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as ReqBody;
@@ -46,11 +69,9 @@ export async function POST(req: Request) {
       if (!code) {
         return Response.json({ message: "ID Orang Tua wajib diisi untuk akun siswa." }, { status: 400 });
       }
-      const { data: parentExists, error: parentErr } = await supabase.rpc("apex_parent_link_code_exists", {
-        p_code: code,
-      });
-      if (parentErr) return Response.json({ message: parentErr.message }, { status: 500 });
-      if (parentExists !== true) {
+      const parentCheck = await hasParentLinkCode(supabase, code);
+      if (parentCheck.error) return Response.json({ message: parentCheck.error }, { status: 500 });
+      if (!parentCheck.exists) {
         return Response.json({ message: "ID Orang Tua tidak terdaftar." }, { status: 400 });
       }
     }

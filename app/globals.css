@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+/**
+ * Chrome (terutama mobile): fokus ke input dengan computed font < 16px memicu zoom halaman
+ * → layout “membesar” dan tepi kanan sheet terpotong. Pakai 16px eksplisit + placeholder sama.
+ */
+.socrates-chat-input {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 767px) {
+  .socrates-chat-input,
+  .socrates-chat-input::placeholder {
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .socrates-chat-input,
+  .socrates-chat-input::placeholder {
+    font-size: 0.875rem !important;
+    line-height: 1.5 !important;
+  }
+}

@@ -85,6 +85,18 @@ where not exists (select 1 from public.quizzes q where q.lesson_id = l.id)
 order by m.title, l.created_at
 limit 500;
 
+-- 6b) Lebih dari satu baris quiz untuk lesson_id yang sama (harus 0 baris setelah migrasi uq_quizzes_lesson_id)
+select
+  q.lesson_id,
+  count(*) as quiz_row_count,
+  array_agg(q.id order by q.id) as quiz_ids
+from public.quizzes q
+where q.lesson_id is not null
+group by q.lesson_id
+having count(*) > 1
+order by quiz_row_count desc
+limit 200;
+
 -- 7) Quiz ada tapi questions + questions_pre + questions_post semuanya kosong/tidak ada isi
 --    (JSON array kosong atau null pada kolom opsional)
 select

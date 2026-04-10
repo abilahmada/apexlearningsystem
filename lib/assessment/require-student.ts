@@ -21,7 +21,9 @@ export async function requireStudentSession(token: string): Promise<StudentAuthO
     .from("users")
     .select("id, role")
     .eq("email", authUser.email)
-    .single();
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
   if (appUserError || !appUser) return { ok: false, status: 404, message: "User not found" };
   if (String(appUser.role) !== "STUDENT") return { ok: false, status: 403, message: "Forbidden" };
 
@@ -29,7 +31,9 @@ export async function requireStudentSession(token: string): Promise<StudentAuthO
     .from("student_profiles")
     .select("id")
     .eq("user_id", appUser.id)
-    .single();
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
   if (studentError || !studentProfile) {
     return { ok: false, status: 404, message: "Student profile not found" };
   }

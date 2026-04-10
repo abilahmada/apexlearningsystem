@@ -100,12 +100,8 @@ export function AssessmentIntakeFlow({
   const [activeBankItemId, setActiveBankItemId] = useState<string | null>(null)
   const [mcqChoice, setMcqChoice] = useState('')
   const [openAnswer, setOpenAnswer] = useState('')
-  const [theta, setTheta] = useState<Record<string, number>>(() =>
-    CALIBRATION_DIMENSIONS.reduce((acc, d) => ({ ...acc, [d]: 5 }), {} as Record<string, number>),
-  )
-  const [bandLabels, setBandLabels] = useState<Record<string, string>>(() =>
-    CALIBRATION_DIMENSIONS.reduce((acc, d) => ({ ...acc, [d]: '' }), {} as Record<string, string>),
-  )
+  /** Level penempatan 1–3 per dimensi setelah `complete` di server (bukan self-rating). */
+  const [completionLevels, setCompletionLevels] = useState<Record<string, number> | null>(null)
 
   const itemSeqRef = useRef(0)
   /** Mencegah reset scenario/academic index saat load() mengembalikan interview yang sama setelah progres lokal. */
@@ -194,6 +190,7 @@ export function AssessmentIntakeFlow({
       nextBankItemId?: string | null
       scoredPoints?: number
       aiRationale?: string | null
+      placementLevels?: Record<string, number>
     }
     if (!res.ok) throw new Error(json.message ?? 'Request failed')
     return json
@@ -243,9 +240,10 @@ export function AssessmentIntakeFlow({
       if (typeof startJson.interviewId === 'string') {
         progressInterviewIdRef.current = startJson.interviewId
       }
-      if (!startJson.reused) {
+      if (!startJson.reused && typeof startJson.interviewId === 'string') {
         await postAction({
           action: 'conversation_turn',
+          interviewId: startJson.interviewId,
           seqNo: 0,
           role: 'assistant',
           content: t(
@@ -255,6 +253,7 @@ export function AssessmentIntakeFlow({
           metadata: { layer: 1 },
         })
       }
+      await load()
       setPhase('scenarios')
       setScenarioIdx(0)
       itemSeqRef.current = 0
@@ -339,8 +338,13 @@ export function AssessmentIntakeFlow({
           scored = Number((currentItem.scoring_rubric as { maxPoints?: number })?.maxPoints ?? 1) * 0.5
         }
       }
+      if (!data?.interview?.id) {
+        setError(t('Sesi intake tidak valid. Muat ulang halaman.', 'Invalid intake session. Please reload.'))
+        return
+      }
       const resJson = await postAction({
         action: 'item_attempt',
+        interviewId: data.interview.id,
         seq,
         dimension: currentItem.dimension,
         bankItemId: currentItem.id,
@@ -396,32 +400,24 @@ export function AssessmentIntakeFlow({
   }
 
   const finalizeIntake = async () => {
+    if (!data?.interview?.id) {
+      setError(t('Sesi intake tidak valid.', 'Invalid intake session.'))
+      return
+    }
     setSubmittingComplete(true)
     setError(null)
     try {
-      const combinedIntakeTheta = CALIBRATION_DIMENSIONS.reduce(
-        (acc, d) => ({ ...acc, [d]: theta[d] ?? 5 }),
-        {} as Record<string, number>,
-      )
-      const dimensionDisplayLabels = CALIBRATION_DIMENSIONS.reduce(
-        (acc, d) => {
-          const v = bandLabels[d]?.trim()
-          return v ? { ...acc, [d]: v } : acc
-        },
-        {} as Record<string, string>,
-      )
-      await postAction({
+      const completeJson = await postAction({
         action: 'complete',
+        interviewId: data.interview.id,
         academicCatSummary: {
-          source: 'ui_cat_ai',
+          source: 'intake_cat_layer1',
           itemsAttempted: catMeta?.attemptsCount ?? bank.length,
           maxCatItems: catMeta?.maxCatItems ?? 12,
         },
         characterScenarioSummary: { scenariosCompleted: prompts.length },
-        islamicBaseline: { note: 'Dari skenario motivasi / spiritual di intake' },
-        combinedIntakeTheta,
-        dimensionDisplayLabels,
       })
+      setCompletionLevels(completeJson.placementLevels ?? null)
       onComplete?.()
       await load()
     } catch (e) {
@@ -443,8 +439,8 @@ export function AssessmentIntakeFlow({
           </h2>
           <p className="text-sm text-slate-600 mt-1">
             {t(
-              'Percakapan terstruktur + skenario karakter + latihan singkat. Setelah selesai, penempatan awal masih provisional; kalibrasi 14 hari berikutnya menyempurnakan profilmu.',
-              'Structured conversation + character scenarios + short practice. Placement stays provisional until the 14-day calibration refines your profile.',
+              'Percakapan terstruktur + skenario karakter + soal adaptif (CAT) untuk enam aspek kompetensi. Nilai awal dihitung dari jawabanmu; orang tua memvalidasi ringkasan di menu kontrol orang tua. Kalibrasi 14 hari berikutnya (Lapis 2–4) menyempurnakan penempatan.',
+              'Structured flow + character scenarios + adaptive items (CAT) across six competency areas. Initial placement comes from your responses; your parent validates the summary in the parent portal. A 14-day calibration (layers 2–4) then refines placement.',
             )}
           </p>
         </div>
@@ -470,10 +466,10 @@ export function AssessmentIntakeFlow({
               },
               {
                 step: '3',
-                id: 'Ringkasan & nilai awal',
+                id: 'Ringkasan & penempatan awal',
                 en: 'Summary & initial placement',
-                sub: 'Langsung dapat gambaran levelmu',
-                subEn: 'See your initial level',
+                sub: 'Hasil dari latihan; orang tua memvalidasi di portal',
+                subEn: 'From your practice; your parent confirms in their portal',
               },
             ].map((row) => (
               <div
@@ -651,62 +647,65 @@ export function AssessmentIntakeFlow({
       {phase === 'academic' && !currentItem && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <p className="text-sm text-slate-600 mb-3">
-            {t('Tidak ada item bank — sesuaikan penilaian di bawah.', 'No bank items — adjust ratings below.')}
+            {t(
+              'Bank soal belum tersedia. Periksa koneksi atau hubungi admin.',
+              'Question bank is not available. Check your connection or contact admin.',
+            )}
           </p>
           <button
             type="button"
-            onClick={() => setPhase('finalize')}
+            onClick={() => void load()}
             className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
           >
-            {t('Lanjut ke penilaian diri', 'Continue to self-rating')}
+            {t('Muat ulang', 'Reload')}
           </button>
         </div>
       )}
 
       {phase === 'finalize' && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-5">
-          <p className="text-sm font-semibold text-slate-800">
-            {t(
-              'Sesuaikan perkiraan level per dimensi (1–10). Orang tua akan memvalidasi sebelum kunci final.',
-              'Adjust your estimated level per dimension (1–10). Parents validate before final lock.',
-            )}
-          </p>
-          <div className="space-y-4">
-            {CALIBRATION_DIMENSIONS.map((d) => (
-              <div key={d}>
-                <div className="flex justify-between text-xs font-medium text-slate-600 mb-1">
-                  <span>{t(DIM_LABELS[d].id, DIM_LABELS[d].en)}</span>
-                  <span>{theta[d]?.toFixed(1) ?? '5'}</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  step={0.5}
-                  value={theta[d] ?? 5}
-                  onChange={(e) => setTheta((prev) => ({ ...prev, [d]: Number(e.target.value) }))}
-                  className="w-full accent-indigo-600"
-                />
-                <input
-                  type="text"
-                  value={bandLabels[d] ?? ''}
-                  onChange={(e) => setBandLabels((prev) => ({ ...prev, [d]: e.target.value }))}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-                  placeholder={t('Label jalur (opsional), mis. ≈ SMP 8 Matematika', 'Optional path label, e.g. ≈ Grade 8 Math')}
-                />
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            disabled={submittingComplete}
-            onClick={() => void finalizeIntake()}
-            className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {submittingComplete
-              ? t('Menyimpan…', 'Saving…')
-              : t('Selesaikan intake & mulai kalibrasi', 'Finish intake & start calibration')}
-          </button>
+          {!completionLevels ? (
+            <>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                {t(
+                  'Selesaikan langkah ini untuk menghitung penempatan awal (level 1–3 per aspek) dari jawaban latihanmu. Orang tua akan melihat ringkasan dan dapat mengonfirmasi atau menyesuaikan di menu kontrol orang tua — bukan lewat penilaian diri di sini.',
+                  'Finish this step to compute your initial placement (levels 1–3 per area) from your practice answers. Your parent will see a summary and can confirm or adjust in the parent portal — not via self-rating here.',
+                )}
+              </p>
+              <button
+                type="button"
+                disabled={submittingComplete}
+                onClick={() => void finalizeIntake()}
+                className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {submittingComplete
+                  ? t('Menyimpan…', 'Saving…')
+                  : t('Hitung penempatan & selesaikan intake', 'Compute placement & finish intake')}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-emerald-800">
+                {t('Intake selesai. Kalibrasi 14 hari dimulai.', 'Intake complete. Your 14-day calibration window has started.')}
+              </p>
+              <p className="text-xs text-slate-600">
+                {t(
+                  'Level 1 = perlu fondasi, 2 = sesuai jenjang, 3 = kuat. Orang tua dapat memvalidasi di portal mereka.',
+                  'Level 1 = needs foundation, 2 = on track for grade, 3 = strong. Your parent can validate in their portal.',
+                )}
+              </p>
+              <ul className="space-y-2 text-sm">
+                {CALIBRATION_DIMENSIONS.map((d) => (
+                  <li key={d} className="flex justify-between border-b border-slate-100 pb-2">
+                    <span className="text-slate-700">{t(DIM_LABELS[d].id, DIM_LABELS[d].en)}</span>
+                    <span className="font-bold text-indigo-700">
+                      L{completionLevels[d] ?? '—'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       )}
     </div>

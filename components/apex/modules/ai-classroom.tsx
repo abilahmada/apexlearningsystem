@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { CheckCircle2, Maximize2, Sparkles, X } from 'lucide-react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
@@ -24,8 +25,29 @@ export function AIClassroom({ openChatSignal = 0 }: AIClassroomProps) {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem('apex-ai-classroom-tip-dismissed') !== '1'
   })
-  const socratesInputRef = useRef<HTMLInputElement | null>(null)
+  const socratesInputRef = useRef<HTMLTextAreaElement | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+
+  const MAX_SOCRATES_INPUT_LINES = 5
+
+  const syncSocratesInputHeight = useCallback(() => {
+    const el = socratesInputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const cs = getComputedStyle(el)
+    const lineHeight = parseFloat(cs.lineHeight)
+    const lh = Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : 20
+    const pt = parseFloat(cs.paddingTop) || 0
+    const pb = parseFloat(cs.paddingBottom) || 0
+    const maxH = lh * MAX_SOCRATES_INPUT_LINES + pt + pb
+    const next = Math.min(el.scrollHeight, maxH)
+    el.style.height = `${next}px`
+    el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden'
+  }, [])
+
+  useEffect(() => {
+    syncSocratesInputHeight()
+  }, [input, syncSocratesInputHeight])
 
   const requestBody = useMemo(() => ({ language }), [language])
 
@@ -52,15 +74,95 @@ export function AIClassroom({ openChatSignal = 0 }: AIClassroomProps) {
 
   useEffect(() => {
     if (!(isSocratesOpen && isSocratesExpanded)) return
-    const timer = window.setTimeout(() => socratesInputRef.current?.focus(), 80)
+    const timer = window.setTimeout(() => {
+      /** Desktop: fokus + keyboard OK. Mobile: jangan auto-focus — hindari keyboard+zoom sekaligus saat sheet dibuka; user tap kolom saat siap. */
+      const narrow = window.matchMedia("(max-width: 767px)").matches
+      if (!narrow) {
+        socratesInputRef.current?.focus({ preventScroll: true })
+      }
+      syncSocratesInputHeight()
+    }, 80)
     return () => window.clearTimeout(timer)
+  }, [isSocratesOpen, isSocratesExpanded, syncSocratesInputHeight])
+
+  /** Cegah scroll + overflow horizontal di belakang sheet (zoom input Chrome sering memicu geser kanan). */
+  useEffect(() => {
+    if (!isSocratesOpen || !isSocratesExpanded) return
+    const html = document.documentElement
+    const body = document.body
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      htmlOverflowX: html.style.overflowX,
+      bodyOverflow: body.style.overflow,
+      bodyOverflowX: body.style.overflowX,
+      bodyWidth: body.style.width,
+    }
+    html.style.overflow = 'hidden'
+    html.style.overflowX = 'hidden'
+    body.style.overflow = 'hidden'
+    body.style.overflowX = 'hidden'
+    body.style.width = '100%'
+    return () => {
+      html.style.overflow = prev.htmlOverflow
+      html.style.overflowX = prev.htmlOverflowX
+      body.style.overflow = prev.bodyOverflow
+      body.style.overflowX = prev.bodyOverflowX
+      body.style.width = prev.bodyWidth
+    }
+  }, [isSocratesOpen, isSocratesExpanded])
+
+  /**
+   * Mobile: ikuti window.visualViewport supaya tinggi sheet = area di atas keyboard,
+   * bukan layout viewport (menghindari loncatan saat keyboard terbuka).
+   */
+  const [mobileSheetVv, setMobileSheetVv] = useState<{
+    top: number
+    height: number
+  } | null>(null)
+
+  useEffect(() => {
+    if (!isSocratesOpen || !isSocratesExpanded) {
+      setMobileSheetVv(null)
+      return
+    }
+
+    const mq = window.matchMedia('(max-width: 767px)')
+
+    const sync = () => {
+      if (!mq.matches) {
+        setMobileSheetVv(null)
+        return
+      }
+      const vv = window.visualViewport
+      if (!vv) {
+        setMobileSheetVv(null)
+        return
+      }
+      setMobileSheetVv({ top: vv.offsetTop, height: vv.height })
+    }
+
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', sync)
+    vv?.addEventListener('scroll', sync)
+    window.addEventListener('resize', sync)
+    mq.addEventListener('change', sync)
+
+    sync()
+
+    return () => {
+      vv?.removeEventListener('resize', sync)
+      vv?.removeEventListener('scroll', sync)
+      window.removeEventListener('resize', sync)
+      mq.removeEventListener('change', sync)
+      setMobileSheetVv(null)
+    }
   }, [isSocratesOpen, isSocratesExpanded])
 
   const renderSocratesChat = (opts: { expanded?: boolean }) => (
-    <div className="flex flex-col overflow-hidden h-full">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div
         className={[
-          'p-4 border-b border-slate-100',
+          'shrink-0 border-b border-slate-100 p-3 md:p-4',
           opts.expanded ? 'bg-white' : 'bg-blue-50/50',
           'flex items-center justify-between gap-3',
         ].join(' ')}
@@ -101,7 +203,7 @@ export function AIClassroom({ openChatSignal = 0 }: AIClassroomProps) {
         </div>
       </div>
 
-      <div className="flex-1 p-4 overflow-y-auto space-y-3 min-h-[200px]">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-contain p-3 md:min-h-[200px] md:p-4">
         {messages.length === 0 && (
           <div className="bg-blue-50 p-3 rounded-2xl rounded-tl-sm text-sm text-slate-700 border border-blue-100">
             {t(
@@ -121,7 +223,7 @@ export function AIClassroom({ openChatSignal = 0 }: AIClassroomProps) {
             <div key={m.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
               <div
                 className={[
-                  'max-w-[95%] p-3 rounded-2xl text-sm border',
+                  'max-w-[95%] p-3 rounded-2xl text-sm border break-words',
                   isUser
                     ? 'bg-blue-600 text-white border-blue-600 rounded-br-sm'
                     : 'bg-white text-slate-800 border-slate-200 rounded-tl-sm',
@@ -148,25 +250,45 @@ export function AIClassroom({ openChatSignal = 0 }: AIClassroomProps) {
       </div>
 
       <form
-        className="p-4 border-t border-slate-100 space-y-2 bg-white"
+        className="shrink-0 space-y-2 border-t border-slate-100 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:p-4 md:pb-4"
         onSubmit={(e) => {
           e.preventDefault()
           const text = input.trim()
-          if (!text) return
+          if (!text || isLoading) return
           sendMessage({ text })
           setInput('')
         }}
       >
-        <input
+        <textarea
           ref={socratesInputRef}
           value={input}
+          rows={1}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              const text = input.trim()
+              if (!text || isLoading) return
+              sendMessage({ text })
+              setInput('')
+            }
+          }}
           placeholder={t('Tulis pertanyaanmu ke Socrates...', 'Write your question to Socrates...')}
-          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={[
+            "socrates-chat-input min-h-[2.75rem] w-full max-w-full resize-none overflow-hidden rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 touch-manipulation",
+            "focus:outline-none focus:ring-2 focus:ring-blue-500 max-md:focus:ring-1 max-md:ring-offset-0",
+            "md:py-3",
+          ].join(" ")}
+          enterKeyHint="send"
+          inputMode="text"
+          aria-label={t('Pertanyaan ke Socrates', 'Question for Socrates')}
         />
+        <p className="text-[11px] text-slate-500 px-0.5">
+          {t('Enter kirim · Shift+Enter baris baru', 'Enter to send · Shift+Enter for new line')}
+        </p>
         <button
           type="submit"
-          disabled={!input.trim()}
+          disabled={!input.trim() || isLoading}
           className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 text-sm hover:bg-blue-700 transition-colors disabled:bg-blue-500 disabled:text-white/90 disabled:cursor-not-allowed"
         >
           {isLoading ? t('Mengirim...', 'Sending...') : t('Kirim ke Socrates', 'Send to Socrates')}
@@ -301,33 +423,58 @@ export function AIClassroom({ openChatSignal = 0 }: AIClassroomProps) {
       </div>
 
       {/* Right: Socratic AI (desktop only) */}
-      <div className="hidden md:flex w-full md:w-[420px] lg:w-[480px] xl:w-[560px] bg-white rounded-3xl border border-slate-200 overflow-hidden shrink-0">
+      <div className="hidden h-full min-h-0 shrink-0 md:flex md:w-[420px] lg:w-[480px] xl:w-[560px] w-full rounded-3xl border border-slate-200 bg-white overflow-hidden">
         {renderSocratesChat({ expanded: false })}
       </div>
 
-      {/* Expanded Socrates (mobile + desktop modal) */}
-      {isSocratesOpen && isSocratesExpanded && (
-        <div className="fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
-            onClick={() => {
-              setIsSocratesOpen(false)
-              setIsSocratesExpanded(false)
-            }}
-          />
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('Chat Socrates AI', 'Socrates AI chat')}
-            className={[
-              'absolute inset-x-0 bottom-0 h-[92vh] bg-white border-t border-slate-200 rounded-t-3xl shadow-xl',
-              'md:inset-y-6 md:left-1/2 md:-translate-x-1/2 md:bottom-auto md:h-[86vh] md:max-w-3xl md:rounded-3xl md:border',
-            ].join(' ')}
-          >
-            {renderSocratesChat({ expanded: true })}
-          </section>
-        </div>
-      )}
+      {/* Expanded Socrates: portal ke document.body agar tidak ter-clip/ter-zoom oleh layout induk. */}
+      {isSocratesOpen &&
+        isSocratesExpanded &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] overflow-x-hidden overflow-y-hidden overscroll-none">
+            <div
+              className="absolute inset-0 touch-none bg-slate-900/40 backdrop-blur-[2px]"
+              onClick={() => {
+                setIsSocratesOpen(false)
+                setIsSocratesExpanded(false)
+              }}
+              aria-hidden
+            />
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-label={t('Chat Socrates AI', 'Socrates AI chat')}
+              style={
+                mobileSheetVv
+                  ? {
+                      top: mobileSheetVv.top,
+                      height: mobileSheetVv.height,
+                      maxHeight: mobileSheetVv.height,
+                      bottom: 'auto',
+                      left: 0,
+                      right: 0,
+                      width: '100%',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
+                      transition:
+                        'top 0.2s ease-out, height 0.2s ease-out, max-height 0.2s ease-out',
+                    }
+                  : undefined
+              }
+              className={[
+                'absolute left-0 right-0 box-border flex w-full min-w-0 max-w-full flex-col overflow-hidden rounded-t-3xl border-t border-slate-200 bg-white shadow-xl overscroll-contain',
+                mobileSheetVv
+                  ? 'bottom-auto'
+                  : 'bottom-0 h-[min(90dvh,100svh)] max-h-[min(90dvh,100svh)]',
+                'md:inset-y-6 md:left-1/2 md:right-auto md:h-[86vh] md:max-h-[86vh] md:w-full md:max-w-3xl md:min-w-0 md:-translate-x-1/2 md:rounded-3xl md:border',
+              ].join(' ')}
+            >
+              {renderSocratesChat({ expanded: true })}
+            </section>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

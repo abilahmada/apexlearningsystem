@@ -1,32 +1,17 @@
 import { generateQuizzesForLessonRow } from "@/lib/ai/generate-lesson-prepost-quizzes";
+import { isAdminRequest } from "@/lib/auth/admin-request";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-
-function getBearerToken(req: Request) {
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) return null;
-  return auth.slice(7).trim();
-}
-
-async function isAdminRequest(req: Request) {
-  const token = getBearerToken(req);
-  if (!token) return false;
-
-  const supabase = createSupabaseAdminClient();
-  const authRes = await supabase.auth.getUser(token);
-  const authUser = authRes.data.user;
-  if (!authUser?.email) return false;
-
-  const { data, error } = await supabase.from("users").select("role").eq("email", authUser.email).single();
-
-  if (error || !data) return false;
-  return String(data.role) === "ADMIN";
-}
 
 function parseUuid(s: unknown): string | null {
   if (typeof s !== "string") return null;
   const t = s.trim();
   if (!/^[0-9a-f-]{36}$/i.test(t)) return null;
   return t.toLowerCase();
+}
+
+function toRecordMeta(v: unknown): Record<string, unknown> | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  return v as Record<string, unknown>;
 }
 
 export async function POST(req: Request) {
@@ -41,11 +26,23 @@ export async function POST(req: Request) {
       return Response.json({ message: "lessonId (UUID) wajib." }, { status: 400 });
     }
 
+    if (!process.env.ANTHROPIC_API_KEY?.trim()) {
+      return Response.json(
+        {
+          message:
+            "ANTHROPIC_API_KEY belum diset di server. Generator quiz PRE/POST memakai Claude (Anthropic), bukan chat Socrates.",
+        },
+        { status: 503 },
+      );
+    }
+
     const supabase = createSupabaseAdminClient();
     const { data: lesson, error: leErr } = await supabase
       .from("lessons")
-      .select("id, title, content_url, modules!inner(title)")
+      .select("id, title, content_url, metadata, modules!inner(title, metadata)")
       .eq("id", lessonId)
+      .order("id", { ascending: true })
+      .limit(1)
       .maybeSingle();
 
     if (leErr) return Response.json({ message: leErr.message }, { status: 500 });
@@ -53,11 +50,14 @@ export async function POST(req: Request) {
 
     const mod = Array.isArray(lesson.modules) ? lesson.modules[0] : lesson.modules;
     const moduleTitle = String((mod as { title?: string } | null)?.title ?? "");
+    const moduleMetadata = toRecordMeta((mod as { metadata?: unknown } | null)?.metadata ?? null);
 
     const { data: existing, error: exErr } = await supabase
       .from("quizzes")
       .select("id")
       .eq("lesson_id", lessonId)
+      .order("id", { ascending: true })
+      .limit(1)
       .maybeSingle();
     if (exErr) return Response.json({ message: exErr.message }, { status: 500 });
     if (existing?.id && !overwrite) {
@@ -75,6 +75,8 @@ export async function POST(req: Request) {
         lessonTitle: String(lesson.title ?? ""),
         moduleTitle,
         contentUrl: lesson.content_url ? String(lesson.content_url) : null,
+        lessonMetadata: toRecordMeta((lesson as { metadata?: unknown }).metadata ?? null),
+        moduleMetadata,
       });
 
       const questionsLegacy = post;
