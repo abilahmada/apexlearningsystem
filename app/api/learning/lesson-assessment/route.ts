@@ -80,9 +80,7 @@ function placementBaselinePhaseFromProductPhase(phase: PlacementProductPhase): n
 }
 
 async function isModulePhaseLocked(
-  supabase: Awaited<ReturnType<typeof requireStudentSession>> extends { ok: true; supabase: infer S }
-    ? S
-    : never,
+  supabase: { from: (table: string) => any },
   userId: string,
   moduleId: string,
 ): Promise<boolean> {

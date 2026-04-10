@@ -166,7 +166,7 @@ export function ApexProvider({ children }: { children: ReactNode }) {
         return { ok: false as const, message: error.message }
       }
 
-      let accessToken = data.session?.access_token ?? null
+      let accessToken: string | null = data.session?.access_token ?? null
       if (!accessToken) {
         // Fallback: on some clients, session can be set a moment after signIn resolves.
         const { data: sessionData, error: sessionErr } = await supabase.auth.getSession()
