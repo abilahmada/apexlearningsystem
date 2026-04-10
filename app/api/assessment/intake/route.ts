@@ -17,10 +17,8 @@ function addDays(d: Date, days: number): string {
 }
 
 function parseGradeLabel(raw: unknown): string {
-  const t = String(raw ?? "")
-    .trim()
-    .toUpperCase();
-  if (t === "SD" || t === "SMP" || t === "SMK" || t === "SMA") return t === "SMA" ? "SMK" : t;
+  const t = String(raw ?? "").trim().toUpperCase();
+  if (t === "SD" || t === "SMP" || t === "SMA" || t === "SMK") return t;
   return "SMP";
 }
 
@@ -100,12 +98,12 @@ export async function GET(req: Request) {
     const catHint =
       interview?.status === "IN_PROGRESS" && bank.length > 0
         ? (() => {
-            const next = selectNextCatItemId(bank, attemptsRows, { maxItems: 12 });
+            const next = selectNextCatItemId(bank, attemptsRows, { maxItems: 20, minPerDimension: 2 });
             return {
               nextBankItemId: next.nextId,
               thetaEstimate: next.thetaEstimate,
               attemptsCount: next.attemptCount,
-              maxCatItems: 12,
+              maxCatItems: 20,
             };
           })()
         : null;
@@ -241,7 +239,32 @@ export async function POST(req: Request) {
     }
 
     if (action === "scenario_response") {
-      return Response.json({ ok: true, note: "Skenario opsional; tidak dipersisten di Lapis 1 minimal." });
+      // Persistkan respons skenario ke conversation turn dengan metadata terstruktur
+      const promptId = String(body.promptId ?? "").trim();
+      const response = body.response;
+      if (promptId && response && typeof response === "object") {
+        // Cari interview aktif untuk sesi ini
+        const { data: activeIntv } = await supabase
+          .from("intake_interviews")
+          .select("id")
+          .eq("assessment_session_id", sessionRow.id)
+          .eq("user_id", auth.userId)
+          .eq("status", "IN_PROGRESS")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (activeIntv?.id) {
+          await supabase.from("intake_conversation_turns").insert({
+            interview_id: activeIntv.id,
+            seq_no: Date.now() % 100000,
+            role: "user",
+            content: JSON.stringify(response).slice(0, 2000),
+            metadata: { type: "scenario_response", promptId, response },
+          });
+        }
+      }
+      return Response.json({ ok: true });
     }
 
     if (action === "item_attempt") {
@@ -321,7 +344,7 @@ export async function POST(req: Request) {
         theta_estimate_after: thetaAfter,
       });
 
-      const next = selectNextCatItemId(bank, attemptsSoFar, { maxItems: 12 });
+      const next = selectNextCatItemId(bank, attemptsSoFar, { maxItems: 20, minPerDimension: 2 });
       return Response.json({
         ok: true,
         nextBankItemId: next.nextId,
@@ -356,7 +379,7 @@ export async function POST(req: Request) {
         .eq("interview_id", interviewId)
         .order("seq", { ascending: true });
 
-      const { placementLevels, intakeTheta, ratios } = aggregatePlacementFromAttempts(attRows ?? []);
+      const { placementLevels, intakeTheta, ratios, narratives } = aggregatePlacementFromAttempts(attRows ?? [], gradeLabel);
 
       const intakeThetaExtended = {
         ...intakeTheta,
@@ -419,6 +442,8 @@ export async function POST(req: Request) {
         placementLevels,
         intakeTheta,
         ratios,
+        narratives,
+        gradeLabel,
         message:
           "Intake selesai. Orang tua dapat memvalidasi ringkasan di menu kontrol orang tua sebelum penempatan final dikunci.",
       });
