@@ -1,5 +1,12 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getBearerToken } from "@/lib/assessment/require-student";
+import {
+  CALIBRATION_DIMENSIONS,
+  calculateFinalPlacement,
+  thetaToLevel,
+  calcCI,
+  type CalibrationDimension,
+} from "@/lib/calibration/engine";
 
 /**
  * Orang tua menyimpan validasi singkat terhadap profil/assessment anak.
@@ -84,15 +91,67 @@ export async function POST(req: Request) {
     );
     if (upsertErr) return Response.json({ message: upsertErr.message }, { status: 500 });
 
-    const { error: sessErr } = await supabase
+    // Update session: mark parent_validated_at and advance to PLACED
+    const { data: sessionRow, error: sessErr } = await supabase
       .from("assessment_sessions")
       .update({
         parent_validated_at: new Date().toISOString(),
+        status: "PLACED",
         updated_at: new Date().toISOString(),
       })
-      .eq("user_id", studentUserId);
+      .eq("user_id", studentUserId)
+      .select("intake_theta, intake_ci, sessions_completed")
+      .maybeSingle();
     if (sessErr) {
       return Response.json({ message: sessErr.message }, { status: 500 });
+    }
+
+    // Run final placement and persist to competency_profiles
+    if (sessionRow) {
+      try {
+        const intakeThetaRaw = sessionRow.intake_theta as Record<string, unknown> | null;
+        const intakeThetaMap: Partial<Record<CalibrationDimension, number>> = {};
+        if (intakeThetaRaw && typeof intakeThetaRaw === "object") {
+          for (const dim of CALIBRATION_DIMENSIONS) {
+            if (typeof intakeThetaRaw[dim] === "number") {
+              intakeThetaMap[dim] = Number(intakeThetaRaw[dim]);
+            }
+          }
+        }
+
+        const sessionsCompleted = Number(sessionRow.sessions_completed ?? 0);
+        const intakeCI = typeof sessionRow.intake_ci === "number" ? sessionRow.intake_ci : 2.4;
+
+        const result = calculateFinalPlacement({
+          sessionsCompleted,
+          intakeCI,
+          intakeTheta: intakeThetaMap,
+          signals: {},
+          engagement: 5,
+          parentAdjustments: adjustments as Record<CalibrationDimension, number>,
+          parentAgreedWithProfile: agreed,
+          continuousReviewMode: true,
+        });
+
+        if (result.dimensions.length > 0) {
+          const now = new Date().toISOString();
+          const upsertRows = result.dimensions.map((d) => ({
+            user_id: studentUserId,
+            dimension: d.dim,
+            theta: d.finalTheta,
+            ci: calcCI(sessionsCompleted, 5, intakeCI),
+            level: thetaToLevel(d.finalTheta),
+            source: "CALIBRATION" as const,
+            updated_at: now,
+          }));
+          await supabase
+            .from("competency_profiles")
+            .upsert(upsertRows, { onConflict: "user_id,dimension" });
+        }
+      } catch {
+        // Non-fatal: log but don't fail the validation save
+        console.warn("[parent-validation] placement calculation error");
+      }
     }
 
     return Response.json({ ok: true });
