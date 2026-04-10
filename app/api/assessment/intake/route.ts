@@ -325,17 +325,20 @@ export async function POST(req: Request) {
       );
       const thetaAfter = thetaAfterItemAttempt(prevFold, scored, max);
 
-      const { error: attErr } = await supabase.from("intake_item_attempts").insert({
-        interview_id: interviewId,
-        assessment_session_id: sessionRow.id,
-        bank_item_id: bankItemId,
-        seq,
-        dimension,
-        scored_points: scored,
-        max_points: max,
-        theta_estimate_after: thetaAfter,
-        learner_response: lr && typeof lr === "object" ? lr : {},
-      });
+      const { error: attErr } = await supabase.from("intake_item_attempts").upsert(
+        {
+          interview_id: interviewId,
+          assessment_session_id: sessionRow.id,
+          bank_item_id: bankItemId,
+          seq,
+          dimension,
+          scored_points: scored,
+          max_points: max,
+          theta_estimate_after: thetaAfter,
+          learner_response: lr && typeof lr === "object" ? lr : {},
+        },
+        { onConflict: "interview_id,seq", ignoreDuplicates: true },
+      );
       if (attErr) return Response.json({ message: attErr.message }, { status: 500 });
 
       attemptsSoFar.push({
