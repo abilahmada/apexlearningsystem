@@ -11,13 +11,13 @@ AS $$
 DECLARE
   m jsonb;
   new_role_text text;
-  new_role user_role;
+  new_role public.user_role;
   app_user_id uuid;
   email_conflict_id uuid;
   full_name_text text;
   phone_text text;
   grade_level_text text;
-  grade_level_value grade_level;
+  grade_level_value public.grade_level;
   learning_vision_text text;
   parent_link_code_text text;
   linked_parent_profile_id uuid;
@@ -40,9 +40,9 @@ BEGIN
   new_role_text := upper(coalesce(m ->> 'role', 'STUDENT'));
 
   IF new_role_text IN ('STUDENT', 'PARENT', 'MENTOR', 'ADMIN') THEN
-    new_role := new_role_text::user_role;
+    new_role := new_role_text::public.user_role;
   ELSE
-    new_role := 'STUDENT'::user_role;
+    new_role := 'STUDENT'::public.user_role;
   END IF;
 
   full_name_text := nullif(trim(coalesce(m ->> 'full_name', m ->> 'fullName', '')), '');
@@ -84,9 +84,9 @@ BEGIN
 
   grade_level_text := upper(coalesce(m ->> 'grade_level', m ->> 'gradeLevel', 'SMP'));
   IF grade_level_text IN ('SD', 'SMP', 'SMK') THEN
-    grade_level_value := grade_level_text::grade_level;
+    grade_level_value := grade_level_text::public.grade_level;
   ELSE
-    grade_level_value := 'SMP'::grade_level;
+    grade_level_value := 'SMP'::public.grade_level;
   END IF;
 
   gcs_raw := nullif(trim(coalesce(m ->> 'grade_class_start', m ->> 'gradeClassStart', '')), '');
@@ -149,7 +149,7 @@ BEGIN
       END IF;
   END;
 
-  IF new_role = 'PARENT'::user_role THEN
+  IF new_role = 'PARENT'::public.user_role THEN
     new_parent_link_code := coalesce(
       parent_link_code_text,
       upper(replace(gen_random_uuid()::text, '-', ''))
@@ -178,7 +178,7 @@ BEGIN
       province = EXCLUDED.province,
       city = EXCLUDED.city,
       district = EXCLUDED.district;
-  ELSIF new_role = 'STUDENT'::user_role THEN
+  ELSIF new_role = 'STUDENT'::public.user_role THEN
     IF parent_link_code_text IS NULL THEN
       RAISE EXCEPTION USING
         ERRCODE = 'check_violation',
@@ -232,7 +232,7 @@ BEGIN
       grade_class_start = EXCLUDED.grade_class_start,
       grade_class_max = EXCLUDED.grade_class_max,
       grade_class_start_year = EXCLUDED.grade_class_start_year;
-  ELSIF new_role = 'MENTOR'::user_role THEN
+  ELSIF new_role = 'MENTOR'::public.user_role THEN
     INSERT INTO public.mentor_profiles (user_id, expertise_area)
     VALUES (app_user_id, 'General')
     ON CONFLICT (user_id) DO NOTHING;
