@@ -44,7 +44,12 @@ function metadataText(raw: unknown, key: string): string {
   const value = (raw as Record<string, unknown>)[key]
   return typeof value === 'string' ? value.trim() : ''
 }
-type CourseItem = { id: string; title: string; grade_level: 'SD' | 'SMP' | 'SMK' }
+type CourseItem = {
+  id: string
+  title: string
+  grade_level: 'SD' | 'SMP' | 'SMK'
+  mastery_threshold?: number | null
+}
 type ModuleItem = {
   id: string
   course_id: string
@@ -84,6 +89,13 @@ type AdminHealthSummary = {
   checkedAt: string
 }
 
+type GradeArchiveSummary = {
+  totalArchives: number
+  archivedLessonProgress: number
+  archivedAssessmentAttempts: number
+  checkedAt: string
+}
+
 export function AdminPanel() {
   const CSV_COLUMNS_STORAGE_KEY = 'apex.admin.csvColumns.v1'
   const {
@@ -114,6 +126,7 @@ export function AdminPanel() {
 
   const [courseTitle, setCourseTitle] = useState('')
   const [courseGradeLevel, setCourseGradeLevel] = useState<'SD' | 'SMP' | 'SMK'>('SMP')
+  const [courseMasteryThreshold, setCourseMasteryThreshold] = useState<string>('')
 
   const [moduleCourseId, setModuleCourseId] = useState('')
   const [moduleTitle, setModuleTitle] = useState('')
@@ -156,6 +169,9 @@ export function AdminPanel() {
   const [healthSummary, setHealthSummary] = useState<AdminHealthSummary | null>(null)
   const [healthLoading, setHealthLoading] = useState(false)
   const [healthMessage, setHealthMessage] = useState<string | null>(null)
+  const [gradeArchiveSummary, setGradeArchiveSummary] = useState<GradeArchiveSummary | null>(null)
+  const [gradeArchiveLoading, setGradeArchiveLoading] = useState(false)
+  const [gradeArchiveMessage, setGradeArchiveMessage] = useState<string | null>(null)
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirmAction | null>(null)
   const [filterPhase, setFilterPhase] = useState('')
@@ -464,6 +480,36 @@ export function AdminPanel() {
       setHealthMessage(error instanceof Error ? error.message : t('Gagal memuat health check.', 'Failed to load health check.'))
     } finally {
       setHealthLoading(false)
+    }
+  }
+
+  const loadGradeArchiveHealth = async () => {
+    setGradeArchiveLoading(true)
+    setGradeArchiveMessage(null)
+    try {
+      const accessToken = await getAccessToken()
+      const res = await fetch('/api/admin/grade-change-archives', {
+        headers: { authorization: `Bearer ${accessToken}` },
+        cache: 'no-store',
+      })
+      const data = (await res.json()) as {
+        summary?: GradeArchiveSummary
+        message?: string
+      }
+      if (!res.ok) {
+        throw new Error(
+          data.message ?? t('Gagal memuat arsip perubahan jenjang.', 'Failed to load grade-change archives.'),
+        )
+      }
+      setGradeArchiveSummary(data.summary ?? null)
+    } catch (error) {
+      setGradeArchiveMessage(
+        error instanceof Error
+          ? error.message
+          : t('Gagal memuat arsip perubahan jenjang.', 'Failed to load grade-change archives.'),
+      )
+    } finally {
+      setGradeArchiveLoading(false)
     }
   }
 
@@ -812,6 +858,7 @@ export function AdminPanel() {
   useEffect(() => {
     void loadPendingRegs()
     void loadAdminHealth()
+    void loadGradeArchiveHealth()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -900,7 +947,13 @@ export function AdminPanel() {
 
   const buildPayload = (type: ContentType): Record<string, unknown> => {
     if (type === 'courses') {
-      return { title: courseTitle, grade_level: courseGradeLevel }
+      const raw = courseMasteryThreshold.trim()
+      const threshold = raw.length > 0 ? Number(raw) : null
+      return {
+        title: courseTitle,
+        grade_level: courseGradeLevel,
+        mastery_threshold: Number.isFinite(threshold) ? threshold : null,
+      }
     }
     if (type === 'modules') {
       const meta = cloneMetadataRecord(moduleMetadataBase)
@@ -1115,6 +1168,7 @@ export function AdminPanel() {
           'Wajib:',
           '- title: nama kursus (mis. "IPA SMP 2024").',
           '- grade_level: tepat salah satu huruf besar SD, SMP, atau SMK (menentukan siswa mana yang melihat modul ini).',
+          '- mastery_threshold: opsional 0..100. Jika kosong, sistem fallback ke threshold modul lalu 80.',
           '',
           'Tidak perlu mengisi ID — kursus baru akan dapat ID otomatis setelah disimpan.',
         ].join('\n'),
@@ -1124,11 +1178,13 @@ export function AdminPanel() {
           'Required:',
           '- title: course name (e.g. "Science JHS 2024").',
           '- grade_level: exactly SD, SMP, or SMK (uppercase) — matches student grade.',
+          '- mastery_threshold: optional 0..100. If empty, system falls back to module threshold then 80.',
           '',
           'No ID needed — a new id is created when you save.',
         ].join('\n'),
         title: 'Contoh: Matematika SMP — Semester 1',
         grade_level: 'SMP',
+        mastery_threshold: 80,
       }
     }
     if (type === 'modules') {
@@ -1272,6 +1328,8 @@ export function AdminPanel() {
         setCourseTitle(String(parsed.title ?? ''))
         const grade = String(parsed.grade_level ?? 'SMP')
         if (grade === 'SD' || grade === 'SMP' || grade === 'SMK') setCourseGradeLevel(grade)
+        const threshold = Number(parsed.mastery_threshold)
+        setCourseMasteryThreshold(Number.isFinite(threshold) ? String(threshold) : '')
       } else if (activeContentType === 'modules') {
         setModuleCourseId(String(parsed.course_id ?? ''))
         setModuleTitle(String(parsed.title ?? ''))
@@ -1553,6 +1611,8 @@ export function AdminPanel() {
       setCourseTitle(String(item.title ?? ''))
       const grade = String(item.grade_level ?? 'SMP')
       if (grade === 'SD' || grade === 'SMP' || grade === 'SMK') setCourseGradeLevel(grade)
+      const threshold = Number(item.mastery_threshold)
+      setCourseMasteryThreshold(Number.isFinite(threshold) ? String(threshold) : '')
       return
     }
     if (activeContentType === 'modules') {
@@ -1918,6 +1978,49 @@ export function AdminPanel() {
           {healthMessage && <p className="text-[11px] font-semibold text-rose-700">{healthMessage}</p>}
         </div>
 
+        <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/80 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-bold text-indigo-900">
+              {t('Arsip perubahan jenjang', 'Grade-change archive snapshot')}
+            </p>
+            <button
+              type="button"
+              onClick={() => void loadGradeArchiveHealth()}
+              disabled={gradeArchiveLoading}
+              className="rounded-lg border border-indigo-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 disabled:opacity-60"
+            >
+              {gradeArchiveLoading ? t('Memuat...', 'Loading...') : t('Refresh', 'Refresh')}
+            </button>
+          </div>
+          {gradeArchiveSummary ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                <p className="text-[11px] text-slate-500">{t('Total event archive', 'Total archive events')}</p>
+                <p className="text-base font-bold text-slate-800">{gradeArchiveSummary.totalArchives}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                <p className="text-[11px] text-slate-500">{t('Progress lesson diarsipkan', 'Archived lesson progress')}</p>
+                <p className="text-base font-bold text-slate-800">{gradeArchiveSummary.archivedLessonProgress}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                <p className="text-[11px] text-slate-500">{t('Attempt diarsipkan', 'Archived attempts')}</p>
+                <p className="text-base font-bold text-slate-800">{gradeArchiveSummary.archivedAssessmentAttempts}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[11px] text-slate-500">
+              {t('Belum ada data arsip. Tekan Refresh.', 'No archive data yet. Press Refresh.')}
+            </p>
+          )}
+          {gradeArchiveSummary?.checkedAt && (
+            <p className="text-[11px] text-slate-500">
+              {t('Pemeriksaan terakhir:', 'Last check:')}{' '}
+              {new Date(gradeArchiveSummary.checkedAt).toLocaleString()}
+            </p>
+          )}
+          {gradeArchiveMessage && <p className="text-[11px] font-semibold text-rose-700">{gradeArchiveMessage}</p>}
+        </div>
+
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <span className="text-xs font-semibold text-slate-600">{t('Mode input', 'Input mode')}</span>
           <button
@@ -2267,6 +2370,20 @@ export function AdminPanel() {
                   <option value="SMP">SMP</option>
                   <option value="SMK">SMK</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  {t('Mastery threshold default (%)', 'Default mastery threshold (%)')}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={courseMasteryThreshold}
+                  onChange={(e) => setCourseMasteryThreshold(e.target.value)}
+                  placeholder={t('Kosong = fallback 80', 'Empty = fallback 80')}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
               </div>
             </>
           )}
