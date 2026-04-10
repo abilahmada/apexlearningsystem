@@ -112,8 +112,8 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 
 3. `components/apex/modules/admin-panel.tsx`
    - [x] Validasi input dasar.
-   - [ ] Wizard input berurutan wajib: Grade -> Phase -> Subject -> Module -> Lesson.
-   - [ ] Sembunyikan ID mentah; tampilkan kode human-readable.
+   - [x] Wizard input berurutan wajib: Grade -> Phase -> Subject -> Module -> Lesson.
+   - [x] Sembunyikan ID mentah; tampilkan kode human-readable.
 
 ---
 

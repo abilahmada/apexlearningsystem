@@ -38,6 +38,12 @@ function cloneMetadataRecord(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
   return { ...(raw as Record<string, unknown>) }
 }
+
+function metadataText(raw: unknown, key: string): string {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return ''
+  const value = (raw as Record<string, unknown>)[key]
+  return typeof value === 'string' ? value.trim() : ''
+}
 type CourseItem = { id: string; title: string; grade_level: 'SD' | 'SMP' | 'SMK' }
 type ModuleItem = {
   id: string
@@ -259,25 +265,79 @@ export function AdminPanel() {
   const formatModuleOptionLabel = useCallback(
     (m: ModuleItem) => {
       const c = courses.find((x) => x.id === m.course_id)
-      const courseBit = c ? `${c.title} (${c.grade_level})` : String(m.course_id).slice(0, 8)
-      return `#${m.sequence_order} · ${m.title} — ${courseBit}`
+      const code = metadataText(m.metadata, 'code')
+      const phase = metadataText(m.metadata, 'phase')
+      const subject = metadataText(m.metadata, 'subject')
+      const courseBit = c
+        ? `${c.title} (${c.grade_level})`
+        : t('Kursus induk belum terbaca', 'Parent course unavailable')
+      const tags = [code, phase, subject].filter(Boolean)
+      const tagBit = tags.length > 0 ? ` [${tags.join(' · ')}]` : ''
+      return `#${m.sequence_order} · ${m.title}${tagBit} — ${courseBit}`
     },
-    [courses],
+    [courses, t],
   )
 
   const formatLessonOptionLabel = useCallback(
     (l: LessonItem) => {
       const mod = modules.find((x) => x.id === l.module_id)
-      const modBit = mod ? `#${mod.sequence_order} ${mod.title}` : String(l.module_id).slice(0, 8)
-      return `${l.title} (${l.type}) · ${modBit}`
+      const code = metadataText(l.metadata, 'code')
+      const benchmark = metadataText(l.metadata, 'benchmark')
+      const modBit = mod
+        ? `#${mod.sequence_order} ${mod.title}`
+        : t('Modul induk belum terbaca', 'Parent module unavailable')
+      const tags = [code, benchmark].filter(Boolean)
+      const tagBit = tags.length > 0 ? ` [${tags.join(' · ')}]` : ''
+      return `${l.title} (${l.type})${tagBit} · ${modBit}`
     },
-    [modules],
+    [modules, t],
   )
 
   const activeContentType: ContentType = useMemo(() => {
     if (contentEntryMode === 'tabs') return contentType
     return CONTENT_FLOW[(wizardStep - 1) as number] ?? 'courses'
   }, [contentEntryMode, contentType, wizardStep])
+
+  const wizardStepBlockedReason = useMemo(() => {
+    if (contentEntryMode !== 'wizard') return null
+    if (wizardStep === 2 && courses.length === 0) {
+      return t('Langkah 2 butuh minimal satu kursus.', 'Step 2 requires at least one course.')
+    }
+    if (wizardStep === 3 && modules.length === 0) {
+      return t('Langkah 3 butuh minimal satu modul.', 'Step 3 requires at least one module.')
+    }
+    if (wizardStep === 4 && lessons.length === 0) {
+      return t('Langkah 4 butuh minimal satu pelajaran.', 'Step 4 requires at least one lesson.')
+    }
+    return null
+  }, [contentEntryMode, courses.length, lessons.length, modules.length, t, wizardStep])
+
+  const canEnterWizardStep = useCallback(
+    (step: 1 | 2 | 3 | 4) => {
+      if (step === 1) return true
+      if (step === 2) return courses.length > 0
+      if (step === 3) return modules.length > 0
+      return lessons.length > 0
+    },
+    [courses.length, lessons.length, modules.length],
+  )
+
+  const goToWizardStep = useCallback(
+    (step: 1 | 2 | 3 | 4) => {
+      if (!canEnterWizardStep(step)) {
+        const msg =
+          step === 2
+            ? t('Buat kursus dulu sebelum lanjut ke modul.', 'Create a course first before continuing to modules.')
+            : step === 3
+              ? t('Buat modul dulu sebelum lanjut ke pelajaran.', 'Create a module first before continuing to lessons.')
+              : t('Buat pelajaran dulu sebelum lanjut ke kuis.', 'Create a lesson first before continuing to quizzes.')
+        setContentMessage(msg)
+        return
+      }
+      setWizardStep(step)
+    },
+    [canEnterWizardStep, t],
+  )
 
   const visibleRecentItems = useMemo(() => {
     const keyword = recentSearch.trim().toLowerCase()
@@ -913,6 +973,10 @@ export function AdminPanel() {
       setContentMessage(
         t('Batalkan edit di daftar bawah atau pindah ke Mode tab.', 'Cancel the edit below or switch to Tab mode.'),
       )
+      return
+    }
+    if (wizardStepBlockedReason) {
+      setContentMessage(wizardStepBlockedReason)
       return
     }
     setContentLoading(true)
@@ -1790,7 +1854,8 @@ export function AdminPanel() {
                 <button
                   key={step}
                   type="button"
-                  onClick={() => setWizardStep(step)}
+                  onClick={() => goToWizardStep(step)}
+                  disabled={!canEnterWizardStep(step)}
                   className={`rounded-full px-2.5 py-1 text-[11px] font-bold border ${wizardStep === step ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'}`}
                 >
                   {step}
@@ -1799,21 +1864,22 @@ export function AdminPanel() {
             </div>
             <div className="flex flex-wrap gap-2 text-[11px]">
               {wizardStep === 1 && courses.length > 0 && (
-                <button type="button" className="text-emerald-800 underline font-semibold" onClick={() => setWizardStep(2)}>
+                <button type="button" className="text-emerald-800 underline font-semibold" onClick={() => goToWizardStep(2)}>
                   {t('Lewati — kursus sudah ada', 'Skip — I already have a course')}
                 </button>
               )}
               {wizardStep === 2 && modules.length > 0 && (
-                <button type="button" className="text-emerald-800 underline font-semibold" onClick={() => setWizardStep(3)}>
+                <button type="button" className="text-emerald-800 underline font-semibold" onClick={() => goToWizardStep(3)}>
                   {t('Lewati — modul sudah ada', 'Skip — I already have a module')}
                 </button>
               )}
               {wizardStep === 3 && lessons.length > 0 && (
-                <button type="button" className="text-emerald-800 underline font-semibold" onClick={() => setWizardStep(4)}>
+                <button type="button" className="text-emerald-800 underline font-semibold" onClick={() => goToWizardStep(4)}>
                   {t('Lewati — pelajaran sudah ada', 'Skip — I already have lessons')}
                 </button>
               )}
             </div>
+            {wizardStepBlockedReason && <p className="text-[11px] font-semibold text-amber-700">{wizardStepBlockedReason}</p>}
           </div>
         )}
 
@@ -2400,7 +2466,7 @@ export function AdminPanel() {
             <button
               type="button"
               onClick={() => void wizardSubmit()}
-              disabled={contentLoading}
+              disabled={contentLoading || Boolean(wizardStepBlockedReason)}
               className="flex-1 rounded-xl bg-violet-600 hover:bg-violet-700 text-white py-2.5 text-sm font-bold disabled:opacity-60"
             >
               {contentLoading
