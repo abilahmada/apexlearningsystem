@@ -1,5 +1,18 @@
 -- Phase 1: Dynamic calibration foundation for assessment
 
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Compatibility shim:
+-- on some Supabase setups, uuid-ossp functions live outside default search_path.
+-- Provide a local public.uuid_generate_v4() so legacy defaults keep working.
+CREATE OR REPLACE FUNCTION public.uuid_generate_v4()
+RETURNS uuid
+LANGUAGE sql
+AS $$
+  SELECT gen_random_uuid();
+$$;
+
 CREATE TABLE IF NOT EXISTS public.assessment_sessions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,

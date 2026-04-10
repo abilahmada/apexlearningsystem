@@ -1,4 +1,43 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
+
+function parseEnvText(text) {
+  const pairs = {};
+  for (const line of String(text).split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    pairs[key] = value;
+  }
+  return pairs;
+}
+
+async function hydrateEnvFromFiles() {
+  const files = [".env.local", ".env"];
+  for (const file of files) {
+    try {
+      const full = path.resolve(process.cwd(), file);
+      const raw = await fs.readFile(full, "utf-8");
+      const parsed = parseEnvText(raw);
+      for (const [k, v] of Object.entries(parsed)) {
+        if (!process.env[k] || String(process.env[k]).trim() === "") {
+          process.env[k] = String(v);
+        }
+      }
+    } catch {
+      // Ignore missing env files.
+    }
+  }
+}
+
+await hydrateEnvFromFiles();
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -61,16 +100,23 @@ async function run() {
         phaseOrderMap.set(phase, phaseOrderMap.size + 1);
       }
       const inferredOrder = phaseOrderMap.get(phase);
+      const existingPhaseNum = Number(metadata.phase);
       const existingOrder = Number(metadata.phaseOrder ?? metadata.phase_order ?? 0);
+      const existingGrade = String(metadata.grade ?? "").trim().toUpperCase();
       const needUpdate =
-        metadata.phase !== phase ||
+        !Number.isFinite(existingPhaseNum) ||
+        existingPhaseNum < 1 ||
         !Number.isFinite(existingOrder) ||
         existingOrder < 1 ||
         existingOrder !== inferredOrder ||
+        existingGrade !== grade ||
+        metadata.phaseLabel !== phase ||
         metadata.phase_order !== undefined;
 
       if (!needUpdate) continue;
-      metadata.phase = phase;
+      metadata.grade = grade;
+      metadata.phase = inferredOrder;
+      metadata.phaseLabel = phase;
       metadata.phaseOrder = inferredOrder;
       delete metadata.phase_order;
 

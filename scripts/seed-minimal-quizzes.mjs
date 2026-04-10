@@ -2,6 +2,43 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
+function parseEnvText(text) {
+  const pairs = {};
+  for (const line of String(text).split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    pairs[key] = value;
+  }
+  return pairs;
+}
+
+async function hydrateEnvFromFiles() {
+  const files = [".env.local", ".env"];
+  for (const file of files) {
+    try {
+      const full = path.resolve(process.cwd(), file);
+      const raw = await fs.readFile(full, "utf-8");
+      const parsed = parseEnvText(raw);
+      for (const [k, v] of Object.entries(parsed)) {
+        if (!process.env[k] || String(process.env[k]).trim() === "") {
+          process.env[k] = String(v);
+        }
+      }
+    } catch {
+      // Ignore missing env files.
+    }
+  }
+}
+
+await hydrateEnvFromFiles();
+
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const inputPath =
@@ -201,6 +238,8 @@ async function writeQuiz(plan, lessonId, questions) {
     const { error } = await supabase.from("quizzes").insert({
       lesson_id: lessonId,
       questions,
+      questions_pre: questions,
+      questions_post: questions,
     });
     if (error) throw error;
     return;
@@ -209,7 +248,7 @@ async function writeQuiz(plan, lessonId, questions) {
   if (plan.action === "update") {
     const { error } = await supabase
       .from("quizzes")
-      .update({ questions })
+      .update({ questions, questions_pre: questions, questions_post: questions })
       .eq("id", plan.id);
     if (error) throw error;
   }
