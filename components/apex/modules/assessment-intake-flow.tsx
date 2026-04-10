@@ -97,6 +97,7 @@ export function AssessmentIntakeFlow({
   const [data, setData]                         = useState<IntakeGetJson | null>(null)
   const [phase, setPhase]                       = useState<'welcome' | 'scenarios' | 'academic' | 'finalize'>('welcome')
   const [submittingComplete, setSubmittingComplete] = useState(false)
+  const [startingIntake, setStartingIntake]         = useState(false)
   const [scenarioIdx, setScenarioIdx]           = useState(0)
   const [scenarioChoice, setScenarioChoice]     = useState('')
   const [scenarioOpen, setScenarioOpen]         = useState('')
@@ -221,6 +222,7 @@ export function AssessmentIntakeFlow({
 
   const startIntake = async () => {
     setError(null)
+    setStartingIntake(true)
     try {
       const startJson = await postAction({ action: 'start' })
       if (typeof startJson.interviewId === 'string') progressInterviewIdRef.current = startJson.interviewId
@@ -241,6 +243,8 @@ export function AssessmentIntakeFlow({
       itemSeqRef.current = 0
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Start failed')
+    } finally {
+      setStartingIntake(false)
     }
   }
 
@@ -435,11 +439,21 @@ export function AssessmentIntakeFlow({
           </p>
           <button
             type="button"
+            disabled={startingIntake}
             onClick={() => void startIntake()}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {t('Mulai tes penempatan', 'Start placement test')}
-            <ChevronRight size={16} />
+            {startingIntake ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                {t('Menyiapkan soal…', 'Preparing questions…')}
+              </>
+            ) : (
+              <>
+                {t('Mulai tes penempatan', 'Start placement test')}
+                <ChevronRight size={16} />
+              </>
+            )}
           </button>
         </div>
       )}
