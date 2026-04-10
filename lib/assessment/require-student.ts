@@ -53,21 +53,27 @@ function addDays(iso: string | Date, days: number): string {
   return d.toISOString();
 }
 
+const SESSION_SELECT = "id, user_id, status, calibration_ends_at, intake_theta, started_at, intake_ci, parent_validated_at, sessions_completed" as const;
+
 /**
- * Returns existing assessment session or creates PENDING session (14-day window starts after intake completion).
+ * Returns existing assessment session or creates PENDING session.
+ * Race-condition safe: jika INSERT gagal dengan duplicate-key (constraint assessment_sessions_user_id_key),
+ * langsung re-fetch baris yang sudah ada.
  */
 export async function ensureAssessmentSession(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   userId: string,
 ) {
+  // 1. Coba ambil yang sudah ada
   const { data: existing, error: selErr } = await supabase
     .from("assessment_sessions")
-    .select("id, user_id, status, calibration_ends_at, intake_theta, started_at, intake_ci")
+    .select(SESSION_SELECT)
     .eq("user_id", userId)
     .maybeSingle();
   if (selErr) throw new Error(selErr.message);
   if (existing) return existing;
 
+  // 2. Buat baru; jika terjadi race-condition (duplicate key), re-fetch
   const { data: created, error: insErr } = await supabase
     .from("assessment_sessions")
     .insert({
@@ -76,8 +82,26 @@ export async function ensureAssessmentSession(
       calibration_ends_at: addDays(new Date(), 365),
       intake_theta: {},
     })
-    .select("id, user_id, status, calibration_ends_at, intake_theta, started_at, intake_ci")
+    .select(SESSION_SELECT)
     .single();
-  if (insErr) throw new Error(insErr.message);
+
+  if (insErr) {
+    // Unique constraint violation — sesi sudah dibuat oleh request paralel
+    const isDuplicate =
+      insErr.code === "23505" ||
+      insErr.message?.includes("duplicate key") ||
+      insErr.message?.includes("unique constraint");
+    if (isDuplicate) {
+      const { data: retried, error: retryErr } = await supabase
+        .from("assessment_sessions")
+        .select(SESSION_SELECT)
+        .eq("user_id", userId)
+        .single();
+      if (retryErr) throw new Error(retryErr.message);
+      return retried;
+    }
+    throw new Error(insErr.message);
+  }
+
   return created;
 }
