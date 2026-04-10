@@ -83,8 +83,11 @@ export async function GET(req: Request) {
         : Promise.resolve({ data: [], error: null }),
     ]);
 
-    const sessionMap = new Map<string, typeof sessionsRes.data extends Array<infer T> | null ? T : never>();
-    for (const s of sessionsRes.data ?? []) sessionMap.set(String(s.user_id), s);
+    type SessionRow = { user_id: unknown; status: unknown; intake_theta: unknown; intake_ci: unknown; sessions_completed: unknown; parent_validated_at: unknown };
+    type ValidationRow = { user_id: unknown; agreed_with_profile: unknown; adjustments: unknown; observations: unknown; submitted_at: unknown };
+
+    const sessionMap = new Map<string, SessionRow>();
+    for (const s of (sessionsRes.data ?? []) as SessionRow[]) sessionMap.set(String(s.user_id), s);
 
     const profileMap = new Map<string, Record<string, string>>();
     for (const p of profilesRes.data ?? []) {
@@ -94,8 +97,8 @@ export async function GET(req: Request) {
       profileMap.get(key)![String(p.dimension)] = lvl;
     }
 
-    const validationMap = new Map<string, typeof validationsRes.data extends Array<infer T> | null ? T : never>();
-    for (const v of validationsRes.data ?? []) validationMap.set(String(v.user_id), v);
+    const validationMap = new Map<string, ValidationRow>();
+    for (const v of (validationsRes.data ?? []) as ValidationRow[]) validationMap.set(String(v.user_id), v);
 
     // Group progress by student_id (student_profiles.id)
     const progressByStudent = new Map<string, { totalScore: number; count: number; passed: number }>();
