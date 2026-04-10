@@ -32,8 +32,8 @@ export function AssessmentHub() {
               </h2>
               <p className="text-sm text-slate-600 mt-1 leading-relaxed">
                 {t(
-                  'Selesaikan blok di bawah ini sekali untuk mendapat penilaian awal di semua dimensi. Orang tua bisa melihat ringkasan di portal mereka setelah kamu menyelesaikan intake.',
-                  'Complete the section below once to get your initial scores across dimensions. Parents can see a summary in their portal after you finish intake.',
+                  'Selesaikan blok di bawah ini sekali: soal adaptif mengukur enam aspek; hasilnya jadi penempatan awal. Orang tua memvalidasi ringkasan di menu kontrol orang tua (bukan lewat penilaian diri di sini).',
+                  'Complete the section once: adaptive items measure six areas; results set your initial placement. Your parent validates the summary in the parent portal (not via self-rating here).',
                 )}
               </p>
               <p className="mt-3 flex items-center gap-2 text-xs font-medium text-blue-800">

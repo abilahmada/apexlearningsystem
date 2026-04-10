@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { BookOpen, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronUp, Lock, Sparkles } from 'lucide-react'
 import { useApex } from '../apex-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 
@@ -59,15 +59,13 @@ export function ModuleMaterials({ onOpenLearningHub }: ModuleMaterialsProps) {
           setItems([])
           return
         }
-        const res = await fetch('/api/learning/modules?withLessons=1', {
+        const res = await fetch('/api/learning/modules?withLessons=1&catalog=1', {
           headers: { authorization: `Bearer ${token}` },
           cache: 'no-store',
         })
         const json = (await res.json()) as { items?: ModuleItem[]; message?: string }
         if (!res.ok) throw new Error(json.message ?? 'Failed to load modules')
-        const list = (json.items ?? [])
-          .filter((x) => Boolean(x.unlocked))
-          .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
+        const list = (json.items ?? []).sort((a, b) => a.sequenceOrder - b.sequenceOrder)
         setItems(list)
       } catch (error) {
         setItems([])
@@ -88,8 +86,8 @@ export function ModuleMaterials({ onOpenLearningHub }: ModuleMaterialsProps) {
         </h2>
         <p className="text-xs text-slate-500 mt-1">
           {t(
-            'Menampilkan semua modul sesuai grade yang bisa kamu akses. Klik modul untuk melihat turunan lesson (halaman ini tidak untuk mengerjakan tes).',
-            'Shows all modules available for your grade. Click a module to view lesson breakdown (this page is not for taking tests).',
+            'Katalog lengkap modul untuk jenjang kamu (semua level/fase), tanpa filter jadwal hari. Modul terkunci tetap tampil agar kamu bisa melihat materi & lesson; tes tetap lewat Learning Hub sesuai jadwal.',
+            'Full module catalog for your grade (all levels/phases), not filtered by today’s schedule. Locked modules still appear so you can browse lessons; tests stay in the Learning Hub on schedule.',
           )}
         </p>
         <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-cyan-100 bg-cyan-50/80 px-3 py-2.5 text-xs text-cyan-950">
@@ -146,6 +144,7 @@ export function ModuleMaterials({ onOpenLearningHub }: ModuleMaterialsProps) {
               : passed > 0
                 ? 'bg-amber-100 text-amber-700 border-amber-200'
                 : 'bg-blue-100 text-blue-700 border-blue-200'
+          const isLocked = module.unlocked === false
 
           return (
             <div key={module.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
@@ -158,6 +157,12 @@ export function ModuleMaterials({ onOpenLearningHub }: ModuleMaterialsProps) {
                     <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${statusClass}`}>
                       {statusText}
                     </span>
+                    {isLocked ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-bold inline-flex items-center gap-1">
+                        <Lock size={10} />
+                        {t('Terkunci', 'Locked')}
+                      </span>
+                    ) : null}
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-100 font-bold">
                       +150 XP
                     </span>

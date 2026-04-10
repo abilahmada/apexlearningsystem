@@ -153,6 +153,23 @@ function todayKeyFromDate(d: Date): DayKey {
   return DAY_KEYS[(day + 6) % 7];
 }
 
+/** Kolom placement_phase belum ada di DB lama — fallback select id+grade_level saja. */
+function isMissingColumnError(message: string | undefined, column: string): boolean {
+  if (!message) return false;
+  const m = message.toLowerCase();
+  const col = column.toLowerCase();
+  return (
+    m.includes(col) &&
+    (m.includes("does not exist") || m.includes("schema cache") || m.includes("could not find"))
+  );
+}
+
+type StudentProfileRow = {
+  id: string;
+  grade_level: unknown;
+  placement_phase?: unknown;
+};
+
 export async function GET(req: Request) {
   try {
     const token = getBearerToken(req);
@@ -165,13 +182,33 @@ export async function GET(req: Request) {
     const requestedGrade = parseGrade(url.searchParams.get("grade"));
     const includeLessons = parseBool(url.searchParams.get("withLessons"));
     const todayOnly = parseBool(url.searchParams.get("todayOnly"));
+    /** Katalog materi (menu Modul Materi): semua modul grade siswa, tanpa filter jadwal & tanpa filter fase/lapis assessment pada metadata modul. */
+    const catalogMode = parseBool(url.searchParams.get("catalog"));
     const mode = parseViewMode(url.searchParams.get("mode"));
 
-    const { data: studentProfile, error: studentErr } = await auth.supabase
+    let studentProfile: StudentProfileRow | null = null;
+    let studentErr: { message?: string } | null = null;
+    const full = await auth.supabase
       .from("student_profiles")
       .select("id, grade_level, placement_phase")
       .eq("user_id", auth.userId)
+      .order("id", { ascending: true })
+      .limit(1)
       .maybeSingle();
+    if (full.error && isMissingColumnError(full.error.message, "placement_phase")) {
+      const minimal = await auth.supabase
+        .from("student_profiles")
+        .select("id, grade_level")
+        .eq("user_id", auth.userId)
+        .order("id", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      studentProfile = minimal.data as StudentProfileRow | null;
+      studentErr = minimal.error;
+    } else {
+      studentProfile = full.data as StudentProfileRow | null;
+      studentErr = full.error;
+    }
     if (studentErr || !studentProfile) {
       return Response.json({ message: "Student profile tidak ditemukan." }, { status: 404 });
     }
@@ -229,6 +266,7 @@ export async function GET(req: Request) {
     if (moduleErr) return Response.json({ message: moduleErr.message }, { status: 500 });
 
     const assessmentFiltered = (modules ?? []).filter((m) => {
+      if (catalogMode) return true;
       const meta =
         m.metadata && typeof m.metadata === "object"
           ? (m.metadata as Record<string, unknown>)
@@ -440,7 +478,8 @@ export async function GET(req: Request) {
     }
 
     const effectiveTodayKey = todayKeyFromDate(new Date());
-    const scheduleOnly = mode === "todayOnly" || (mode === "default" && todayOnly);
+    const scheduleOnly =
+      !catalogMode && (mode === "todayOnly" || (mode === "default" && todayOnly));
     const visibleItems = baseItemsForVisibility.filter((x) => {
       if (!scheduleOnly) return true;
       const days = normalizeScheduleDays(x.metadata.scheduleDays);
@@ -455,6 +494,7 @@ export async function GET(req: Request) {
       placementBaselinePhase,
       placementBaselineSource: placementPhaseFromProfile != null ? "student_profile" : "assessment_session",
       todayKey: effectiveTodayKey,
+      catalogMode,
       viewMode: mode === "default" ? (scheduleOnly ? "todayOnly" : "progression-only") : mode,
       phaseProgress,
       items: visibleItems.map((m) => ({

@@ -435,6 +435,22 @@ export async function POST(req: Request) {
       const { error: calErr } = await auth.supabase.from("calibration_signals").insert(calRows);
       if (!calErr) calibrationSignalsInserted = calRows.length;
       else console.error("[lesson-assessment] calibration_signals:", calErr.message);
+
+      // Increment sessions_completed when a POST is newly passed (first-time pass only)
+      const wasAlreadyPassed = progNow?.posttest_passed === true;
+      if (assessmentType === "POST" && passed && !wasAlreadyPassed) {
+        const newCount = Number(session.sessions_completed ?? 0) + 1;
+        const sessionStatus = String(session.status ?? "");
+        await auth.supabase
+          .from("assessment_sessions")
+          .update({
+            sessions_completed: newCount,
+            // CALIBRATING → ACTIVE once the student starts completing lessons
+            ...(sessionStatus === "CALIBRATING" ? { status: "ACTIVE" } : {}),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", auth.userId);
+      }
     } catch (calibrationErr) {
       console.error("[lesson-assessment] calibration:", calibrationErr);
     }

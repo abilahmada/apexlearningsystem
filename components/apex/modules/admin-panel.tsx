@@ -44,6 +44,18 @@ function metadataText(raw: unknown, key: string): string {
   const value = (raw as Record<string, unknown>)[key]
   return typeof value === 'string' ? value.trim() : ''
 }
+
+function parsePhaseNumber(raw: string): number | null {
+  const text = raw.trim()
+  if (!text) return null
+  const direct = Number(text)
+  if (Number.isFinite(direct)) return Math.max(1, Math.round(direct))
+  const match = text.match(/(\d+)/)
+  if (!match) return null
+  const n = Number(match[1])
+  if (!Number.isFinite(n)) return null
+  return Math.max(1, Math.round(n))
+}
 type CourseItem = {
   id: string
   title: string
@@ -96,8 +108,21 @@ type GradeArchiveSummary = {
   checkedAt: string
 }
 
+type AdminSubmenu = 'registrations' | 'settings' | 'content'
+
+async function readJsonSafe<T>(res: Response): Promise<T | null> {
+  const contentType = String(res.headers.get('content-type') ?? '').toLowerCase()
+  if (!contentType.includes('application/json')) return null
+  try {
+    return (await res.json()) as T
+  } catch {
+    return null
+  }
+}
+
 export function AdminPanel() {
   const CSV_COLUMNS_STORAGE_KEY = 'apex.admin.csvColumns.v1'
+  const ADMIN_SUBMENU_STORAGE_KEY = 'apex.admin.submenu.v1'
   const {
     appName,
     setAppName,
@@ -114,6 +139,7 @@ export function AdminPanel() {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [contentType, setContentType] = useState<ContentType>('courses')
+  const [adminSubmenu, setAdminSubmenu] = useState<AdminSubmenu>('content')
   const [contentEntryMode, setContentEntryMode] = useState<'wizard' | 'tabs'>('wizard')
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1)
   const [contentLoading, setContentLoading] = useState(false)
@@ -172,6 +198,7 @@ export function AdminPanel() {
   const [gradeArchiveSummary, setGradeArchiveSummary] = useState<GradeArchiveSummary | null>(null)
   const [gradeArchiveLoading, setGradeArchiveLoading] = useState(false)
   const [gradeArchiveMessage, setGradeArchiveMessage] = useState<string | null>(null)
+  const [gradeArchiveUnavailable, setGradeArchiveUnavailable] = useState(false)
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirmAction | null>(null)
   const [filterPhase, setFilterPhase] = useState('')
@@ -451,8 +478,12 @@ export function AdminPanel() {
         headers: { authorization: `Bearer ${accessToken}` },
         cache: 'no-store',
       })
-      const data = (await res.json()) as { items?: PendingReg[]; message?: string }
-      if (!res.ok) throw new Error(data.message ?? t('Gagal memuat pendaftar', 'Failed to load registrations'))
+      const data = (await readJsonSafe<{ items?: PendingReg[]; message?: string }>(res)) ?? {}
+      if (!res.ok) {
+        const fallback = t('Gagal memuat pendaftar', 'Failed to load registrations')
+        const baseMessage = data.message ?? fallback
+        throw new Error(`${baseMessage} (HTTP ${res.status})`)
+      }
       setPendingRegs(data.items ?? [])
     } catch (error) {
       setPendingMessage(error instanceof Error ? error.message : t('Gagal memuat pendaftar', 'Failed to load registrations'))
@@ -486,6 +517,7 @@ export function AdminPanel() {
   const loadGradeArchiveHealth = async () => {
     setGradeArchiveLoading(true)
     setGradeArchiveMessage(null)
+    setGradeArchiveUnavailable(false)
     try {
       const accessToken = await getAccessToken()
       const res = await fetch('/api/admin/grade-change-archives', {
@@ -495,6 +527,7 @@ export function AdminPanel() {
       const data = (await res.json()) as {
         summary?: GradeArchiveSummary
         message?: string
+        unavailable?: boolean
       }
       if (!res.ok) {
         throw new Error(
@@ -502,6 +535,10 @@ export function AdminPanel() {
         )
       }
       setGradeArchiveSummary(data.summary ?? null)
+      setGradeArchiveUnavailable(data.unavailable === true)
+      if (data.unavailable && data.message) {
+        setGradeArchiveMessage(data.message)
+      }
     } catch (error) {
       setGradeArchiveMessage(
         error instanceof Error
@@ -526,8 +563,12 @@ export function AdminPanel() {
         },
         body: JSON.stringify({ verificationId, action }),
       })
-      const data = (await res.json()) as { message?: string }
-      if (!res.ok) throw new Error(data.message ?? t('Aksi gagal', 'Action failed'))
+      const data = (await readJsonSafe<{ message?: string }>(res)) ?? {}
+      if (!res.ok) {
+        const fallback = t('Aksi gagal', 'Action failed')
+        const baseMessage = data.message ?? fallback
+        throw new Error(`${baseMessage} (HTTP ${res.status})`)
+      }
       setPendingMessage(data.message ?? t('Berhasil.', 'Success.'))
       await loadPendingRegs()
     } catch (error) {
@@ -815,6 +856,26 @@ export function AdminPanel() {
 
   useEffect(() => {
     try {
+      const raw = window.localStorage.getItem(ADMIN_SUBMENU_STORAGE_KEY)
+      if (raw === 'content' || raw === 'registrations' || raw === 'settings') {
+        setAdminSubmenu(raw)
+      }
+    } catch {
+      // Ignore unavailable storage.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ADMIN_SUBMENU_STORAGE_KEY, adminSubmenu)
+    } catch {
+      // Ignore unavailable storage.
+    }
+  }, [ADMIN_SUBMENU_STORAGE_KEY, adminSubmenu])
+
+  useEffect(() => {
+    try {
       const raw = window.localStorage.getItem(CSV_COLUMNS_STORAGE_KEY)
       if (!raw) return
       const parsed = JSON.parse(raw) as Record<string, unknown>
@@ -960,12 +1021,27 @@ export function AdminPanel() {
       const ph = modulePhase.trim()
       const sub = moduleSubject.trim()
       const tr = moduleTrack.trim()
-      if (ph) meta.phase = ph
-      else delete meta.phase
+      const phaseNumber = parsePhaseNumber(ph)
+      if (phaseNumber != null) {
+        meta.phase = phaseNumber
+        meta.phaseOrder = phaseNumber
+        meta.phase_order = phaseNumber
+      } else {
+        delete meta.phase
+      }
       if (sub) meta.subject = sub
       else delete meta.subject
       if (tr) meta.track = tr
       else delete meta.track
+      if (!meta.grade && selectedModuleCourse?.grade_level) {
+        meta.grade = selectedModuleCourse.grade_level
+      }
+      if (!Array.isArray(meta.scheduleDays) || meta.scheduleDays.length === 0) {
+        meta.scheduleDays = ['mon']
+      }
+      if (!meta.scheduleTime) meta.scheduleTime = '19:00'
+      if (!meta.scheduleDuration) meta.scheduleDuration = 60
+      if (!meta.scheduleType) meta.scheduleType = 'core'
       return {
         course_id: moduleCourseId,
         title: moduleTitle,
@@ -1543,8 +1619,16 @@ export function AdminPanel() {
         },
         body: JSON.stringify({ lessonId: quizLessonId, overwrite: aiQuizOverwrite }),
       })
-      const data = (await res.json()) as { message?: string; preCount?: number; postCount?: number }
-      if (!res.ok) throw new Error(data.message ?? t('Gagal generate quiz AI.', 'AI quiz generation failed.'))
+      const data =
+        (await readJsonSafe<{ message?: string; preCount?: number; postCount?: number }>(res)) ?? {}
+      if (!res.ok) {
+        throw new Error(
+          data.message ??
+            (res.status === 403
+              ? t('Akses ditolak (bukan admin).', 'Access denied (not admin).')
+              : t(`Gagal generate (HTTP ${res.status}).`, `Generation failed (HTTP ${res.status}).`)),
+        )
+      }
       setContentMessage(
         t(
           `Claude selesai: ${data.preCount ?? 0} soal PRE + ${data.postCount ?? 0} soal POST disimpan (kolom questions_pre / questions_post).`,
@@ -1685,6 +1769,40 @@ export function AdminPanel() {
         )}
       </p>
 
+      <div className="mb-6 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setAdminSubmenu('content')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${adminSubmenu === 'content' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 bg-white'}`}
+        >
+          {t('Konten E-Learning', 'E-Learning Content')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setAdminSubmenu('registrations')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${adminSubmenu === 'registrations' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 bg-white'}`}
+        >
+          {t('Pendaftar', 'Applicants')}
+          {pendingRegs.length > 0 ? (
+            <span
+              className={`ml-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                adminSubmenu === 'registrations' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-700'
+              }`}
+            >
+              {pendingRegs.length}
+            </span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          onClick={() => setAdminSubmenu('settings')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${adminSubmenu === 'settings' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 bg-white'}`}
+        >
+          {t('Pengaturan Aplikasi', 'Application Settings')}
+        </button>
+      </div>
+
+      {adminSubmenu === 'registrations' && (
       <div className="mb-8 pb-8 border-b border-slate-200">
         <h3 className="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
           <UserPlus size={18} className="text-emerald-600" />
@@ -1808,6 +1926,7 @@ export function AdminPanel() {
           })}
         </ul>
       </div>
+      )}
 
       <ConfirmActionModal
         open={Boolean(pendingConfirm)}
@@ -1834,59 +1953,64 @@ export function AdminPanel() {
         onConfirm={() => void confirmRegistrationAction()}
       />
 
-      <div className="space-y-4">
-        <div>
-          <label className="text-sm font-semibold text-slate-700 mb-1.5 block">
-            {t('Nama Aplikasi', 'Application Name')}
-          </label>
-          <input
-            value={draftName}
-            onChange={(e) => setDraftName(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-          />
-        </div>
+      {adminSubmenu === 'settings' && (
+        <>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-semibold text-slate-700 mb-1.5 block">
+                {t('Nama Aplikasi', 'Application Name')}
+              </label>
+              <input
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              />
+            </div>
 
-        <div>
-          <label className="text-sm font-semibold text-slate-700 mb-1.5 block">
-            {t('Tagline Sidebar', 'Sidebar Tagline')}
-          </label>
-          <input
-            value={draftTagline}
-            onChange={(e) => setDraftTagline(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-          />
-        </div>
+            <div>
+              <label className="text-sm font-semibold text-slate-700 mb-1.5 block">
+                {t('Tagline Sidebar', 'Sidebar Tagline')}
+              </label>
+              <input
+                value={draftTagline}
+                onChange={(e) => setDraftTagline(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              />
+            </div>
 
-        <div>
-          <label className="text-sm font-semibold text-slate-700 mb-1.5 block">
-            {t('Durasi Wellbeing (menit)', 'Wellbeing Duration (minutes)')}
-          </label>
-          <input
-            type="number"
-            min={10}
-            max={120}
-            value={draftWellbeing}
-            onChange={(e) => setDraftWellbeing(Number(e.target.value))}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-          />
-        </div>
-      </div>
+            <div>
+              <label className="text-sm font-semibold text-slate-700 mb-1.5 block">
+                {t('Durasi Wellbeing (menit)', 'Wellbeing Duration (minutes)')}
+              </label>
+              <input
+                type="number"
+                min={10}
+                max={120}
+                value={draftWellbeing}
+                onChange={(e) => setDraftWellbeing(Number(e.target.value))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
 
-      <button
-        onClick={onSave}
-        disabled={saving}
-        className="mt-6 w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white py-2.5 text-sm font-bold flex items-center justify-center gap-2"
-      >
-        <Save size={16} />
-        {saving ? t('Menyimpan...', 'Saving...') : t('Simpan Pengaturan', 'Save Settings')}
-      </button>
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="mt-6 w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white py-2.5 text-sm font-bold flex items-center justify-center gap-2"
+          >
+            <Save size={16} />
+            {saving ? t('Menyimpan...', 'Saving...') : t('Simpan Pengaturan', 'Save Settings')}
+          </button>
 
-      {saved && (
-        <p className="text-xs text-emerald-600 font-semibold mt-2">
-          {t('Perubahan berhasil disimpan.', 'Settings saved successfully.')}
-        </p>
+          {saved && (
+            <p className="text-xs text-emerald-600 font-semibold mt-2">
+              {t('Perubahan berhasil disimpan.', 'Settings saved successfully.')}
+            </p>
+          )}
+        </>
       )}
 
+      {adminSubmenu === 'content' && (
       <div className="mt-8 pt-6 border-t border-slate-200">
         <h3 className="text-base font-bold text-slate-800 mb-2">
           {t('Manajemen Konten E-Learning', 'E-Learning Content Management')}
@@ -1983,6 +2107,11 @@ export function AdminPanel() {
             <p className="text-xs font-bold text-indigo-900">
               {t('Arsip perubahan jenjang', 'Grade-change archive snapshot')}
             </p>
+            {gradeArchiveUnavailable ? (
+              <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                {t('Migration belum dijalankan', 'Migration not applied')}
+              </span>
+            ) : null}
             <button
               type="button"
               onClick={() => void loadGradeArchiveHealth()}
@@ -2250,11 +2379,30 @@ export function AdminPanel() {
 
         {(activeContentType === 'modules' || activeContentType === 'lessons') && (
           <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-            <p className="text-xs font-semibold text-slate-700">
-              {t('Filter metadata', 'Metadata filters')}
-            </p>
+            <div>
+              <p className="text-xs font-semibold text-slate-700">
+                {activeContentType === 'modules'
+                  ? t('Saring daftar modul (preview)', 'Filter module list (preview)')
+                  : t('Saring daftar pelajaran (preview)', 'Filter lesson list (preview)')}
+              </p>
+              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                {activeContentType === 'modules'
+                  ? t(
+                      'Mempersempit daftar modul di bawah saja (cari cepat & salin ID). Form wizard tidak terpengaruh. Kosongkan semua = tampilkan semua.',
+                      'Narrows only the module list below (quick find & copy IDs). Wizard form is unchanged. Leave all empty to show everything.',
+                    )
+                  : t(
+                      'Mempersempit daftar pelajaran di bawah saja. Form tidak terpengaruh. Kosongkan = semua.',
+                      'Narrows only the lesson list below. Form unchanged. Empty = show all.',
+                    )}
+              </p>
+            </div>
             {activeContentType === 'modules' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    {t('Level (metadata)', 'Level (in metadata)')}
+                  </label>
                 <select
                   value={filterPhase}
                   onChange={(e) => setFilterPhase(e.target.value)}
@@ -2267,18 +2415,28 @@ export function AdminPanel() {
                     </option>
                   ))}
                 </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    {t('Mapel', 'Subject')}
+                  </label>
                 <select
                   value={filterSubject}
                   onChange={(e) => setFilterSubject(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
                 >
-                  <option value="">{t('Semua subject', 'All subjects')}</option>
+                  <option value="">{t('Semua mapel', 'All subjects')}</option>
                   {moduleSubjectOptions.map((subject) => (
                     <option key={subject} value={subject}>
                       {subject}
                     </option>
                   ))}
                 </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    {t('Track (opsional)', 'Track (optional)')}
+                  </label>
                 <select
                   value={filterTrack}
                   onChange={(e) => setFilterTrack(e.target.value)}
@@ -2291,22 +2449,32 @@ export function AdminPanel() {
                     </option>
                   ))}
                 </select>
+                </div>
               </div>
             )}
             {activeContentType === 'lessons' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    {t('Kode pelajaran', 'Lesson code')}
+                  </label>
                 <select
                   value={filterCode}
                   onChange={(e) => setFilterCode(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
                 >
-                  <option value="">{t('Semua code', 'All codes')}</option>
+                  <option value="">{t('Semua kode', 'All codes')}</option>
                   {lessonCodeOptions.map((code) => (
                     <option key={code} value={code}>
                       {code}
                     </option>
                   ))}
                 </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    {t('Benchmark', 'Benchmark')}
+                  </label>
                 <select
                   value={filterBenchmark}
                   onChange={(e) => setFilterBenchmark(e.target.value)}
@@ -2319,6 +2487,7 @@ export function AdminPanel() {
                     </option>
                   ))}
                 </select>
+                </div>
               </div>
             )}
             <button
@@ -2672,8 +2841,8 @@ export function AdminPanel() {
                 </p>
                 <p className="text-[11px] text-violet-950 leading-relaxed">
                   {t(
-                    'Membuat 5 soal pilihan ganda untuk PRE dan 10 untuk POST dari judul lesson + isi URL content_url. Wajib ANTHROPIC_API_KEY. Limit dan billing dipantau di konsol Anthropic.',
-                    'Creates 5 PRE and 10 POST MCQs from the lesson title + content_url body. Requires ANTHROPIC_API_KEY. Limits and billing are managed in the Anthropic console.',
+                    'Engine terpisah dari Socrates: Claude membaca judul modul/lesson, metadata lesson (body/summary/dll.), lalu isi content_url jika ada. Tanpa URL, pastikan metadata berisi teks materi. Wajib ANTHROPIC_API_KEY di server.',
+                    'Separate from Socrates: Claude uses module/lesson titles, lesson metadata (body/summary/etc.), then content_url when present. Without a URL, put material text in lesson metadata. ANTHROPIC_API_KEY must be set on the server.',
                   )}
                 </p>
                 <label className="flex items-center gap-2 text-[11px] cursor-pointer">
@@ -3050,6 +3219,7 @@ export function AdminPanel() {
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }

@@ -119,6 +119,8 @@ export async function generateQuizzesForLessonRow(input: {
   lessonTitle: string;
   moduleTitle: string;
   contentUrl: string | null;
+  lessonMetadata?: Record<string, unknown> | null;
+  moduleMetadata?: Record<string, unknown> | null;
 }): Promise<GenerateResult> {
   const material = await buildLessonMaterialContext(input);
   return generatePrePostQuizzesFromMaterial(material);

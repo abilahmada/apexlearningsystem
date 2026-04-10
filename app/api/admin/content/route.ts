@@ -1,3 +1,4 @@
+import { isAdminRequest } from "@/lib/auth/admin-request";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type ContentType = "courses" | "modules" | "lessons" | "quizzes";
@@ -10,33 +11,19 @@ function parseNullableThreshold(value: unknown): number | null {
   return Math.max(0, Math.min(100, rounded));
 }
 
-function getBearerToken(req: Request) {
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) return null;
-  return auth.slice(7).trim();
-}
-
-async function isAdminRequest(req: Request) {
-  const token = getBearerToken(req);
-  if (!token) return false;
-
-  const supabase = createSupabaseAdminClient();
-  const authRes = await supabase.auth.getUser(token);
-  const authUser = authRes.data.user;
-  if (!authUser?.email) return false;
-
-  const { data, error } = await supabase
-    .from("users")
-    .select("role")
-    .eq("email", authUser.email)
-    .single();
-
-  if (error || !data) return false;
-  return String(data.role) === "ADMIN";
-}
-
 function isValidType(value: string | null): value is ContentType {
   return value === "courses" || value === "modules" || value === "lessons" || value === "quizzes";
+}
+
+/** PostgREST error when migration belum dijalankan (kolom belum ada di schema cache). */
+function isMissingColumnError(message: string | undefined, column: string): boolean {
+  if (!message) return false;
+  const m = message.toLowerCase();
+  const col = column.toLowerCase();
+  return (
+    m.includes(col) &&
+    (m.includes("does not exist") || m.includes("schema cache") || m.includes("could not find"))
+  );
 }
 
 function isJsonArray(value: unknown): value is unknown[] {
@@ -375,28 +362,59 @@ export async function GET(req: Request) {
     let error: { message: string } | null = null;
 
     if (typeParam === "courses") {
-      const res = await supabase
+      const resFull = await supabase
         .from("courses")
         .select("id, title, grade_level, mastery_threshold")
         .order("grade_level", { ascending: true })
         .order("title", { ascending: true })
         .limit(safeLimit);
-      data = res.data;
-      error = res.error;
+      const res =
+        resFull.error && isMissingColumnError(resFull.error.message, "mastery_threshold")
+          ? await supabase
+              .from("courses")
+              .select("id, title, grade_level")
+              .order("grade_level", { ascending: true })
+              .order("title", { ascending: true })
+              .limit(safeLimit)
+          : resFull;
+      if (res.error) {
+        error = res.error;
+        data = null;
+      } else {
+        const rows = (res.data ?? []) as unknown as Array<Record<string, unknown>>;
+        data = rows.map((row) =>
+          "mastery_threshold" in row ? row : { ...row, mastery_threshold: null },
+        );
+      }
     } else if (typeParam === "modules") {
-      let query = supabase
-        .from("modules")
-        .select("id, course_id, title, sequence_order, mastery_threshold, metadata")
-        .order("sequence_order", { ascending: true })
-        .order("title", { ascending: true })
-        .limit(safeLimit);
-      if (courseId) query = query.eq("course_id", courseId);
-      if (phase) query = query.contains("metadata", { phase });
-      if (subject) query = query.contains("metadata", { subject });
-      if (track) query = query.contains("metadata", { track });
-      const res = await query;
-      data = res.data;
-      error = res.error;
+      const buildModulesQuery = (selectCols: string) => {
+        let q = supabase
+          .from("modules")
+          .select(selectCols)
+          .order("sequence_order", { ascending: true })
+          .order("title", { ascending: true })
+          .limit(safeLimit);
+        if (courseId) q = q.eq("course_id", courseId);
+        if (phase) q = q.contains("metadata", { phase });
+        if (subject) q = q.contains("metadata", { subject });
+        if (track) q = q.contains("metadata", { track });
+        return q;
+      };
+      let res = await buildModulesQuery(
+        "id, course_id, title, sequence_order, mastery_threshold, metadata",
+      );
+      if (res.error && isMissingColumnError(res.error.message, "mastery_threshold")) {
+        res = await buildModulesQuery("id, course_id, title, sequence_order, metadata");
+      }
+      if (res.error) {
+        error = res.error;
+        data = null;
+      } else {
+        const rows = (res.data ?? []) as unknown as Array<Record<string, unknown>>;
+        data = rows.map((row) =>
+          "mastery_threshold" in row ? row : { ...row, mastery_threshold: null },
+        );
+      }
     } else if (typeParam === "lessons") {
       let query = supabase
         .from("lessons")
@@ -456,13 +474,23 @@ export async function POST(req: Request) {
       if (!title || !["SD", "SMP", "SMK"].includes(gradeLevel)) {
         return Response.json({ message: "Invalid course payload" }, { status: 400 });
       }
-      const { data, error } = await supabase
+      let ins = await supabase
         .from("courses")
         .insert({ title, grade_level: gradeLevel, mastery_threshold: masteryThreshold })
         .select("id, title, grade_level, mastery_threshold")
         .single();
-      if (error) return Response.json({ message: error.message }, { status: 500 });
-      return Response.json(data, { status: 201 });
+      if (ins.error && isMissingColumnError(ins.error.message, "mastery_threshold")) {
+        ins = await supabase
+          .from("courses")
+          .insert({ title, grade_level: gradeLevel })
+          .select("id, title, grade_level")
+          .single();
+        if (!ins.error && ins.data) {
+          return Response.json({ ...ins.data, mastery_threshold: null }, { status: 201 });
+        }
+      }
+      if (ins.error) return Response.json({ message: ins.error.message }, { status: 500 });
+      return Response.json(ins.data, { status: 201 });
     }
 
     if (body.type === "modules") {
@@ -495,7 +523,7 @@ export async function POST(req: Request) {
         metadata: normalizedMetadata,
       });
       if (!moduleCodeUnique.ok) return Response.json({ message: moduleCodeUnique.message }, { status: 400 });
-      const { data, error } = await supabase
+      let modIns = await supabase
         .from("modules")
         .insert({
           course_id: courseId,
@@ -506,8 +534,20 @@ export async function POST(req: Request) {
         })
         .select("id, course_id, title, sequence_order, metadata")
         .single();
-      if (error) return Response.json({ message: error.message }, { status: 500 });
-      return Response.json(data, { status: 201 });
+      if (modIns.error && isMissingColumnError(modIns.error.message, "mastery_threshold")) {
+        modIns = await supabase
+          .from("modules")
+          .insert({
+            course_id: courseId,
+            title,
+            sequence_order: sequenceOrder,
+            metadata: normalizedMetadata,
+          })
+          .select("id, course_id, title, sequence_order, metadata")
+          .single();
+      }
+      if (modIns.error) return Response.json({ message: modIns.error.message }, { status: 500 });
+      return Response.json(modIns.data, { status: 201 });
     }
 
     if (body.type === "lessons") {
@@ -653,14 +693,25 @@ export async function PUT(req: Request) {
       if (!title || !["SD", "SMP", "SMK"].includes(gradeLevel)) {
         return Response.json({ message: "Invalid course payload" }, { status: 400 });
       }
-      const { data, error } = await supabase
+      let upd = await supabase
         .from("courses")
         .update({ title, grade_level: gradeLevel, mastery_threshold: masteryThreshold })
         .eq("id", body.id)
         .select("id, title, grade_level, mastery_threshold")
         .single();
-      if (error) return Response.json({ message: error.message }, { status: 500 });
-      return Response.json(data);
+      if (upd.error && isMissingColumnError(upd.error.message, "mastery_threshold")) {
+        upd = await supabase
+          .from("courses")
+          .update({ title, grade_level: gradeLevel })
+          .eq("id", body.id)
+          .select("id, title, grade_level")
+          .single();
+        if (!upd.error && upd.data) {
+          return Response.json({ ...upd.data, mastery_threshold: null });
+        }
+      }
+      if (upd.error) return Response.json({ message: upd.error.message }, { status: 500 });
+      return Response.json(upd.data);
     }
 
     if (body.type === "modules") {
@@ -694,7 +745,7 @@ export async function PUT(req: Request) {
         selfModuleId: body.id,
       });
       if (!moduleCodeUnique.ok) return Response.json({ message: moduleCodeUnique.message }, { status: 400 });
-      const { data, error } = await supabase
+      let modUpd = await supabase
         .from("modules")
         .update({
           course_id: courseId,
@@ -706,8 +757,21 @@ export async function PUT(req: Request) {
         .eq("id", body.id)
         .select("id, course_id, title, sequence_order, metadata")
         .single();
-      if (error) return Response.json({ message: error.message }, { status: 500 });
-      return Response.json(data);
+      if (modUpd.error && isMissingColumnError(modUpd.error.message, "mastery_threshold")) {
+        modUpd = await supabase
+          .from("modules")
+          .update({
+            course_id: courseId,
+            title,
+            sequence_order: sequenceOrder,
+            metadata: normalizedMetadata,
+          })
+          .eq("id", body.id)
+          .select("id, course_id, title, sequence_order, metadata")
+          .single();
+      }
+      if (modUpd.error) return Response.json({ message: modUpd.error.message }, { status: 500 });
+      return Response.json(modUpd.data);
     }
 
     if (body.type === "lessons") {

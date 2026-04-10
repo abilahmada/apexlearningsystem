@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/mailer";
 
-type VerRow = {
+export type RegistrationVerificationRow = {
   id: string;
   user_id: string;
   email: string;
@@ -18,9 +18,15 @@ export type ProcessResult =
 /**
  * Setujui / tolak pendaftaran berdasarkan baris registration_verifications (token atau id admin).
  */
+function applicantDisplayName(ver: RegistrationVerificationRow): string {
+  return typeof ver.payload === "object" && ver.payload && "fullName" in (ver.payload as Record<string, unknown>)
+    ? String((ver.payload as Record<string, unknown>).fullName ?? ver.email)
+    : ver.email;
+}
+
 export async function processRegistrationVerification(
   supabase: SupabaseClient,
-  ver: VerRow,
+  ver: RegistrationVerificationRow,
   action: "approve" | "reject",
   appBaseUrl: string,
 ): Promise<ProcessResult> {
@@ -36,35 +42,95 @@ export async function processRegistrationVerification(
   }
 
   if (action === "reject") {
-    await supabase
+    const { error: userRejectErr } = await supabase
+      .from("users")
+      .update({
+        registration_approved: false,
+        registration_approved_at: null,
+      })
+      .eq("id", ver.user_id);
+    if (userRejectErr) {
+      return { ok: false, status: 500, message: userRejectErr.message };
+    }
+
+    let { error: verRejectErr } = await supabase
       .from("registration_verifications")
       .update({ status: "REJECTED", rejected_at: new Date().toISOString() })
       .eq("id", ver.id);
-    return { ok: true, message: "Pendaftaran ditolak." };
+    if (verRejectErr && /rejected_at|column|does not exist/i.test(verRejectErr.message)) {
+      const r = await supabase.from("registration_verifications").update({ status: "REJECTED" }).eq("id", ver.id);
+      verRejectErr = r.error;
+    }
+    if (verRejectErr) {
+      return { ok: false, status: 500, message: verRejectErr.message };
+    }
+
+    const fullName = applicantDisplayName(ver);
+    const loginUrl = `${appBaseUrl}/`;
+    const rejectText = [
+      `Halo ${fullName},`,
+      "",
+      "Terima kasih telah mendaftar di APEX Learning.",
+      "Saat ini pendaftaran Anda belum dapat kami setujui. Jika menurut Anda ini kesalahan atau ingin informasi lebih lanjut, silakan hubungi tim APEX.",
+      "",
+      `Anda dapat mencoba mendaftar ulang nanti melalui: ${loginUrl}`,
+      "",
+      "Salam,",
+      "Tim APEX Learning",
+    ].join("\n");
+
+    try {
+      await sendEmail({
+        to: ver.email,
+        subject: "Status pendaftaran APEX Learning",
+        text: rejectText,
+      });
+    } catch (e) {
+      console.error("[processRegistrationVerification] reject sendEmail failed", {
+        email: ver.email,
+        verificationId: ver.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return {
+        ok: false,
+        status: 500,
+        message:
+          "Pendaftaran ditolak di sistem, tetapi email pemberitahuan ke pendaftar gagal dikirim. Cek SMTP/log server.",
+      };
+    }
+
+    return { ok: true, message: "Pendaftaran ditolak. Email pemberitahuan telah dikirim ke pendaftar." };
   }
 
-  await supabase
+  const { error: userApproveErr } = await supabase
     .from("users")
     .update({
       registration_approved: true,
       registration_approved_at: new Date().toISOString(),
     })
     .eq("id", ver.user_id);
+  if (userApproveErr) {
+    return { ok: false, status: 500, message: userApproveErr.message };
+  }
 
-  await supabase
+  let { error: verApproveErr } = await supabase
     .from("registration_verifications")
     .update({ status: "APPROVED", approved_at: new Date().toISOString() })
     .eq("id", ver.id);
+  if (verApproveErr && /approved_at|column|does not exist/i.test(verApproveErr.message)) {
+    const r = await supabase.from("registration_verifications").update({ status: "APPROVED" }).eq("id", ver.id);
+    verApproveErr = r.error;
+  }
+  if (verApproveErr) {
+    return { ok: false, status: 500, message: verApproveErr.message };
+  }
 
   const role = String(ver.role ?? "")
     .trim()
     .toUpperCase();
   const intakeUrl = `${appBaseUrl}/?from=approved&open=assessment`;
   const loginUrl = `${appBaseUrl}/`;
-  const fullName =
-    typeof ver.payload === "object" && ver.payload && "fullName" in (ver.payload as Record<string, unknown>)
-      ? String((ver.payload as Record<string, unknown>).fullName ?? ver.email)
-      : ver.email;
+  const fullName = applicantDisplayName(ver);
 
   const isStudent = role === "STUDENT";
   const subject = "Registrasi APEX Anda Sudah Diverifikasi";

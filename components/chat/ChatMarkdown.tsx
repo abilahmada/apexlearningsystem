@@ -16,7 +16,13 @@ type Props = {
 
 export function ChatMarkdown({ markdown, inverted }: Props) {
   return (
-    <div className={inverted ? "chat-markdown chat-markdown-inverted" : "chat-markdown"}>
+    <div
+      className={
+        inverted
+          ? "chat-markdown chat-markdown-inverted break-words"
+          : "chat-markdown break-words"
+      }
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}

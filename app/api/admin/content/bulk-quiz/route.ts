@@ -1,29 +1,5 @@
+import { isAdminRequest } from "@/lib/auth/admin-request";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-
-function getBearerToken(req: Request) {
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) return null;
-  return auth.slice(7).trim();
-}
-
-async function isAdminRequest(req: Request) {
-  const token = getBearerToken(req);
-  if (!token) return false;
-
-  const supabase = createSupabaseAdminClient();
-  const authRes = await supabase.auth.getUser(token);
-  const authUser = authRes.data.user;
-  if (!authUser?.email) return false;
-
-  const { data, error } = await supabase
-    .from("users")
-    .select("role")
-    .eq("email", authUser.email)
-    .single();
-
-  if (error || !data) return false;
-  return String(data.role) === "ADMIN";
-}
 
 type QuizBank = "legacy" | "pre" | "post";
 
@@ -128,6 +104,8 @@ export async function POST(req: Request) {
         .from("quizzes")
         .select("id")
         .eq("lesson_id", lessonId)
+        .order("id", { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (existing?.id) {

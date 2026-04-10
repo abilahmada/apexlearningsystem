@@ -77,11 +77,14 @@ const ROLE_ACCESS: Record<UserRole, ViewType[]> = {
 function LoginGate() {
   const { login, signup, requestPasswordReset, resendSignupEmail, t, appName } = useApex()
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
-  const [signupPhase, setSignupPhase] = useState<'form' | 'awaiting_email'>('form')
+  const [signupPhase, setSignupPhase] = useState<'form' | 'awaiting_email' | 'awaiting_admin'>('form')
   const [selectedRole, setSelectedRole] = useState<UserRole>('student')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false)
+  const [passwordCopied, setPasswordCopied] = useState(false)
   const [resendCooldown, setResendCooldown] = useState(0)
   const [resendBusy, setResendBusy] = useState(false)
   const [resendNotice, setResendNotice] = useState<string | null>(null)
@@ -113,6 +116,21 @@ function LoginGate() {
 
   const normalizePhoneNumber = (raw: string) => raw.replace(/[\s-]/g, '')
   const isValidIndonesiaPhone = (raw: string) => /^(?:\+62|62|08)\d{8,13}$/.test(normalizePhoneNumber(raw))
+  const generateStrongPassword = (length = 12) => {
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+    const lower = 'abcdefghijkmnopqrstuvwxyz'
+    const digits = '23456789'
+    const symbols = '!@#$%^&*'
+    const all = `${upper}${lower}${digits}${symbols}`
+    const rand = (chars: string) => chars[Math.floor(Math.random() * chars.length)]
+    const out = [rand(upper), rand(lower), rand(digits), rand(symbols)]
+    while (out.length < length) out.push(rand(all))
+    for (let i = out.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[out[i], out[j]] = [out[j], out[i]]
+    }
+    return out.join('')
+  }
 
   const cards: { role: UserRole; title: string; en: string; icon: React.ReactNode }[] = [
     { role: 'student', title: 'Siswa', en: 'Student', icon: <div className="w-2 h-2 rounded-full bg-blue-500" /> },
@@ -126,6 +144,56 @@ function LoginGate() {
   const effectiveStudentClassLevel = classOptions.includes(studentClassLevel)
     ? studentClassLevel
     : (classOptions[0] ?? 1)
+
+  const passwordStrength = useMemo(() => {
+    const value = password ?? ''
+    if (!value) {
+      return {
+        score: 0,
+        label: t('Belum diisi', 'Not set'),
+        barClass: 'bg-slate-200',
+        textClass: 'text-slate-500',
+      }
+    }
+    let score = 0
+    if (value.length >= 8) score += 1
+    if (value.length >= 12) score += 1
+    if (/[A-Z]/.test(value) && /[a-z]/.test(value)) score += 1
+    if (/\d/.test(value)) score += 1
+    if (/[^A-Za-z0-9]/.test(value)) score += 1
+
+    if (score <= 2) {
+      return {
+        score,
+        label: t('Lemah', 'Weak'),
+        barClass: 'bg-red-500',
+        textClass: 'text-red-600',
+      }
+    }
+    if (score <= 4) {
+      return {
+        score,
+        label: t('Sedang', 'Medium'),
+        barClass: 'bg-amber-500',
+        textClass: 'text-amber-600',
+      }
+    }
+    return {
+      score,
+      label: t('Kuat', 'Strong'),
+      barClass: 'bg-emerald-500',
+      textClass: 'text-emerald-600',
+    }
+  }, [password, t])
+
+  const passwordStrengthInputClass =
+    passwordStrength.score === 0
+      ? ''
+      : passwordStrength.score <= 2
+        ? 'border-red-300 focus:ring-red-500/20 focus:border-red-400'
+        : passwordStrength.score <= 4
+          ? 'border-amber-300 focus:ring-amber-500/20 focus:border-amber-400'
+          : 'border-emerald-300 focus:ring-emerald-500/20 focus:border-emerald-400'
 
   useEffect(() => {
     if (resendCooldown <= 0) return
@@ -264,12 +332,9 @@ function LoginGate() {
       if (!result.ok) {
         setError(result.message)
       } else if (result.pendingAdminApproval) {
-        setNotice(
-          t(
-            'Pendaftaran berhasil dikirim. Data Anda menunggu verifikasi admin APEX. Email konfirmasi akan dikirim setelah disetujui.',
-            'Registration submitted successfully. Your data is pending APEX admin verification. A confirmation email will be sent after approval.',
-          ),
-        )
+        setAwaitingRole(selectedRole)
+        setResendNotice(null)
+        setSignupPhase('awaiting_admin')
       } else if (result.needsEmailConfirmation) {
         setAwaitingRole(selectedRole)
         setResendNotice(null)
@@ -339,7 +404,8 @@ function LoginGate() {
     setResendCooldown(60)
   }
 
-  if (signupPhase === 'awaiting_email') {
+  if (signupPhase === 'awaiting_email' || signupPhase === 'awaiting_admin') {
+    const isAwaitingAdmin = signupPhase === 'awaiting_admin'
     return (
       <div className="min-h-screen bg-[#EFF2F6] flex items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-md shadow-slate-200/50">
@@ -353,23 +419,38 @@ function LoginGate() {
             <LanguageToggle />
           </div>
           <h2 className="text-lg font-bold text-slate-900 mb-2 leading-snug">
-            {t('Pendaftaran berhasil — verifikasi email', 'Sign-up successful — verify your email')}
+            {isAwaitingAdmin
+              ? t('Pendaftaran berhasil — menunggu verifikasi admin', 'Sign-up successful — awaiting admin verification')
+              : t('Pendaftaran berhasil — verifikasi email', 'Sign-up successful — verify your email')}
           </h2>
           <p className="text-sm text-slate-600 mb-4 leading-relaxed">
-            {t(
-              'Kami mengirim tautan verifikasi ke',
-              'We sent a verification link to',
-            )}{' '}
-            <span className="font-semibold text-slate-800">{email || '—'}</span>.
-            {awaitingRole === 'student'
-              ? t(
-                  ' Buka email tersebut dan klik tautan. Setelah verifikasi, kamu akan melihat halaman sukses; siswa akan diarahkan ke tes penempatan saat masuk.',
-                  ' Open that email and tap the link. After verifying, you will see a success page; students are taken to the placement test when they enter the app.',
-                )
-              : t(
-                  ' Buka email tersebut dan klik tautan. Setelah verifikasi, kamu akan melihat halaman sukses lalu bisa masuk ke portal orang tua.',
-                  ' Open that email and tap the link. After verifying, you will see a success page and can sign in to the parent portal.',
+            {isAwaitingAdmin ? (
+              <>
+                {t('Pendaftaran atas email', 'Registration for email')}{' '}
+                <span className="font-semibold text-slate-800">{email || '—'}</span>{' '}
+                {t(
+                  'sudah diterima dan sedang menunggu persetujuan admin APEX. Anda akan bisa masuk setelah disetujui.',
+                  'has been accepted and is waiting for APEX admin approval. You can sign in after approval.',
                 )}
+              </>
+            ) : (
+              <>
+                {t(
+                  'Kami mengirim tautan verifikasi ke',
+                  'We sent a verification link to',
+                )}{' '}
+                <span className="font-semibold text-slate-800">{email || '—'}</span>.
+                {awaitingRole === 'student'
+                  ? t(
+                      ' Buka email tersebut dan klik tautan. Setelah verifikasi, kamu akan melihat halaman sukses; siswa akan diarahkan ke tes penempatan saat masuk.',
+                      ' Open that email and tap the link. After verifying, you will see a success page; students are taken to the placement test when they enter the app.',
+                    )
+                  : t(
+                      ' Buka email tersebut dan klik tautan. Setelah verifikasi, kamu akan melihat halaman sukses lalu bisa masuk ke portal orang tua.',
+                      ' Open that email and tap the link. After verifying, you will see a success page and can sign in to the parent portal.',
+                    )}
+              </>
+            )}
           </p>
           <ul className="text-xs text-slate-600 space-y-2 mb-4 list-disc pl-4 leading-relaxed">
             <li>
@@ -378,32 +459,47 @@ function LoginGate() {
                 'Check Spam / Promotions — messages from Supabase are sometimes filtered.',
               )}
             </li>
-            <li>
-              {t(
-                'Pastikan alamat email benar. Jika tidak ada email sama sekali, di Supabase aktifkan Custom SMTP (Authentication → Emails) agar pengiriman lebih andal.',
-                'Make sure the address is correct. If nothing arrives, enable Custom SMTP in Supabase (Authentication → Emails) for reliable delivery.',
-              )}
-            </li>
-            <li>
-              {t(
-                'Di Supabase: Authentication → Users — pastikan user baru muncul; jika muncul tapi inbox kosong, cek Project Settings → Auth (rate limit) dan gunakan penyedia SMTP transaksional (mis. Resend, SendGrid).',
-                'In Supabase: Authentication → Users — confirm the new user exists; if it exists but the inbox is empty, check Project Settings → Auth (rate limits) and use a transactional SMTP provider (e.g. Resend, SendGrid).',
-              )}
-            </li>
+            {!isAwaitingAdmin ? (
+              <>
+                <li>
+                  {t(
+                    'Pastikan alamat email benar. Jika tidak ada email sama sekali, di Supabase aktifkan Custom SMTP (Authentication → Emails) agar pengiriman lebih andal.',
+                    'Make sure the address is correct. If nothing arrives, enable Custom SMTP in Supabase (Authentication → Emails) for reliable delivery.',
+                  )}
+                </li>
+                <li>
+                  {t(
+                    'Di Supabase: Authentication → Users — pastikan user baru muncul; jika muncul tapi inbox kosong, cek Project Settings → Auth (rate limit) dan gunakan penyedia SMTP transaksional (mis. Resend, SendGrid).',
+                    'In Supabase: Authentication → Users — confirm the new user exists; if it exists but the inbox is empty, check Project Settings → Auth (rate limits) and use a transactional SMTP provider (e.g. Resend, SendGrid).',
+                  )}
+                </li>
+              </>
+            ) : (
+              <li>
+                {t(
+                  'Status approval dapat dicek lewat admin APEX. Jika sudah disetujui, Anda bisa langsung masuk dengan email dan password yang sama.',
+                  'Approval status is managed by APEX admins. Once approved, you can sign in with the same email and password.',
+                )}
+              </li>
+            )}
           </ul>
-          <button
-            type="button"
-            disabled={resendBusy || resendCooldown > 0 || !email.trim()}
-            onClick={() => void onResendVerification()}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50 mb-2 min-h-[44px]"
-          >
-            {resendBusy
-              ? t('Mengirim…', 'Sending…')
-              : resendCooldown > 0
-                ? t(`Kirim ulang (${resendCooldown}s)`, `Resend (${resendCooldown}s)`)
-                : t('Kirim ulang email verifikasi', 'Resend verification email')}
-          </button>
-          {resendNotice ? <p className="text-sm text-emerald-600 mb-4">{resendNotice}</p> : null}
+          {!isAwaitingAdmin ? (
+            <>
+              <button
+                type="button"
+                disabled={resendBusy || resendCooldown > 0 || !email.trim()}
+                onClick={() => void onResendVerification()}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50 mb-2 min-h-[44px]"
+              >
+                {resendBusy
+                  ? t('Mengirim…', 'Sending…')
+                  : resendCooldown > 0
+                    ? t(`Kirim ulang (${resendCooldown}s)`, `Resend (${resendCooldown}s)`)
+                    : t('Kirim ulang email verifikasi', 'Resend verification email')}
+              </button>
+              {resendNotice ? <p className="text-sm text-emerald-600 mb-4">{resendNotice}</p> : null}
+            </>
+          ) : null}
 
           <div className="border-t border-slate-100 pt-5 mt-1">
             <h3 className="text-sm font-bold text-slate-800 mb-3">
@@ -524,25 +620,80 @@ function LoginGate() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>{t('Password', 'Password')}</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className={fieldClass}
-                  placeholder="••••••••"
-                  autoComplete="new-password"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={`${fieldClass} ${passwordStrengthInputClass}`}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    {showPassword ? t('Sembunyikan', 'Hide') : t('Lihat', 'Show')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(password)
+                        setPasswordCopied(true)
+                        window.setTimeout(() => setPasswordCopied(false), 1600)
+                      } catch {
+                        setError(t('Gagal menyalin password.', 'Failed to copy password.'))
+                      }
+                    }}
+                    className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    {passwordCopied ? t('Tersalin', 'Copied') : t('Salin', 'Copy')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const generated = generateStrongPassword(12)
+                      setPassword(generated)
+                      setPasswordConfirm(generated)
+                      setShowPassword(true)
+                      setShowPasswordConfirm(true)
+                    }}
+                    className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    {t('Generate', 'Generate')}
+                  </button>
+                </div>
+                <div className="mt-2">
+                  <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${passwordStrength.barClass}`}
+                      style={{ width: `${Math.min(100, (passwordStrength.score / 5) * 100)}%` }}
+                    />
+                  </div>
+                  <p className={`mt-1 text-xs ${passwordStrength.textClass}`}>
+                    {t('Kekuatan password', 'Password strength')}: {passwordStrength.label}
+                  </p>
+                </div>
               </div>
               <div>
                 <label className={labelClass}>{t('Ulangi password', 'Confirm password')}</label>
                 <input
-                  type="password"
+                  type={showPasswordConfirm ? 'text' : 'password'}
                   value={passwordConfirm}
                   onChange={(e) => setPasswordConfirm(e.target.value)}
                   className={fieldClass}
                   placeholder="••••••••"
                   autoComplete="new-password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordConfirm((v) => !v)}
+                  className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  {showPasswordConfirm ? t('Sembunyikan', 'Hide') : t('Lihat', 'Show')}
+                </button>
                 <p className="text-xs text-slate-500 mt-1.5 leading-snug">
                   {t('Ketik ulang password yang sama untuk diingat.', 'Type the same password again to confirm.')}
                 </p>
