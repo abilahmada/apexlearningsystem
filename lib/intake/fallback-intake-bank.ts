@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import type { CalibrationDimension } from "@/lib/calibration/engine";
 import { CALIBRATION_DIMENSIONS } from "@/lib/calibration/engine";
 
@@ -260,7 +261,7 @@ function buildItem(dim: CalibrationDimension, seed: ItemSeed, idx: number): Inta
     { id: "D", label: seed.wrong[2] },
   ];
   return {
-    id: `fb-${dim}-${idx}`,
+    id: randomUUID(),
     slug: `fallback-${dim}-${idx}`,
     dimension: dim,
     subject: seed.subject,
