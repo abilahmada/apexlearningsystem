@@ -8,6 +8,7 @@
  *
  * Optional env vars:
  * - APEX_FLOW_SMOKE_EXPECT_BASELINE_PHASE   (1|2|3)
+ * - APEX_FLOW_SMOKE_EXPECT_BASELINE_SOURCE  (student_profile|assessment_session)
  * - APEX_FLOW_SMOKE_EXPECT_UNLOCKED_MODULE_ID
  * - APEX_FLOW_SMOKE_EXPECT_LOCKED_MODULE_ID
  *
@@ -80,6 +81,14 @@ function normalizeExpectedBaselinePhase(v) {
   return rounded;
 }
 
+function normalizeBaselineSource(v) {
+  const t = String(v ?? "")
+    .trim()
+    .toLowerCase();
+  if (t === "student_profile" || t === "assessment_session") return t;
+  return null;
+}
+
 async function run() {
   await hydrateEnvFromFiles();
   const baseUrl = env("APEX_FLOW_SMOKE_BASE_URL");
@@ -87,6 +96,9 @@ async function run() {
   let moduleId = env("APEX_FLOW_SMOKE_MODULE_ID");
   const expectedBaselinePhase = normalizeExpectedBaselinePhase(
     env("APEX_FLOW_SMOKE_EXPECT_BASELINE_PHASE"),
+  );
+  const expectedBaselineSource = normalizeBaselineSource(
+    env("APEX_FLOW_SMOKE_EXPECT_BASELINE_SOURCE"),
   );
   const expectUnlockedModuleId = env("APEX_FLOW_SMOKE_EXPECT_UNLOCKED_MODULE_ID");
   const expectLockedModuleId = env("APEX_FLOW_SMOKE_EXPECT_LOCKED_MODULE_ID");
@@ -119,6 +131,13 @@ async function run() {
       Number(modulesRes.body.placementBaselinePhase),
       expectedBaselinePhase,
       "placementBaselinePhase should match expected value",
+    );
+  }
+  if (expectedBaselineSource) {
+    assert.equal(
+      String(modulesRes.body.placementBaselineSource ?? ""),
+      expectedBaselineSource,
+      "placementBaselineSource should match expected value",
     );
   }
 
