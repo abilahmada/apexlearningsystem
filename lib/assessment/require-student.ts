@@ -12,8 +12,24 @@ export type StudentAuthErr = { ok: false; status: number; message: string };
  * Verifies Supabase bearer token and ensures app user is STUDENT with student_profiles row.
  */
 export async function requireStudentSession(token: string): Promise<StudentAuthOk | StudentAuthErr> {
-  const supabase = createSupabaseAdminClient();
+  let supabase: ReturnType<typeof createSupabaseAdminClient>;
+  try {
+    supabase = createSupabaseAdminClient();
+  } catch (e) {
+    return {
+      ok: false,
+      status: 503,
+      message: e instanceof Error ? e.message : "Konfigurasi server tidak lengkap.",
+    };
+  }
   const authRes = await supabase.auth.getUser(token);
+  if (authRes.error) {
+    return {
+      ok: false,
+      status: 401,
+      message: authRes.error.message?.trim() || "Invalid token",
+    };
+  }
   const authUser = authRes.data.user;
   if (!authUser?.email) return { ok: false, status: 401, message: "Invalid token" };
 

@@ -1,4 +1,5 @@
 import { getBearerToken, requireStudentSession } from "@/lib/assessment/require-student";
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 import { CALIBRATION_DIMENSIONS, thetaToLevel } from "@/lib/calibration/engine";
 import {
   resolvePlacementProductPhase,
@@ -9,10 +10,10 @@ import {
 export async function GET(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
 
     const auth = await requireStudentSession(token);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
 
     const supabase = auth.supabase;
 
@@ -24,11 +25,11 @@ export async function GET(req: Request) {
       )
       .eq("user_id", auth.userId)
       .maybeSingle();
-    if (sErr) return Response.json({ message: sErr.message }, { status: 500 });
+    if (sErr) return jsonPrivateNoStore({ message: sErr.message }, { status: 500 });
 
     // Belum ada sesi → status PENDING
     if (!session) {
-      return Response.json({
+      return jsonPrivateNoStore({
         status: "PENDING",
         productPhase: "L1_INTAKE",
         sessionsCompleted: 0,
@@ -82,7 +83,7 @@ export async function GET(req: Request) {
       }
     }
 
-    return Response.json({
+    return jsonPrivateNoStore({
       status: sessionStatus,
       productPhase,
       sessionsCompleted,
@@ -90,7 +91,7 @@ export async function GET(req: Request) {
       provisionalProfile,
     });
   } catch (e) {
-    return Response.json(
+    return jsonPrivateNoStore(
       { message: e instanceof Error ? e.message : "Unknown error" },
       { status: 500 },
     );

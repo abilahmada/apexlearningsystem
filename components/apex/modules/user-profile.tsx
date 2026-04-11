@@ -7,12 +7,25 @@ import { getDailyGrowthMindsetMessage } from '../shared/growth-mindset'
 
 type Role = 'student' | 'parent' | 'mentor' | 'admin'
 
+type LinkedStudentProfile = {
+  user_id: string
+  full_name?: string | null
+  grade_level?: string | null
+  birth_date?: string | null
+  school_origin?: string | null
+  learning_vision?: string | null
+  grade_class_start?: number | null
+  grade_class_max?: number | null
+  grade_class_start_year?: number | null
+}
+
 type ProfilePayload = {
   role: Role
   userId?: string
   email: string
   avatarUrl?: string | null
   profile: Record<string, unknown>
+  linkedStudents?: LinkedStudentProfile[]
 }
 
 export function UserProfile() {
@@ -46,12 +59,19 @@ export function UserProfile() {
         headers: { authorization: `Bearer ${token}` },
         cache: 'no-store',
       })
-      const json = (await res.json()) as ProfilePayload & { message?: string }
+      const json = (await res.json()) as ProfilePayload & { message?: string; id?: string }
       if (!res.ok) {
         setError(json.message ?? 'Request failed')
         return
       }
-      setData(json)
+      setData({
+        role: json.role,
+        userId: json.userId ?? json.id,
+        email: json.email,
+        avatarUrl: json.avatarUrl ?? null,
+        profile: json.profile ?? {},
+        linkedStudents: Array.isArray(json.linkedStudents) ? json.linkedStudents : undefined,
+      })
       setForm(json.profile ?? {})
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
@@ -595,13 +615,21 @@ export function UserProfile() {
             <label className={labelClass}>{t('Parent ID', 'Parent ID')}</label>
             <input className={lockedInputClass} value={String(form.parent_link_code ?? '')} readOnly tabIndex={-1} aria-readonly="true" />
           </div>
-          <div>
-            <label className={labelClass}>{t('Jenjang', 'Grade Level')}</label>
-            <select className={inputClass} value={String(form.grade_level ?? 'SMP')} onChange={(e) => setForm((f) => ({ ...f, grade_level: e.target.value }))}>
-              <option value="SD">SD</option>
-              <option value="SMP">SMP</option>
-              <option value="SMK">SMA/SMK</option>
-            </select>
+          <div className="sm:col-span-2">
+            <label className={labelClass}>{t('Jenjang', 'Grade level')}</label>
+            <input
+              className={lockedInputClass}
+              value={String(form.grade_level ?? '—')}
+              readOnly
+              tabIndex={-1}
+              aria-readonly="true"
+            />
+            <p className="text-xs text-slate-500 mt-1.5">
+              {t(
+                'Jenjang (SD / SMP / SMK) hanya dapat diubah oleh admin atas permintaan. Hubungi admin jika data tidak sesuai.',
+                'Grade band can only be changed by admin on request. Contact admin if this is incorrect.',
+              )}
+            </p>
           </div>
           <div>
             <label className={labelClass}>{t('Tanggal Lahir', 'Birth Date')}</label>
@@ -619,7 +647,74 @@ export function UserProfile() {
       )}
 
       {data.role === 'parent' && (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 space-y-3">
+            <h3 className="text-sm font-bold text-slate-800">
+              {t('Siswa terikat (baca saja)', 'Linked students (read-only)')}
+            </h3>
+            <p className="text-xs text-slate-500">
+              {t(
+                'Data siswa yang memakai ID Orang Tua Anda. Tidak dapat diedit dari sini.',
+                'Students linked with your Parent ID. They cannot be edited here.',
+              )}
+            </p>
+            {(data.linkedStudents ?? []).length === 0 ? (
+              <p className="text-sm text-slate-600">
+                {t(
+                  'Belum ada siswa yang terdaftar dengan ID Orang Tua Anda.',
+                  'No students are registered with your Parent ID yet.',
+                )}
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {(data.linkedStudents ?? []).map((stu) => (
+                  <li
+                    key={stu.user_id}
+                    className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4 space-y-2 text-sm"
+                  >
+                    <p className="font-bold text-slate-900">{String(stu.full_name ?? '—')}</p>
+                    <dl className="grid gap-2 text-xs sm:grid-cols-2 sm:text-sm">
+                      <div>
+                        <dt className="font-semibold text-slate-500">{t('ID akun siswa', 'Student account ID')}</dt>
+                        <dd className="font-mono text-slate-800 break-all">{stu.user_id}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-semibold text-slate-500">{t('Jenjang', 'Grade level')}</dt>
+                        <dd className="text-slate-800">{String(stu.grade_level ?? '—')}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-semibold text-slate-500">{t('Tanggal lahir', 'Birth date')}</dt>
+                        <dd className="text-slate-800">{String(stu.birth_date ?? '—')}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-semibold text-slate-500">{t('Kelas awal / maks', 'Class start / max')}</dt>
+                        <dd className="text-slate-800 font-mono">
+                          {stu.grade_class_start != null ? String(stu.grade_class_start) : '—'} /{' '}
+                          {stu.grade_class_max != null ? String(stu.grade_class_max) : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="font-semibold text-slate-500">{t('Tahun mulai kelas', 'Class start year')}</dt>
+                        <dd className="text-slate-800">
+                          {stu.grade_class_start_year != null ? String(stu.grade_class_start_year) : '—'}
+                        </dd>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <dt className="font-semibold text-slate-500">{t('Asal sekolah', 'School origin')}</dt>
+                        <dd className="text-slate-800">{String(stu.school_origin ?? '—')}</dd>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <dt className="font-semibold text-slate-500">{t('Visi belajar', 'Learning vision')}</dt>
+                        <dd className="text-slate-800 whitespace-pre-wrap">{String(stu.learning_vision ?? '—')}</dd>
+                      </div>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className={labelClass}>{t('Nama Lengkap', 'Full Name')}</label>
             <input className={inputClass} value={String(form.full_name ?? '')} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} />
@@ -660,6 +755,7 @@ export function UserProfile() {
             <label className={labelClass}>{t('Alamat Lengkap', 'Full Address')}</label>
             <textarea className={`${inputClass} min-h-[90px]`} value={String(form.address_line ?? '')} onChange={(e) => setForm((f) => ({ ...f, address_line: e.target.value }))} />
           </div>
+        </div>
         </div>
       )}
 

@@ -265,13 +265,14 @@ export function AIClassroom({ openChatSignal = 0 }: AIClassroomProps) {
           rows={1}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              const text = input.trim()
-              if (!text || isLoading) return
-              sendMessage({ text })
-              setInput('')
-            }
+            if (e.key !== 'Enter' || e.shiftKey) return
+            // Layar sempit / keyboard mobile: biarkan Enter = baris baru (kirim lewat tombol).
+            if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 768px)').matches) return
+            e.preventDefault()
+            const text = input.trim()
+            if (!text || isLoading) return
+            sendMessage({ text })
+            setInput('')
           }}
           placeholder={t('Tulis pertanyaanmu ke Socrates...', 'Write your question to Socrates...')}
           className={[
@@ -279,11 +280,17 @@ export function AIClassroom({ openChatSignal = 0 }: AIClassroomProps) {
             "focus:outline-none focus:ring-2 focus:ring-blue-500 max-md:focus:ring-1 max-md:ring-offset-0",
             "md:py-3",
           ].join(" ")}
-          enterKeyHint="send"
+          enterKeyHint="enter"
           inputMode="text"
           aria-label={t('Pertanyaan ke Socrates', 'Question for Socrates')}
         />
-        <p className="text-[11px] text-slate-500 px-0.5">
+        <p className="text-[11px] text-slate-500 px-0.5 max-md:block md:hidden">
+          {t(
+            'Enter = baris baru. Ketuk «Kirim ke Socrates» untuk mengirim.',
+            'Enter adds a new line. Tap “Send to Socrates” to send.',
+          )}
+        </p>
+        <p className="text-[11px] text-slate-500 px-0.5 hidden md:block">
           {t('Enter kirim · Shift+Enter baris baru', 'Enter to send · Shift+Enter for new line')}
         </p>
         <button

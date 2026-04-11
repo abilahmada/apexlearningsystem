@@ -1,4 +1,5 @@
 import { requireAppUserFromRequest } from "@/lib/auth/request-user";
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 import {
   CALIBRATION_DIMENSIONS,
   calculateFinalPlacement,
@@ -22,7 +23,7 @@ import {
 export async function GET(req: Request) {
   try {
     const auth = await requireAppUserFromRequest(req);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
 
     const { supabase, userId: callerUserId, role } = auth;
     const url = new URL(req.url);
@@ -33,11 +34,11 @@ export async function GET(req: Request) {
 
     if (role === "MENTOR" || role === "ADMIN") {
       // Mentor/Admin: look up by userId directly
-      if (!directUserId) return Response.json({ message: "userId wajib untuk mentor/admin." }, { status: 400 });
+      if (!directUserId) return jsonPrivateNoStore({ message: "userId wajib untuk mentor/admin." }, { status: 400 });
       studentUserId = directUserId;
     } else if (role === "PARENT") {
       // Parent: verify ownership via studentProfileId
-      if (!studentProfileId) return Response.json({ message: "studentProfileId wajib." }, { status: 400 });
+      if (!studentProfileId) return jsonPrivateNoStore({ message: "studentProfileId wajib." }, { status: 400 });
       const { data: parentProfile } = await supabase
         .from("parent_profiles")
         .select("id")
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
         .order("id", { ascending: true })
         .limit(1)
         .maybeSingle();
-      if (!parentProfile) return Response.json({ message: "Profil orang tua tidak ditemukan." }, { status: 404 });
+      if (!parentProfile) return jsonPrivateNoStore({ message: "Profil orang tua tidak ditemukan." }, { status: 404 });
 
       const { data: studentRow } = await supabase
         .from("student_profiles")
@@ -53,10 +54,10 @@ export async function GET(req: Request) {
         .eq("id", studentProfileId)
         .eq("parent_id", parentProfile.id)
         .maybeSingle();
-      if (!studentRow) return Response.json({ message: "Siswa tidak ditemukan atau bukan milik akun ini." }, { status: 404 });
+      if (!studentRow) return jsonPrivateNoStore({ message: "Siswa tidak ditemukan atau bukan milik akun ini." }, { status: 404 });
       studentUserId = String(studentRow.user_id);
     } else {
-      return Response.json({ message: "Forbidden" }, { status: 403 });
+      return jsonPrivateNoStore({ message: "Forbidden" }, { status: 403 });
     }
 
     const [sessionRes, cpRes, validationRes] = await Promise.all([
@@ -77,7 +78,7 @@ export async function GET(req: Request) {
     ]);
 
     if (!sessionRes.data) {
-      return Response.json({ message: "Belum ada data assessment." }, { status: 404 });
+      return jsonPrivateNoStore({ message: "Belum ada data assessment." }, { status: 404 });
     }
 
     const session = sessionRes.data;
@@ -152,8 +153,8 @@ export async function GET(req: Request) {
       };
     }
 
-    return Response.json({ profile });
+    return jsonPrivateNoStore({ profile });
   } catch (e) {
-    return Response.json({ message: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });
+    return jsonPrivateNoStore({ message: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });
   }
 }

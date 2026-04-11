@@ -9,6 +9,7 @@ import {
 import { CALIBRATION_DIMENSIONS, thetaToLevel, type CalibrationDimension } from "@/lib/calibration/engine";
 import { aggregatePlacementFromAttempts } from "@/lib/intake/compute-intake-placement";
 import type { IntakeBankItemJson } from "@/lib/intake/fallback-intake-bank";
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 
 function addDays(d: Date, days: number): string {
   const x = new Date(d);
@@ -52,9 +53,9 @@ function bankFromJson(raw: unknown): IntakeBankItemJson[] {
 export async function GET(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
     const auth = await requireStudentSession(token);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
 
     const supabase = auth.supabase;
     const sessionRow = await ensureAssessmentSession(supabase, auth.userId);
@@ -66,7 +67,7 @@ export async function GET(req: Request) {
       .order("id", { ascending: true })
       .limit(1)
       .maybeSingle();
-    if (pErr) return Response.json({ message: pErr.message }, { status: 500 });
+    if (pErr) return jsonPrivateNoStore({ message: pErr.message }, { status: 500 });
 
     const gradeLabel = parseGradeLabel(profile?.grade_level);
 
@@ -114,7 +115,7 @@ export async function GET(req: Request) {
         ? (intakeThetaPayload as Record<string, unknown>)
         : {};
 
-    return Response.json({
+    return jsonPrivateNoStore({
       assessmentSession: {
         id: sessionRow.id,
         status: sessionRow.status,
@@ -140,7 +141,7 @@ export async function GET(req: Request) {
       gradeLabel,
     });
   } catch (e) {
-    return Response.json(
+    return jsonPrivateNoStore(
       { message: e instanceof Error ? e.message : "Unknown error" },
       { status: 500 },
     );
@@ -150,9 +151,9 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
     const auth = await requireStudentSession(token);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
 
     const body = (await req.json()) as Record<string, unknown>;
     const action = String(body.action ?? "").trim();
@@ -167,12 +168,12 @@ export async function POST(req: Request) {
       .order("id", { ascending: true })
       .limit(1)
       .maybeSingle();
-    if (pErr) return Response.json({ message: pErr.message }, { status: 500 });
+    if (pErr) return jsonPrivateNoStore({ message: pErr.message }, { status: 500 });
     const gradeLabel = parseGradeLabel(profile?.grade_level);
 
     if (action === "start") {
       if (String(sessionRow.status).toUpperCase() !== "PENDING") {
-        return Response.json({ message: "Intake hanya untuk sesi berstatus PENDING." }, { status: 409 });
+        return jsonPrivateNoStore({ message: "Intake hanya untuk sesi berstatus PENDING." }, { status: 409 });
       }
 
       const { data: existing } = await supabase
@@ -188,7 +189,7 @@ export async function POST(req: Request) {
       if (existing?.id) {
         const bankLen = Array.isArray(existing.generated_bank) ? existing.generated_bank.length : 0;
         if (bankLen > 0) {
-          return Response.json({ ok: true, reused: true, interviewId: existing.id });
+          return jsonPrivateNoStore({ ok: true, reused: true, interviewId: existing.id });
         }
       }
 
@@ -205,9 +206,9 @@ export async function POST(req: Request) {
         .select("id")
         .single();
       if (insErr || !ins) {
-        return Response.json({ message: insErr?.message ?? "Gagal membuat intake interview." }, { status: 500 });
+        return jsonPrivateNoStore({ message: insErr?.message ?? "Gagal membuat intake interview." }, { status: 500 });
       }
-      return Response.json({ ok: true, reused: false, interviewId: ins.id });
+      return jsonPrivateNoStore({ ok: true, reused: false, interviewId: ins.id });
     }
 
     if (action === "conversation_turn") {
@@ -216,7 +217,7 @@ export async function POST(req: Request) {
       const role = String(body.role ?? "").trim();
       const content = String(body.content ?? "").trim();
       if (!interviewId || !["system", "assistant", "user"].includes(role) || !content) {
-        return Response.json({ message: "interviewId, seqNo, role, content wajib valid." }, { status: 400 });
+        return jsonPrivateNoStore({ message: "interviewId, seqNo, role, content wajib valid." }, { status: 400 });
       }
       const { data: own, error: ownErr } = await supabase
         .from("intake_interviews")
@@ -225,7 +226,7 @@ export async function POST(req: Request) {
         .eq("user_id", auth.userId)
         .maybeSingle();
       if (ownErr || !own) {
-        return Response.json({ message: "Interview tidak ditemukan." }, { status: 404 });
+        return jsonPrivateNoStore({ message: "Interview tidak ditemukan." }, { status: 404 });
       }
       const { error } = await supabase.from("intake_conversation_turns").insert({
         interview_id: interviewId,
@@ -234,8 +235,8 @@ export async function POST(req: Request) {
         content: content.slice(0, 8000),
         metadata: typeof body.metadata === "object" && body.metadata !== null ? body.metadata : {},
       });
-      if (error) return Response.json({ message: error.message }, { status: 500 });
-      return Response.json({ ok: true });
+      if (error) return jsonPrivateNoStore({ message: error.message }, { status: 500 });
+      return jsonPrivateNoStore({ ok: true });
     }
 
     if (action === "scenario_response") {
@@ -264,22 +265,21 @@ export async function POST(req: Request) {
           });
         }
       }
-      return Response.json({ ok: true });
+      return jsonPrivateNoStore({ ok: true });
     }
 
     if (action === "item_attempt") {
       if (String(sessionRow.status).toUpperCase() !== "PENDING") {
-        return Response.json({ message: "Sesi tidak dalam mode intake." }, { status: 409 });
+        return jsonPrivateNoStore({ message: "Sesi tidak dalam mode intake." }, { status: 409 });
       }
       const interviewId = String(body.interviewId ?? "").trim();
       const bankItemId = String(body.bankItemId ?? "").trim();
-      const seq = Number(body.seq);
       const dimension = String(body.dimension ?? "").trim().toLowerCase();
-      if (!interviewId || !bankItemId || !Number.isFinite(seq)) {
-        return Response.json({ message: "interviewId, bankItemId, seq wajib." }, { status: 400 });
+      if (!interviewId || !bankItemId) {
+        return jsonPrivateNoStore({ message: "interviewId, bankItemId wajib." }, { status: 400 });
       }
       if (!CALIBRATION_DIMENSIONS.includes(dimension as CalibrationDimension)) {
-        return Response.json({ message: "dimension tidak valid." }, { status: 400 });
+        return jsonPrivateNoStore({ message: "dimension tidak valid." }, { status: 400 });
       }
 
       const { data: intv, error: intvErr } = await supabase
@@ -289,13 +289,13 @@ export async function POST(req: Request) {
         .eq("user_id", auth.userId)
         .maybeSingle();
       if (intvErr || !intv || intv.status !== "IN_PROGRESS") {
-        return Response.json({ message: "Interview tidak ditemukan atau sudah selesai." }, { status: 404 });
+        return jsonPrivateNoStore({ message: "Interview tidak ditemukan atau sudah selesai." }, { status: 404 });
       }
 
       const bank = bankFromJson(intv.generated_bank);
       const item = bank.find((b) => b.id === bankItemId);
       if (!item) {
-        return Response.json({ message: "Item bank tidak valid." }, { status: 400 });
+        return jsonPrivateNoStore({ message: "Item bank tidak valid." }, { status: 400 });
       }
 
       const lr = body.learnerResponse;
@@ -304,6 +304,16 @@ export async function POST(req: Request) {
           ? String((lr as { selectedOptionId: unknown }).selectedOptionId ?? "")
           : "";
       const { scored, max } = scoreMcqItem(item, selected);
+
+      const { data: maxSeqRow } = await supabase
+        .from("intake_item_attempts")
+        .select("seq")
+        .eq("interview_id", interviewId)
+        .order("seq", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const maxSeq = typeof maxSeqRow?.seq === "number" ? maxSeqRow.seq : Number(maxSeqRow?.seq ?? 0);
+      const nextSeq = Number.isFinite(maxSeq) ? maxSeq + 1 : 1;
 
       const { data: prevAttempts } = await supabase
         .from("intake_item_attempts")
@@ -325,21 +335,18 @@ export async function POST(req: Request) {
       );
       const thetaAfter = thetaAfterItemAttempt(prevFold, scored, max);
 
-      const { error: attErr } = await supabase.from("intake_item_attempts").upsert(
-        {
-          interview_id: interviewId,
-          assessment_session_id: sessionRow.id,
-          bank_item_id: bankItemId,
-          seq,
-          dimension,
-          scored_points: scored,
-          max_points: max,
-          theta_estimate_after: thetaAfter,
-          learner_response: lr && typeof lr === "object" ? lr : {},
-        },
-        { onConflict: "interview_id,seq", ignoreDuplicates: true },
-      );
-      if (attErr) return Response.json({ message: attErr.message }, { status: 500 });
+      const { error: attErr } = await supabase.from("intake_item_attempts").insert({
+        interview_id: interviewId,
+        assessment_session_id: sessionRow.id,
+        bank_item_id: bankItemId,
+        seq: nextSeq,
+        dimension,
+        scored_points: scored,
+        max_points: max,
+        theta_estimate_after: thetaAfter,
+        learner_response: lr && typeof lr === "object" ? lr : {},
+      });
+      if (attErr) return jsonPrivateNoStore({ message: attErr.message }, { status: 500 });
 
       attemptsSoFar.push({
         bank_item_id: bankItemId,
@@ -348,22 +355,25 @@ export async function POST(req: Request) {
       });
 
       const next = selectNextCatItemId(bank, attemptsSoFar, { maxItems: 20, minPerDimension: 2 });
-      return Response.json({
+      const maxCatItems = 20;
+      return jsonPrivateNoStore({
         ok: true,
         nextBankItemId: next.nextId,
         scoredPoints: scored,
         thetaEstimateAfter: thetaAfter,
         aiRationale: null as string | null,
+        attemptsCount: attemptsSoFar.length,
+        maxCatItems,
       });
     }
 
     if (action === "complete") {
       if (String(sessionRow.status).toUpperCase() !== "PENDING") {
-        return Response.json({ message: "Intake sudah diselesaikan sebelumnya." }, { status: 409 });
+        return jsonPrivateNoStore({ message: "Intake sudah diselesaikan sebelumnya." }, { status: 409 });
       }
       const interviewId = String(body.interviewId ?? "").trim();
       if (!interviewId) {
-        return Response.json({ message: "interviewId wajib." }, { status: 400 });
+        return jsonPrivateNoStore({ message: "interviewId wajib." }, { status: 400 });
       }
 
       const { data: intv, error: intvErr } = await supabase
@@ -373,7 +383,7 @@ export async function POST(req: Request) {
         .eq("user_id", auth.userId)
         .maybeSingle();
       if (intvErr || !intv || intv.status !== "IN_PROGRESS") {
-        return Response.json({ message: "Interview tidak valid." }, { status: 404 });
+        return jsonPrivateNoStore({ message: "Interview tidak valid." }, { status: 404 });
       }
 
       const { data: attRows } = await supabase
@@ -404,7 +414,7 @@ export async function POST(req: Request) {
         })
         .eq("id", sessionRow.id)
         .eq("user_id", auth.userId);
-      if (upSessionErr) return Response.json({ message: upSessionErr.message }, { status: 500 });
+      if (upSessionErr) return jsonPrivateNoStore({ message: upSessionErr.message }, { status: 500 });
 
       const { error: upIntErr } = await supabase
         .from("intake_interviews")
@@ -420,7 +430,7 @@ export async function POST(req: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq("id", interviewId);
-      if (upIntErr) return Response.json({ message: upIntErr.message }, { status: 500 });
+      if (upIntErr) return jsonPrivateNoStore({ message: upIntErr.message }, { status: 500 });
 
       const defaultCi = typeof sessionRow.intake_ci === "number" ? sessionRow.intake_ci : 2.4;
       for (const dim of CALIBRATION_DIMENSIONS) {
@@ -437,10 +447,10 @@ export async function POST(req: Request) {
         const { error: cpErr } = await supabase.from("competency_profiles").upsert(row, {
           onConflict: "user_id,dimension",
         });
-        if (cpErr) return Response.json({ message: cpErr.message }, { status: 500 });
+        if (cpErr) return jsonPrivateNoStore({ message: cpErr.message }, { status: 500 });
       }
 
-      return Response.json({
+      return jsonPrivateNoStore({
         ok: true,
         placementLevels,
         intakeTheta,
@@ -452,9 +462,9 @@ export async function POST(req: Request) {
       });
     }
 
-    return Response.json({ message: "action tidak dikenal." }, { status: 400 });
+    return jsonPrivateNoStore({ message: "action tidak dikenal." }, { status: 400 });
   } catch (e) {
-    return Response.json(
+    return jsonPrivateNoStore(
       { message: e instanceof Error ? e.message : "Unknown error" },
       { status: 500 },
     );

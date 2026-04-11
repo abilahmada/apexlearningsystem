@@ -355,8 +355,9 @@ export async function GET(req: Request) {
     const track = url.searchParams.get("track");
     const code = url.searchParams.get("code");
     const benchmark = url.searchParams.get("benchmark");
-    const limit = Number(url.searchParams.get("limit") ?? 20);
-    const safeLimit = Number.isNaN(limit) ? 20 : Math.min(Math.max(limit, 1), 100);
+    const limitRaw = Number(url.searchParams.get("limit") ?? 20);
+    const maxCap = typeParam === "lessons" ? 2000 : 100;
+    const safeLimit = Number.isNaN(limitRaw) ? 20 : Math.min(Math.max(limitRaw, 1), maxCap);
 
     let data: unknown = null;
     let error: { message: string } | null = null;
@@ -416,16 +417,29 @@ export async function GET(req: Request) {
         );
       }
     } else if (typeParam === "lessons") {
-      let query = supabase
-        .from("lessons")
-        .select("id, module_id, title, type, content_url, metadata")
-        .order("title", { ascending: true })
-        .order("id", { ascending: true })
-        .limit(safeLimit);
-      if (moduleId) query = query.eq("module_id", moduleId);
-      if (code) query = query.contains("metadata", { code });
-      if (benchmark) query = query.contains("metadata", { benchmark });
-      const res = await query;
+      const buildLessonsQuery = (withCreatedAt: boolean) => {
+        const cols = withCreatedAt
+          ? "id, module_id, title, type, content_url, metadata, created_at"
+          : "id, module_id, title, type, content_url, metadata";
+        let q = supabase.from("lessons").select(cols);
+        if (moduleId) {
+          q = q
+            .eq("module_id", moduleId)
+            .order("title", { ascending: true })
+            .order("id", { ascending: true });
+        } else {
+          q = withCreatedAt
+            ? q.order("created_at", { ascending: false }).order("id", { ascending: true })
+            : q.order("title", { ascending: true }).order("id", { ascending: true });
+        }
+        if (code) q = q.contains("metadata", { code });
+        if (benchmark) q = q.contains("metadata", { benchmark });
+        return q.limit(safeLimit);
+      };
+      let res = await buildLessonsQuery(true);
+      if (res.error && isMissingColumnError(res.error.message, "created_at")) {
+        res = await buildLessonsQuery(false);
+      }
       data = res.data;
       error = res.error;
     } else {
@@ -594,12 +608,15 @@ export async function POST(req: Request) {
       // Auto-seed quiz PRE/POST for new lesson so student can immediately take tests.
       const preSeed = buildDefaultLessonQuestions(title, "PRE");
       const postSeed = buildDefaultLessonQuestions(title, "POST");
-      const { error: quizSeedError } = await supabase.from("quizzes").insert({
-        lesson_id: data.id,
-        questions: postSeed,
-        questions_pre: preSeed,
-        questions_post: postSeed,
-      });
+      const { error: quizSeedError } = await supabase.from("quizzes").upsert(
+        {
+          lesson_id: data.id,
+          questions: postSeed,
+          questions_pre: preSeed,
+          questions_post: postSeed,
+        },
+        { onConflict: "lesson_id" },
+      );
       if (quizSeedError) {
         return Response.json(
           {
@@ -650,7 +667,7 @@ export async function POST(req: Request) {
       }
       const { data, error } = await supabase
         .from("quizzes")
-        .insert(row)
+        .upsert(row, { onConflict: "lesson_id" })
         .select("id, lesson_id, questions, questions_pre, questions_post")
         .single();
       if (error) return Response.json({ message: error.message }, { status: 500 });

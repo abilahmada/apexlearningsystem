@@ -87,13 +87,9 @@ export async function POST(req: Request) {
         questions_post: post,
       };
 
-      if (existing?.id) {
-        const { error: upErr } = await supabase.from("quizzes").update(row).eq("id", existing.id);
-        if (upErr) return Response.json({ message: upErr.message }, { status: 500 });
-      } else {
-        const { error: insErr } = await supabase.from("quizzes").insert(row);
-        if (insErr) return Response.json({ message: insErr.message }, { status: 500 });
-      }
+      // Satu lesson = satu quiz (uq_quizzes_lesson_id). Upsert menghindari duplikat + race insert.
+      const { error: saveErr } = await supabase.from("quizzes").upsert(row, { onConflict: "lesson_id" });
+      if (saveErr) return Response.json({ message: saveErr.message }, { status: 500 });
 
       return Response.json({
         ok: true,

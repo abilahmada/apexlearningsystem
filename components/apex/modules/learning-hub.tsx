@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Heart, CheckCircle2, Lock, Star, Zap } from 'lucide-react'
 import { useApex } from '../apex-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
@@ -57,11 +57,12 @@ const MODULE_STATUS_COPY = {
   phaseLocked: { id: 'Level Terkunci', en: 'Level Locked' },
   ready: { id: 'Siap Mulai', en: 'Ready' },
   inProgress: { id: 'Berjalan', en: 'In Progress' },
+  awaitingConfirm: { id: 'Siap dikonfirmasi', en: 'Ready to confirm' },
   completed: { id: 'Selesai', en: 'Completed' },
 } as const
 
 export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubProps) {
-  const { t, language, gradeLevel, userRole } = useApex()
+  const { t, language, userRole, gradeLevel } = useApex()
   const mastery = TODAY_MISSION.mastery
   const masteryPassed = mastery >= 80
   const [eventNote, setEventNote] = useState<string | null>(null)
@@ -73,10 +74,14 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
       sequenceOrder: number
       unlocked?: boolean
       lockReason?: string | null
+      completed?: boolean
+      lessonsAllPassed?: boolean
+      studyConfirmedAt?: string | null
       progress?: { completionPct?: number; totalLessons?: number; passedLessons?: number }
       metadata?: Record<string, unknown>
     }>
   >([])
+  const [confirmingModuleId, setConfirmingModuleId] = useState<string | null>(null)
   const [selectedModuleId, setSelectedModuleId] = useState<string>('')
   const [lessonItems, setLessonItems] = useState<
     Array<{
@@ -91,6 +96,10 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
   >([])
   const [lessonLoading, setLessonLoading] = useState(false)
   const [lessonMessage, setLessonMessage] = useState<string | null>(null)
+  const [modulesLoading, setModulesLoading] = useState(false)
+  const [modulesLoadError, setModulesLoadError] = useState<string | null>(null)
+  const [hubSuccessMessage, setHubSuccessMessage] = useState<string | null>(null)
+  const [effectiveGrade, setEffectiveGrade] = useState<string | null>(null)
   const [modulePostPassThreshold, setModulePostPassThreshold] = useState(80)
   const [activeTest, setActiveTest] = useState<{ lessonId: string; type: 'PRE' | 'POST' } | null>(null)
   const [testQuestions, setTestQuestions] = useState<Array<{ question: string; options: string[]; hint?: string | null }>>([])
@@ -110,6 +119,12 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
   const dailyMindsetGreeting = useMemo(() => {
     return getDailyGrowthMindsetMessage(t, 'dashboard', TODAY_MISSION.subject)
   }, [t])
+
+  useEffect(() => {
+    if (!hubSuccessMessage) return
+    const id = window.setTimeout(() => setHubSuccessMessage(null), 4500)
+    return () => window.clearTimeout(id)
+  }, [hubSuccessMessage])
   const toLevelLabel = (raw: unknown) => {
     const text = String(raw ?? '').trim()
     if (!text) return ''
@@ -165,55 +180,110 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
     }
   }
 
-  useEffect(() => {
-    const loadModules = async () => {
-      if (userRole !== 'student') return
-      try {
-        const token = await getAccessToken()
-        if (!token) return
-        const res = await fetch('/api/learning/modules?todayOnly=1', {
-          headers: { authorization: `Bearer ${token}` },
-          cache: 'no-store',
-        })
-        const json = (await res.json()) as {
-          items?: Array<{
-            id: string
-            title: string
-            sequenceOrder: number
-            unlocked?: boolean
-            lockReason?: string | null
-            progress?: { completionPct?: number; totalLessons?: number; passedLessons?: number }
-            metadata?: Record<string, unknown>
-          }>
-          todayKey?: string
-          message?: string
-        }
-        if (!res.ok) throw new Error(json.message ?? 'Failed to load modules')
-        const items = (json.items ?? []).sort((a, b) => a.sequenceOrder - b.sequenceOrder)
-        setModuleItems(items)
-        if (items.length > 0) {
-          setSelectedModuleId((prev) => prev || items[0].id)
-        } else {
-          setSelectedModuleId('')
-          setLessonItems([])
-          setLessonMessage(
-            t(
-              'Belum ada modul terjadwal untuk hari ini. Cek menu Jadwal Belajar untuk detail.',
-              'No modules are scheduled for today. Check Weekly Schedule for details.',
-            ),
-          )
-        }
-      } catch (error) {
+  const loadModules = useCallback(async () => {
+    if (userRole !== 'student') return
+    setModulesLoading(true)
+    setModulesLoadError(null)
+    try {
+      const token = await getAccessToken()
+      if (!token) {
         setModuleItems([])
+        setEffectiveGrade(null)
+        setModulesLoadError(t('Perlu login untuk memuat modul.', 'Sign in required to load modules.'))
+        return
+      }
+      const res = await fetch('/api/learning/modules?todayOnly=1', {
+        headers: { authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      })
+      const json = (await res.json()) as {
+        items?: Array<{
+          id: string
+          title: string
+          sequenceOrder: number
+          unlocked?: boolean
+          lockReason?: string | null
+          completed?: boolean
+          lessonsAllPassed?: boolean
+          studyConfirmedAt?: string | null
+          progress?: { completionPct?: number; totalLessons?: number; passedLessons?: number }
+          metadata?: Record<string, unknown>
+        }>
+        todayKey?: string
+        effectiveGrade?: string
+        message?: string
+      }
+      if (!res.ok) throw new Error(json.message ?? 'Failed to load modules')
+      setEffectiveGrade(json.effectiveGrade?.trim() ? String(json.effectiveGrade) : null)
+      const items = (json.items ?? []).sort((a, b) => a.sequenceOrder - b.sequenceOrder)
+      setModuleItems(items)
+      if (items.length > 0) {
+        setSelectedModuleId((prev) => (prev && items.some((x) => x.id === prev) ? prev : items[0].id))
+        setLessonMessage(null)
+      } else {
+        setSelectedModuleId('')
+        setLessonItems([])
         setLessonMessage(
-          error instanceof Error
-            ? error.message
-            : t('Gagal memuat modul terjadwal hari ini.', 'Failed to load today scheduled modules.'),
+          t(
+            'Tidak ada modul belajar aktif untuk hari ini: belum ada slot jadwal yang memenuhi aturan unlock fase, modul terjadwal sudah ditandai selesai dipelajari, atau tidak ada slot hari ini (fallback berikutnya belum tersedia). Cek Jadwal Belajar dan Modul Materi.',
+            'No active modules for today: no schedule slot matches your unlocked phase, scheduled modules are marked as finished for study, or there is no slot today (no next eligible fallback). Check Weekly Schedule and Module Materials.',
+          ),
         )
       }
+    } catch (error) {
+      setModuleItems([])
+      setEffectiveGrade(null)
+      setModulesLoadError(
+        error instanceof Error
+          ? error.message
+          : t('Gagal memuat modul terjadwal hari ini.', 'Failed to load today scheduled modules.'),
+      )
+    } finally {
+      setModulesLoading(false)
     }
+  }, [t, userRole])
+
+  useEffect(() => {
     void loadModules()
-  }, [gradeLevel, t, userRole])
+  }, [loadModules, gradeLevel])
+
+  const confirmModuleStudy = async (moduleId: string) => {
+    setConfirmingModuleId(moduleId)
+    setLessonMessage(null)
+    setHubSuccessMessage(null)
+    setModulesLoadError(null)
+    try {
+      const token = await getAccessToken()
+      if (!token) {
+        setLessonMessage(t('Perlu login untuk konfirmasi.', 'Sign in required to confirm.'))
+        return
+      }
+      const res = await fetch('/api/learning/module-complete', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ moduleId }),
+      })
+      const json = (await res.json()) as { message?: string; ok?: boolean }
+      if (!res.ok) throw new Error(json.message ?? t('Gagal mengonfirmasi modul.', 'Failed to confirm module.'))
+      await loadModules()
+      if (selectedModuleId === moduleId) {
+        await loadLessons(moduleId)
+      }
+      setHubSuccessMessage(
+        t(
+          'Modul ditandai selesai dipelajari. Jadwal dan daftar modul aktif diperbarui.',
+          'Module marked as finished for study. Your schedule and active module list are updated.',
+        ),
+      )
+    } catch (error) {
+      setLessonMessage(error instanceof Error ? error.message : t('Gagal mengonfirmasi modul.', 'Failed to confirm module.'))
+    } finally {
+      setConfirmingModuleId(null)
+    }
+  }
 
   useEffect(() => {
     if (!selectedModuleId) return
@@ -382,6 +452,7 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
       setTestQuestions([])
       setTestAnswers([])
       await loadLessons(selectedModuleId)
+      await loadModules()
     } catch (error) {
       const fallback = t('Gagal submit test.', 'Failed to submit test.')
       const raw = error instanceof Error ? error.message : fallback
@@ -588,99 +659,167 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
       </div>
 
       {/* ── Lesson gating: pre lalu post, ambang lulus = mastery_threshold modul ── */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-        <h3 className="text-sm font-bold text-slate-800">
-          {t('Progress Lesson per Modul (Pre/Post Test)', 'Module Lesson Progress (Pre/Post Test)')}
-        </h3>
+      <div
+        className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3"
+        aria-busy={modulesLoading}
+        aria-labelledby="learning-hub-modules-heading"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <h3 id="learning-hub-modules-heading" className="text-sm font-bold text-slate-800">
+            {t('Progress Lesson per Modul (Pre/Post Test)', 'Module Lesson Progress (Pre/Post Test)')}
+          </h3>
+          {effectiveGrade ? (
+            <span className="text-[10px] font-bold text-slate-600 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 shrink-0">
+              {t('Jenjang', 'Grade')}: {effectiveGrade}
+            </span>
+          ) : null}
+        </div>
         <p className="text-xs text-slate-500">
           {t(
             `Aturan: kerjakan Pre-test dulu, lalu Post-test. Lulus post-test = ≥ ${modulePostPassThreshold}% (ambang modul). Lesson berikutnya terbuka jika post-test lesson sebelumnya lulus.`,
             `Rule: complete Pre-test first, then Post-test. Pass post-test = ≥ ${modulePostPassThreshold}% (module threshold). Next lesson unlocks when the previous lesson’s post-test passes.`,
           )}
         </p>
+        {modulesLoadError ? (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+            {modulesLoadError}
+          </div>
+        ) : null}
+        {hubSuccessMessage ? (
+          <div role="status" aria-live="polite" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+            {hubSuccessMessage}
+          </div>
+        ) : null}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {moduleItems.length === 0 ? (
+          {modulesLoading ? (
+            <>
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="rounded-xl border border-slate-100 bg-slate-50 p-3 animate-pulse space-y-2" aria-hidden>
+                  <div className="h-4 w-3/4 max-w-[200px] rounded bg-slate-200" />
+                  <div className="h-3 w-1/2 rounded bg-slate-200" />
+                  <div className="h-1.5 w-full rounded bg-slate-200" />
+                </div>
+              ))}
+            </>
+          ) : null}
+          {!modulesLoading && moduleItems.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
               {t('Belum ada modul terjadwal untuk hari ini.', 'No modules scheduled for today.')}
             </div>
           ) : null}
-          {moduleItems.map((m) => {
+          {!modulesLoading &&
+            moduleItems.map((m) => {
             const selected = selectedModuleId === m.id
             const completionPct = Number(m.progress?.completionPct ?? 0)
             const totalLessons = Number(m.progress?.totalLessons ?? 0)
             const passedLessons = Number(m.progress?.passedLessons ?? 0)
             const phase = toLevelLabel(m.metadata?.phase)
             const moduleUnlocked = Boolean(m.unlocked)
+            const lessonsAllPassed = Boolean(
+              m.lessonsAllPassed ?? (totalLessons > 0 && passedLessons >= totalLessons),
+            )
+            const isCompleted = Boolean(m.completed)
+            const needsStudyConfirm = moduleUnlocked && lessonsAllPassed && !isCompleted
             const statusText = !moduleUnlocked
               ? t(MODULE_STATUS_COPY.phaseLocked.id, MODULE_STATUS_COPY.phaseLocked.en)
-              : totalLessons > 0 && passedLessons >= totalLessons
+              : isCompleted
                 ? t(MODULE_STATUS_COPY.completed.id, MODULE_STATUS_COPY.completed.en)
-                : passedLessons > 0
-                  ? t(MODULE_STATUS_COPY.inProgress.id, MODULE_STATUS_COPY.inProgress.en)
-                  : t(MODULE_STATUS_COPY.ready.id, MODULE_STATUS_COPY.ready.en)
+                : needsStudyConfirm
+                  ? t(MODULE_STATUS_COPY.awaitingConfirm.id, MODULE_STATUS_COPY.awaitingConfirm.en)
+                  : passedLessons > 0
+                    ? t(MODULE_STATUS_COPY.inProgress.id, MODULE_STATUS_COPY.inProgress.en)
+                    : t(MODULE_STATUS_COPY.ready.id, MODULE_STATUS_COPY.ready.en)
             const statusClass = !moduleUnlocked
               ? 'bg-slate-100 text-slate-600 border-slate-200'
-              : totalLessons > 0 && passedLessons >= totalLessons
+              : isCompleted
                 ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                : passedLessons > 0
-                  ? 'bg-amber-100 text-amber-700 border-amber-200'
-                  : 'bg-blue-100 text-blue-700 border-blue-200'
+                : needsStudyConfirm
+                  ? 'bg-violet-100 text-violet-800 border-violet-200'
+                  : passedLessons > 0
+                    ? 'bg-amber-100 text-amber-700 border-amber-200'
+                    : 'bg-blue-100 text-blue-700 border-blue-200'
+            const selectModule = () => {
+              if (!moduleUnlocked) {
+                setLessonMessage(
+                  t(
+                    'Level modul ini masih terkunci untuk levelmu saat ini.',
+                    'This module level is still locked for your current level.',
+                  ),
+                )
+                return
+              }
+              setSelectedModuleId(m.id)
+            }
             return (
-              <button
+              <div
                 key={m.id}
-                type="button"
-                disabled={!moduleUnlocked}
-                onClick={() => {
-                  if (!moduleUnlocked) {
-                    setLessonMessage(
-                      t(
-                        'Level modul ini masih terkunci untuk levelmu saat ini.',
-                        'This module level is still locked for your current level.',
-                      ),
-                    )
-                    return
-                  }
-                  setSelectedModuleId(m.id)
-                }}
                 className={`text-left rounded-xl border p-3 transition-all ${
                   selected
                     ? 'border-cyan-300 bg-cyan-50 shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-cyan-200 hover:bg-cyan-50/40'
-                } ${!moduleUnlocked ? 'opacity-80 cursor-not-allowed hover:border-slate-200 hover:bg-white' : ''}`}
+                    : 'border-slate-200 bg-white'
+                } ${!moduleUnlocked ? 'opacity-80' : ''}`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-semibold text-slate-800">
-                    {normalizeModuleTitle(m.title)}
+                <div
+                  role="button"
+                  tabIndex={moduleUnlocked ? 0 : -1}
+                  onClick={() => selectModule()}
+                  onKeyDown={(e) => {
+                    if (!moduleUnlocked) return
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      selectModule()
+                    }
+                  }}
+                  className={`rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                    moduleUnlocked ? 'cursor-pointer hover:bg-cyan-50/50' : 'cursor-not-allowed'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-800">
+                      {normalizeModuleTitle(m.title)}
+                    </p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${statusClass}`}>
+                      {statusText}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {phase ? `${phase} · ` : ''}
+                    {passedLessons}/{totalLessons} {t('lesson lulus', 'passed lessons')}
                   </p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusClass}`}>
-                    {statusText}
-                  </span>
+                  {!moduleUnlocked && m.lockReason === 'PHASE_LOCKED' ? (
+                    <p className="mt-1 text-[11px] text-amber-700">
+                      {t(
+                        'Selesaikan level saat ini terlebih dahulu untuk membuka modul ini.',
+                        'Complete your current level first to unlock this module.',
+                      )}
+                    </p>
+                  ) : null}
+                  <div className="mt-2 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.max(0, Math.min(100, completionPct))}%`,
+                        background:
+                          completionPct >= 80
+                            ? 'linear-gradient(90deg, #34D399, #059669)'
+                            : 'linear-gradient(90deg, #60A5FA, #2563EB)',
+                      }}
+                    />
+                  </div>
                 </div>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  {phase ? `${phase} · ` : ''}
-                  {passedLessons}/{totalLessons} {t('lesson lulus', 'passed lessons')}
-                </p>
-                {!moduleUnlocked && m.lockReason === 'PHASE_LOCKED' ? (
-                  <p className="mt-1 text-[11px] text-amber-700">
-                    {t(
-                      'Selesaikan level saat ini terlebih dahulu untuk membuka modul ini.',
-                      'Complete your current level first to unlock this module.',
-                    )}
-                  </p>
+                {needsStudyConfirm ? (
+                  <button
+                    type="button"
+                    disabled={confirmingModuleId === m.id}
+                    onClick={() => void confirmModuleStudy(m.id)}
+                    className="mt-2 w-full px-3 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 disabled:opacity-60"
+                  >
+                    {confirmingModuleId === m.id
+                      ? t('Menyimpan...', 'Saving...')
+                      : t('Selesai dipelajari', 'Mark as finished for study')}
+                  </button>
                 ) : null}
-                <div className="mt-2 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${Math.max(0, Math.min(100, completionPct))}%`,
-                      background:
-                        completionPct >= 80
-                          ? 'linear-gradient(90deg, #34D399, #059669)'
-                          : 'linear-gradient(90deg, #60A5FA, #2563EB)',
-                    }}
-                  />
-                </div>
-              </button>
+              </div>
             )
           })}
         </div>

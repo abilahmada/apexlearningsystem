@@ -1,4 +1,5 @@
 import { requireAppUserFromRequest } from "@/lib/auth/request-user";
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 import {
   CALIBRATION_DIMENSIONS,
   thetaToLevel,
@@ -19,9 +20,9 @@ import {
 export async function POST(req: Request) {
   try {
     const auth = await requireAppUserFromRequest(req);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
     if (auth.role !== "MENTOR" && auth.role !== "ADMIN") {
-      return Response.json({ message: "Forbidden" }, { status: 403 });
+      return jsonPrivateNoStore({ message: "Forbidden" }, { status: 403 });
     }
 
     const { supabase, userId: mentorUserId } = auth;
@@ -38,14 +39,14 @@ export async function POST(req: Request) {
     const overrideTheta = Number(body.overrideTheta);
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
 
-    if (!studentUserId) return Response.json({ message: "userId wajib." }, { status: 400 });
+    if (!studentUserId) return jsonPrivateNoStore({ message: "userId wajib." }, { status: 400 });
     if (!CALIBRATION_DIMENSIONS.includes(dimension as CalibrationDimension)) {
-      return Response.json({ message: `Dimensi tidak valid: ${dimension}` }, { status: 400 });
+      return jsonPrivateNoStore({ message: `Dimensi tidak valid: ${dimension}` }, { status: 400 });
     }
     if (!Number.isFinite(overrideTheta) || overrideTheta < 1 || overrideTheta > 10) {
-      return Response.json({ message: "overrideTheta harus angka antara 1 dan 10." }, { status: 400 });
+      return jsonPrivateNoStore({ message: "overrideTheta harus angka antara 1 dan 10." }, { status: 400 });
     }
-    if (!reason) return Response.json({ message: "reason wajib." }, { status: 400 });
+    if (!reason) return jsonPrivateNoStore({ message: "reason wajib." }, { status: 400 });
 
     // Fetch existing session for CI calculation
     const { data: session } = await supabase
@@ -75,7 +76,7 @@ export async function POST(req: Request) {
         },
         { onConflict: "user_id,dimension" },
       );
-    if (upErr) return Response.json({ message: upErr.message }, { status: 500 });
+    if (upErr) return jsonPrivateNoStore({ message: upErr.message }, { status: 500 });
 
     // Resolve previous MENTOR_OVERRIDE or MISMATCH flags for this dimension
     await supabase
@@ -119,8 +120,8 @@ export async function POST(req: Request) {
         .is("placement_locked_at", null);
     }
 
-    return Response.json({ ok: true, level, autoLocked });
+    return jsonPrivateNoStore({ ok: true, level, autoLocked });
   } catch (e) {
-    return Response.json({ message: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });
+    return jsonPrivateNoStore({ message: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });
   }
 }

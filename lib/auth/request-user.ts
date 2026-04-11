@@ -22,7 +22,13 @@ export async function requireAppUserFromRequest(req: Request): Promise<AppUserAu
   const token = getBearerToken(req);
   if (!token) return { ok: false, status: 401, message: "Missing token" };
 
-  const supabase = createSupabaseAdminClient();
+  let supabase: ReturnType<typeof createSupabaseAdminClient>;
+  try {
+    supabase = createSupabaseAdminClient();
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Konfigurasi server tidak lengkap.";
+    return { ok: false, status: 503, message };
+  }
   const authRes = await supabase.auth.getUser(token);
   const authUser = authRes.data.user;
   if (!authUser?.email) {

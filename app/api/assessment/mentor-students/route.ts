@@ -1,4 +1,5 @@
 import { requireAppUserFromRequest } from "@/lib/auth/request-user";
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 
 /**
  * GET /api/assessment/mentor-students
@@ -8,9 +9,9 @@ import { requireAppUserFromRequest } from "@/lib/auth/request-user";
 export async function GET(req: Request) {
   try {
     const auth = await requireAppUserFromRequest(req);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
     if (auth.role !== "MENTOR" && auth.role !== "ADMIN") {
-      return Response.json({ message: "Forbidden" }, { status: 403 });
+      return jsonPrivateNoStore({ message: "Forbidden" }, { status: 403 });
     }
 
     const { supabase } = auth;
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
       .select("id, user_id, full_name, grade_level")
       .order("full_name", { ascending: true })
       .limit(500);
-    if (error) return Response.json({ message: error.message }, { status: 500 });
+    if (error) return jsonPrivateNoStore({ message: error.message }, { status: 500 });
 
     const students = (data ?? []).map((s) => ({
       studentProfileId: String(s.id),
@@ -29,8 +30,8 @@ export async function GET(req: Request) {
       gradeLevel: String(s.grade_level ?? "SMP"),
     }));
 
-    return Response.json({ students });
+    return jsonPrivateNoStore({ students });
   } catch (e) {
-    return Response.json({ message: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });
+    return jsonPrivateNoStore({ message: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });
   }
 }

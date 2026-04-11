@@ -1,3 +1,4 @@
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getBearerToken } from "@/lib/assessment/require-student";
 import {
@@ -15,12 +16,12 @@ import {
 export async function POST(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
 
     const supabase = createSupabaseAdminClient();
     const authRes = await supabase.auth.getUser(token);
     const authUser = authRes.data.user;
-    if (!authUser?.email) return Response.json({ message: "Invalid token" }, { status: 401 });
+    if (!authUser?.email) return jsonPrivateNoStore({ message: "Invalid token" }, { status: 401 });
 
     const { data: appUser, error: uErr } = await supabase
       .from("users")
@@ -29,9 +30,9 @@ export async function POST(req: Request) {
       .order("id", { ascending: true })
       .limit(1)
       .maybeSingle();
-    if (uErr || !appUser) return Response.json({ message: "User not found" }, { status: 404 });
+    if (uErr || !appUser) return jsonPrivateNoStore({ message: "User not found" }, { status: 404 });
     if (String(appUser.role) !== "PARENT") {
-      return Response.json({ message: "Forbidden" }, { status: 403 });
+      return jsonPrivateNoStore({ message: "Forbidden" }, { status: 403 });
     }
 
     const { data: parentProfile, error: pErr } = await supabase
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
       .limit(1)
       .maybeSingle();
     if (pErr || !parentProfile) {
-      return Response.json({ message: "Profil orang tua tidak ditemukan." }, { status: 404 });
+      return jsonPrivateNoStore({ message: "Profil orang tua tidak ditemukan." }, { status: 404 });
     }
 
     const body = (await req.json()) as {
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
 
     const studentUserId = String(body.studentUserId ?? "").trim();
     if (!studentUserId) {
-      return Response.json({ message: "studentUserId wajib." }, { status: 400 });
+      return jsonPrivateNoStore({ message: "studentUserId wajib." }, { status: 400 });
     }
 
     const { data: studentRow, error: sErr } = await supabase
@@ -67,10 +68,10 @@ export async function POST(req: Request) {
       .limit(1)
       .maybeSingle();
     if (sErr || !studentRow) {
-      return Response.json({ message: "Profil siswa tidak ditemukan." }, { status: 404 });
+      return jsonPrivateNoStore({ message: "Profil siswa tidak ditemukan." }, { status: 404 });
     }
     if (String(studentRow.parent_id) !== String(parentProfile.id)) {
-      return Response.json({ message: "Siswa tidak terhubung dengan akun orang tua ini." }, { status: 403 });
+      return jsonPrivateNoStore({ message: "Siswa tidak terhubung dengan akun orang tua ini." }, { status: 403 });
     }
 
     const agreed = body.agreedWithProfile !== false;
@@ -89,7 +90,7 @@ export async function POST(req: Request) {
       },
       { onConflict: "user_id" },
     );
-    if (upsertErr) return Response.json({ message: upsertErr.message }, { status: 500 });
+    if (upsertErr) return jsonPrivateNoStore({ message: upsertErr.message }, { status: 500 });
 
     // Update session: mark parent_validated_at and advance to PLACED
     const { data: sessionRow, error: sessErr } = await supabase
@@ -103,7 +104,7 @@ export async function POST(req: Request) {
       .select("intake_theta, intake_ci, sessions_completed")
       .maybeSingle();
     if (sessErr) {
-      return Response.json({ message: sessErr.message }, { status: 500 });
+      return jsonPrivateNoStore({ message: sessErr.message }, { status: 500 });
     }
 
     // Run final placement and persist to competency_profiles
@@ -193,9 +194,9 @@ export async function POST(req: Request) {
       }
     }
 
-    return Response.json({ ok: true });
+    return jsonPrivateNoStore({ ok: true });
   } catch (e) {
-    return Response.json(
+    return jsonPrivateNoStore(
       { message: e instanceof Error ? e.message : "Unknown error" },
       { status: 500 },
     );

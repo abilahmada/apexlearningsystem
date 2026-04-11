@@ -142,11 +142,11 @@ export function AssessmentIntakeFlow({
     if (data.assessmentSession.status !== 'PENDING') return
     const intv = data.interview
     if (intv?.status === 'IN_PROGRESS') {
-      setPhase('scenarios')
       if (progressInterviewIdRef.current !== intv.id) {
         progressInterviewIdRef.current = intv.id
         setScenarioIdx(0)
         itemSeqRef.current = 0
+        setPhase('scenarios')
       }
     } else if (!intv) {
       progressInterviewIdRef.current = null
@@ -212,6 +212,8 @@ export function AssessmentIntakeFlow({
     const json = (await res.json()) as {
       message?: string; reused?: boolean; interviewId?: string
       nextBankItemId?: string | null; scoredPoints?: number; aiRationale?: string | null
+      attemptsCount?: number
+      maxCatItems?: number
       placementLevels?: Record<string, number>
       narratives?: Record<string, { id: string; en: string }>
       gradeLabel?: string
@@ -283,8 +285,6 @@ export function AssessmentIntakeFlow({
     if (!currentItem) { setPhase('finalize'); return }
     setError(null)
     try {
-      itemSeqRef.current += 1
-      const seq = itemSeqRef.current
       let learnerResponse: Record<string, unknown> = {}
       let scored = 0
       const useAiScore = currentItem.item_type === 'OPEN_SHORT'
@@ -302,7 +302,7 @@ export function AssessmentIntakeFlow({
       }
       const resJson = await postAction({
         action: 'item_attempt', interviewId: data.interview.id,
-        seq, dimension: currentItem.dimension, bankItemId: currentItem.id,
+        dimension: currentItem.dimension, bankItemId: currentItem.id,
         learnerResponse, scoredPoints: useAiScore ? undefined : scored,
         latencyMs: null, aiScoreOpen: useAiScore,
       })
@@ -311,6 +311,7 @@ export function AssessmentIntakeFlow({
       const nextId = resJson.nextBankItemId
       if (nextId && bank.some((b) => b.id === nextId)) setActiveBankItemId(nextId)
       else setPhase('finalize')
+      await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed')
     }
@@ -484,9 +485,19 @@ export function AssessmentIntakeFlow({
                 placeholder={t('Jawab 2–3 kalimat…', 'Answer in 2–3 sentences…')} />
               <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 space-y-2">
                 <p className="text-[11px] font-semibold text-indigo-800">{t('Bantuan Socrates (opsional)', 'Socrates hint (optional)')}</p>
-                <input type="text" value={socratesQuestion} onChange={(e) => setSocratesQuestion(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-                  placeholder={t('Tanya pancingan…', 'Ask for a guiding question…')} />
+                <textarea
+                  value={socratesQuestion}
+                  onChange={(e) => setSocratesQuestion(e.target.value.slice(0, 500))}
+                  rows={2}
+                  enterKeyHint="enter"
+                  inputMode="text"
+                  className="w-full min-h-[2.75rem] rounded-lg border border-slate-200 px-2 py-1.5 text-xs resize-y touch-manipulation"
+                  placeholder={t('Tanya pancingan…', 'Ask for a guiding question…')}
+                  aria-label={t('Pertanyaan ke Socrates (opsional)', 'Optional question for Socrates')}
+                />
+                <p className="text-[10px] text-slate-500 md:hidden">
+                  {t('Enter = baris baru. Ketuk «Tanya Socrates» untuk mengirim.', 'Enter adds a new line. Tap “Ask Socrates” to send.')}
+                </p>
                 <button type="button" disabled={socratesLoading} onClick={() => void askIntakeSocrates()}
                   className="text-xs font-semibold text-indigo-700 hover:underline disabled:opacity-50">
                   {socratesLoading ? t('Memuat…', 'Loading…') : t('Tanya Socrates', 'Ask Socrates')}

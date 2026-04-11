@@ -1,113 +1,50 @@
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 import { getBearerToken, requireStudentSession } from "@/lib/assessment/require-student";
 import {
-  assessmentLayerForPhase,
-  resolvePlacementProductPhase,
-  type AssessmentSessionStatus,
-  type PlacementProductPhase,
-} from "@/lib/assessment/placement-lifecycle";
-
-type GradeApi = "SD" | "SMP" | "SMK";
-
-function parseGrade(raw: string | null): GradeApi | null {
-  if (!raw) return null;
-  const t = raw.trim().toUpperCase();
-  if (t === "SD" || t === "SMP" || t === "SMK") return t;
-  return null;
-}
-
-type ModuleAllowedPhase =
-  | "BASELINE"
-  | "CALIBRATION_ACTIVE"
-  | "PARENT_VALIDATION_PENDING"
-  | "PLACEMENT_STABLE"
-  | "CONTINUOUS_REVIEW_DUE"
-  | "L1_INTAKE"
-  | "L2_CALIBRATION"
-  | "L3_RADAR_PROVISIONAL"
-  | "L4_PARENT_VALIDATION_PENDING";
-
-function normalizePhaseList(raw: unknown): ModuleAllowedPhase[] {
-  if (!Array.isArray(raw)) return [];
-  const out: ModuleAllowedPhase[] = [];
-  for (const x of raw) {
-    const t = String(x ?? "").trim().toUpperCase();
-    if (
-      t === "BASELINE" ||
-      t === "CALIBRATION_ACTIVE" ||
-      t === "PARENT_VALIDATION_PENDING" ||
-      t === "PLACEMENT_STABLE" ||
-      t === "CONTINUOUS_REVIEW_DUE" ||
-      t === "L1_INTAKE" ||
-      t === "L2_CALIBRATION" ||
-      t === "L3_RADAR_PROVISIONAL" ||
-      t === "L4_PARENT_VALIDATION_PENDING"
-    ) {
-      out.push(t as ModuleAllowedPhase);
-    }
-  }
-  return out;
-}
-
-function normalizeCurrentPhaseForMetadata(phase: PlacementProductPhase): ModuleAllowedPhase {
-  switch (phase) {
-    case "L1_INTAKE":
-      return "L1_INTAKE";
-    case "L2_CALIBRATION":
-    case "L3_RADAR_PROVISIONAL":
-      // Backward compatibility untuk metadata lama.
-      return "CALIBRATION_ACTIVE";
-    case "L4_PARENT_VALIDATION_PENDING":
-      return "PARENT_VALIDATION_PENDING";
-    case "PLACEMENT_STABLE":
-      return "PLACEMENT_STABLE";
-    case "CONTINUOUS_REVIEW_DUE":
-      return "CONTINUOUS_REVIEW_DUE";
-  }
-}
-
-function parsePhaseOrder(raw: unknown): number | null {
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return null;
-  return Math.max(1, Math.round(n));
-}
-
-function parseModulePhaseNumber(metadata: Record<string, unknown>): number {
-  const numeric =
-    parsePhaseOrder(metadata.phaseOrder) ??
-    parsePhaseOrder(metadata.phase_order) ??
-    parsePhaseOrder(metadata.phase);
-  if (numeric) return numeric;
-  const phaseText = String(metadata.phase ?? "").trim();
-  const m = phaseText.match(/(\d+)/);
-  if (m) return Math.max(1, Number(m[1]));
-  return 1;
-}
-
-function placementBaselinePhaseFromProductPhase(phase: PlacementProductPhase): number {
-  switch (phase) {
-    case "L1_INTAKE":
-      return 1;
-    case "L2_CALIBRATION":
-    case "L3_RADAR_PROVISIONAL":
-      return 2;
-    case "L4_PARENT_VALIDATION_PENDING":
-    case "PLACEMENT_STABLE":
-    case "CONTINUOUS_REVIEW_DUE":
-      return 3;
-  }
-}
-
-function parsePlacementPhase(raw: unknown): number | null {
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return null;
-  const rounded = Math.max(1, Math.round(n));
-  return Number.isFinite(rounded) ? rounded : null;
-}
+  effectiveModuleScheduleDayKeys,
+  todayScheduleKeyFromDate,
+} from "@/lib/learning/module-schedule-days";
+import { fetchStudentScheduleSlots, slotsForDay } from "@/lib/learning/student-learning-schedule";
+import {
+  fetchStudentModulePhaseContext,
+  isModuleUnlockedByPhaseEntry,
+  parseModulePhaseNumber,
+  parseStudentGrade,
+} from "@/lib/learning/student-module-phase-context";
 
 function parseBool(raw: string | null): boolean {
   if (!raw) return false;
   const t = raw.trim().toLowerCase();
   return t === "1" || t === "true" || t === "yes";
+}
+
+function formatSubjectDisplay(metadata: Record<string, unknown>): string {
+  const s = String(metadata.subject ?? "").trim();
+  if (!s) return "";
+  return s
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function lessonPosttestAggregates(
+  lessons: Array<{ posttestScore: number | null; posttestPassed: boolean }>,
+): { avgPosttestPct: number | null; studyPointsTotal: number } {
+  let sum = 0;
+  let n = 0;
+  let pointsSum = 0;
+  for (const le of lessons) {
+    const sc = le.posttestScore;
+    if (typeof sc === "number" && Number.isFinite(sc)) {
+      sum += sc;
+      n += 1;
+      if (le.posttestPassed) pointsSum += Math.round(sc);
+    }
+  }
+  const avgPosttestPct = n > 0 ? Math.round((sum / n) * 10) / 10 : null;
+  const studyPointsTotal = Math.max(0, Math.round(pointsSum));
+  return { avgPosttestPct, studyPointsTotal };
 }
 
 type ModulesViewMode = "default" | "todayOnly" | "progression-only";
@@ -123,101 +60,32 @@ function parseViewMode(raw: string | null): ModulesViewMode {
   return "default";
 }
 
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
-type DayKey = (typeof DAY_KEYS)[number];
-
-function normalizeDayKey(raw: unknown): DayKey | null {
-  const t = String(raw ?? "").trim().toLowerCase();
-  if (t === "mon" || t === "monday" || t === "senin") return "mon";
-  if (t === "tue" || t === "tuesday" || t === "selasa") return "tue";
-  if (t === "wed" || t === "wednesday" || t === "rabu") return "wed";
-  if (t === "thu" || t === "thursday" || t === "kamis") return "thu";
-  if (t === "fri" || t === "friday" || t === "jumat" || t === "jum'at") return "fri";
-  if (t === "sat" || t === "saturday" || t === "sabtu") return "sat";
-  if (t === "sun" || t === "sunday" || t === "minggu") return "sun";
-  return null;
-}
-
-function normalizeScheduleDays(raw: unknown): DayKey[] {
-  if (!Array.isArray(raw)) return [];
-  const out: DayKey[] = [];
-  for (const item of raw) {
-    const key = normalizeDayKey(item);
-    if (key && !out.includes(key)) out.push(key);
-  }
-  return out;
-}
-
-function todayKeyFromDate(d: Date): DayKey {
-  const day = d.getDay(); // 0=Sun .. 6=Sat
-  return DAY_KEYS[(day + 6) % 7];
-}
-
-/** Kolom placement_phase belum ada di DB lama — fallback select id+grade_level saja. */
-function isMissingColumnError(message: string | undefined, column: string): boolean {
-  if (!message) return false;
-  const m = message.toLowerCase();
-  const col = column.toLowerCase();
-  return (
-    m.includes(col) &&
-    (m.includes("does not exist") || m.includes("schema cache") || m.includes("could not find"))
-  );
-}
-
-type StudentProfileRow = {
-  id: string;
-  grade_level: unknown;
-  placement_phase?: unknown;
-};
-
 export async function GET(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
 
     const auth = await requireStudentSession(token);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
 
     const url = new URL(req.url);
-    const requestedGrade = parseGrade(url.searchParams.get("grade"));
+    const requestedGrade = parseStudentGrade(url.searchParams.get("grade"));
     const includeLessons = parseBool(url.searchParams.get("withLessons"));
     const todayOnly = parseBool(url.searchParams.get("todayOnly"));
-    /** Katalog materi (menu Modul Materi): semua modul grade siswa, tanpa filter jadwal & tanpa filter fase/lapis assessment pada metadata modul. */
     const catalogMode = parseBool(url.searchParams.get("catalog"));
     const mode = parseViewMode(url.searchParams.get("mode"));
 
-    let studentProfile: StudentProfileRow | null = null;
-    let studentErr: { message?: string } | null = null;
-    const full = await auth.supabase
-      .from("student_profiles")
-      .select("id, grade_level, placement_phase")
-      .eq("user_id", auth.userId)
-      .order("id", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (full.error && isMissingColumnError(full.error.message, "placement_phase")) {
-      const minimal = await auth.supabase
-        .from("student_profiles")
-        .select("id, grade_level")
-        .eq("user_id", auth.userId)
-        .order("id", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      studentProfile = minimal.data as StudentProfileRow | null;
-      studentErr = minimal.error;
-    } else {
-      studentProfile = full.data as StudentProfileRow | null;
-      studentErr = full.error;
+    const phaseRes = await fetchStudentModulePhaseContext(auth.supabase, auth.userId, {
+      catalogMode,
+    });
+    if (!phaseRes.ok) {
+      return jsonPrivateNoStore({ message: phaseRes.message }, { status: phaseRes.status });
     }
-    if (studentErr || !studentProfile) {
-      return Response.json({ message: "Student profile tidak ditemukan." }, { status: 404 });
-    }
-    const dbGrade = parseGrade(String(studentProfile.grade_level ?? ""));
-    if (!dbGrade) {
-      return Response.json({ message: "grade_level student tidak valid." }, { status: 400 });
-    }
+    const ctx = phaseRes.context;
+    const { studentProfile, dbGrade, enriched, phaseGatedItems, phaseProgress, productPhase } = ctx;
+
     if (requestedGrade && requestedGrade !== dbGrade) {
-      return Response.json(
+      return jsonPrivateNoStore(
         {
           message: "Akses modul dibatasi sesuai jenjang siswa di profil.",
           effectiveGrade: dbGrade,
@@ -226,195 +94,24 @@ export async function GET(req: Request) {
       );
     }
 
-    const { data: session } = await auth.supabase
-      .from("assessment_sessions")
-      .select("status, sessions_completed, parent_validated_at, placement_locked_at, last_continuous_review_at")
-      .eq("user_id", auth.userId)
-      .maybeSingle();
+    if (ctx.moduleIds.length === 0) {
+      return jsonPrivateNoStore({ items: [] });
+    }
 
-    const productPhase = resolvePlacementProductPhase({
-      sessionStatus: String(session?.status ?? "ACTIVE").toUpperCase() as AssessmentSessionStatus,
-      sessionsCompleted: Number(session?.sessions_completed ?? 0),
-      parentValidatedAt: session?.parent_validated_at ? String(session.parent_validated_at) : null,
-      placementLockedAt: session?.placement_locked_at ? String(session.placement_locked_at) : null,
-      lastContinuousReviewAt: session?.last_continuous_review_at
-        ? String(session.last_continuous_review_at)
-        : null,
-      now: new Date(),
-    });
-    const metadataCurrentPhase = normalizeCurrentPhaseForMetadata(productPhase);
-    const assessmentLayer = assessmentLayerForPhase(productPhase);
-    const placementPhaseFromProfile = parsePlacementPhase(studentProfile.placement_phase);
-    const placementBaselinePhase =
-      placementPhaseFromProfile ?? placementBaselinePhaseFromProductPhase(productPhase);
-
-    const { data: courses, error: courseErr } = await auth.supabase
-      .from("courses")
-      .select("id, title, grade_level")
-      .eq("grade_level", dbGrade)
-      .order("title", { ascending: true });
-    if (courseErr) return Response.json({ message: courseErr.message }, { status: 500 });
-    const courseIds = (courses ?? []).map((c) => String(c.id));
-
-    if (courseIds.length === 0) return Response.json({ items: [] });
-
-    const { data: modules, error: moduleErr } = await auth.supabase
-      .from("modules")
-      .select("id, course_id, title, sequence_order, mastery_threshold, metadata")
-      .in("course_id", courseIds)
-      .order("sequence_order", { ascending: true });
-    if (moduleErr) return Response.json({ message: moduleErr.message }, { status: 500 });
-
-    const assessmentFiltered = (modules ?? []).filter((m) => {
-      if (catalogMode) return true;
-      const meta =
-        m.metadata && typeof m.metadata === "object"
-          ? (m.metadata as Record<string, unknown>)
-          : {};
-      const minLayer = Number(meta.minAssessmentLayer ?? 0);
-      if (Number.isFinite(minLayer) && minLayer > 0 && assessmentLayer < minLayer) {
-        return false;
-      }
-      const allowedPhases = normalizePhaseList(meta.allowedProductPhases);
-      if (allowedPhases.length > 0 && !allowedPhases.includes(metadataCurrentPhase)) {
-        return false;
-      }
-      return true;
-    });
-
-    const phaseFirstSeen = new Map<string, number>();
-    const enriched = assessmentFiltered.map((m, idx) => {
-      const metadata =
-        m.metadata && typeof m.metadata === "object"
-          ? (m.metadata as Record<string, unknown>)
-          : {};
-      const phaseKey = String(metadata.phase ?? "Phase 1").trim() || "Phase 1";
-      const phaseOrder = parseModulePhaseNumber(metadata);
-      if (!phaseFirstSeen.has(phaseKey)) phaseFirstSeen.set(phaseKey, idx);
-      return {
-        row: m,
-        metadata,
-        phaseKey,
-        phaseOrder,
-        phaseSeenIndex: phaseFirstSeen.get(phaseKey) ?? idx,
-      };
-    });
-
-    enriched.sort((a, b) => {
-      const ao = a.phaseOrder ?? Number.MAX_SAFE_INTEGER;
-      const bo = b.phaseOrder ?? Number.MAX_SAFE_INTEGER;
-      if (ao !== bo) return ao - bo;
-      if (a.phaseSeenIndex !== b.phaseSeenIndex) return a.phaseSeenIndex - b.phaseSeenIndex;
-      const as = Number(a.row.sequence_order ?? 0);
-      const bs = Number(b.row.sequence_order ?? 0);
-      if (as !== bs) return as - bs;
-      return String(a.row.title ?? "").localeCompare(String(b.row.title ?? ""));
-    });
-
-    const moduleIds = enriched.map((x) => String(x.row.id));
-    const { data: lessons, error: lessonErr } = await auth.supabase
-      .from("lessons")
-      .select("id, module_id")
-      .in("module_id", moduleIds.length > 0 ? moduleIds : ["00000000-0000-0000-0000-000000000000"]);
-    if (lessonErr) return Response.json({ message: lessonErr.message }, { status: 500 });
-
-    const lessonIds = (lessons ?? []).map((l) => String(l.id));
-    const { data: progressRows, error: progressErr } = await auth.supabase
-      .from("lesson_progress")
-      .select("lesson_id, pretest_score, posttest_score, posttest_passed")
+    const confirmationByModule = new Map<string, string>();
+    const confRes = await auth.supabase
+      .from("student_module_study_confirmations")
+      .select("module_id, confirmed_at")
       .eq("student_id", String(studentProfile.id))
-      .in("lesson_id", lessonIds.length > 0 ? lessonIds : ["00000000-0000-0000-0000-000000000000"]);
-    if (progressErr) return Response.json({ message: progressErr.message }, { status: 500 });
-
-    const lessonProgressByLesson = new Map<
-      string,
-      { pretestScore: number | null; posttestScore: number | null; posttestPassed: boolean }
-    >();
-    for (const p of progressRows ?? []) {
-      const lid = String(p.lesson_id);
-      lessonProgressByLesson.set(lid, {
-        pretestScore: typeof p.pretest_score === "number" ? Number(p.pretest_score) : null,
-        posttestScore: typeof p.posttest_score === "number" ? Number(p.posttest_score) : null,
-        posttestPassed: Boolean(p.posttest_passed),
-      });
-    }
-
-    const moduleToPhase = new Map<string, string>();
-    for (const m of enriched) moduleToPhase.set(String(m.row.id), m.phaseKey);
-
-    const phaseStats = new Map<
-      string,
-      { totalLessons: number; scoredLessons: number; scoreSum: number; passedCount: number }
-    >();
-    for (const lesson of lessons ?? []) {
-      const phaseKey = moduleToPhase.get(String(lesson.module_id));
-      if (!phaseKey) continue;
-      const current = phaseStats.get(phaseKey) ?? {
-        totalLessons: 0,
-        scoredLessons: 0,
-        scoreSum: 0,
-        passedCount: 0,
-      };
-      current.totalLessons += 1;
-      const prog = lessonProgressByLesson.get(String(lesson.id));
-      const score = prog?.posttestScore ?? null;
-      if (typeof score === "number") {
-        current.scoredLessons += 1;
-        current.scoreSum += score;
-      }
-      if (prog?.posttestPassed) current.passedCount += 1;
-      phaseStats.set(phaseKey, current);
-    }
-
-    const orderedPhases: string[] = [];
-    const phaseOrderByKey = new Map<string, number>();
-    for (const m of enriched) {
-      if (!orderedPhases.includes(m.phaseKey)) orderedPhases.push(m.phaseKey);
-      if (!phaseOrderByKey.has(m.phaseKey)) {
-        phaseOrderByKey.set(m.phaseKey, m.phaseOrder ?? 1);
+      .in(
+        "module_id",
+        ctx.moduleIds.length > 0 ? ctx.moduleIds : ["00000000-0000-0000-0000-000000000000"],
+      );
+    if (!confRes.error && confRes.data) {
+      for (const row of confRes.data) {
+        confirmationByModule.set(String(row.module_id), String(row.confirmed_at ?? ""));
       }
     }
-
-    const unlockedPhaseSet = new Set<string>();
-    const phaseProgress: Array<{
-      phase: string;
-      unlocked: boolean;
-      avgPosttestScore: number;
-      totalLessons: number;
-      scoredLessons: number;
-      passedForNext: boolean;
-    }> = [];
-
-    let previousPassed: boolean = true;
-    for (let i = 0; i < orderedPhases.length; i += 1) {
-      const phase = orderedPhases[i];
-      const stats = phaseStats.get(phase) ?? {
-        totalLessons: 0,
-        scoredLessons: 0,
-        scoreSum: 0,
-        passedCount: 0,
-      };
-      const avg =
-        stats.scoredLessons > 0 ? Math.round((stats.scoreSum / stats.scoredLessons) * 100) / 100 : 0;
-      const passedForNext =
-        stats.totalLessons === 0 || stats.passedCount === stats.totalLessons;
-      const phaseNumber = phaseOrderByKey.get(phase) ?? i + 1;
-      const isBaselineUnlocked = phaseNumber <= placementBaselinePhase;
-      const unlocked: boolean = isBaselineUnlocked || previousPassed;
-      if (unlocked) unlockedPhaseSet.add(phase);
-      phaseProgress.push({
-        phase,
-        unlocked,
-        avgPosttestScore: avg,
-        totalLessons: stats.totalLessons,
-        scoredLessons: stats.scoredLessons,
-        passedForNext,
-      });
-      previousPassed = unlocked && passedForNext;
-    }
-
-    const phaseGatedItems = enriched.filter((x) => unlockedPhaseSet.has(x.phaseKey));
-    const baseItemsForVisibility = enriched;
 
     const lessonByModule = new Map<
       string,
@@ -428,9 +125,10 @@ export async function GET(req: Request) {
     >();
     const passedCountByModule = new Map<string, number>();
     const totalCountByModule = new Map<string, number>();
-    for (const lesson of lessons ?? []) {
+
+    for (const lesson of ctx.lessons) {
       const moduleId = String(lesson.module_id);
-      const prog = lessonProgressByLesson.get(String(lesson.id));
+      const prog = ctx.lessonProgressByLesson.get(String(lesson.id));
       const score = prog?.posttestScore ?? null;
       const preScore = prog?.pretestScore ?? null;
       const passed = Boolean(prog?.posttestPassed);
@@ -451,15 +149,18 @@ export async function GET(req: Request) {
       const { data: lessonRows, error: lessonRowsErr } = await auth.supabase
         .from("lessons")
         .select("id, module_id, title")
-        .in("module_id", moduleIds.length > 0 ? moduleIds : ["00000000-0000-0000-0000-000000000000"])
+        .in(
+          "module_id",
+          ctx.moduleIds.length > 0 ? ctx.moduleIds : ["00000000-0000-0000-0000-000000000000"],
+        )
         .order("title", { ascending: true })
         .order("id", { ascending: true });
-      if (lessonRowsErr) return Response.json({ message: lessonRowsErr.message }, { status: 500 });
+      if (lessonRowsErr) return jsonPrivateNoStore({ message: lessonRowsErr.message }, { status: 500 });
       for (const row of lessonRows ?? []) {
         const moduleId = String(row.module_id);
         const arr = lessonByModule.get(moduleId) ?? [];
         const idx = arr.findIndex((x) => x.id === String(row.id));
-        const progRow = lessonProgressByLesson.get(String(row.id));
+        const progRow = ctx.lessonProgressByLesson.get(String(row.id));
         const base = {
           id: String(row.id),
           title: String(row.title ?? ""),
@@ -477,56 +178,139 @@ export async function GET(req: Request) {
       }
     }
 
-    const effectiveTodayKey = todayKeyFromDate(new Date());
+    const effectiveTodayKey = todayScheduleKeyFromDate(new Date());
     const scheduleOnly =
       !catalogMode && (mode === "todayOnly" || (mode === "default" && todayOnly));
-    const visibleItems = baseItemsForVisibility.filter((x) => {
+
+    const slotLoad = await fetchStudentScheduleSlots(auth.supabase, String(studentProfile.id));
+    const customSlotsToday =
+      slotLoad.ok && slotLoad.rows.length > 0 ? slotsForDay(slotLoad.rows, effectiveTodayKey) : [];
+
+    const lessonsAllPassed = (moduleId: string) => {
+      const total = totalCountByModule.get(moduleId) ?? 0;
+      const passed = passedCountByModule.get(moduleId) ?? 0;
+      return total > 0 && passed >= total;
+    };
+
+    const studyConfirmedAt = (moduleId: string) => confirmationByModule.get(moduleId) ?? null;
+
+    const isHubArchiveCompleted = (moduleId: string) =>
+      Boolean(studyConfirmedAt(moduleId)) && lessonsAllPassed(moduleId);
+
+    const baseItemsForVisibility = enriched;
+
+    let visibleItems = baseItemsForVisibility.filter((x) => {
       if (!scheduleOnly) return true;
-      const days = normalizeScheduleDays(x.metadata.scheduleDays);
-      // todayOnly mode is strict: module must explicitly include today's day key.
-      return days.length > 0 && days.includes(effectiveTodayKey);
+      const moduleId = String(x.row.id);
+      if (!isModuleUnlockedByPhaseEntry(x, phaseGatedItems)) return false;
+      if (isHubArchiveCompleted(moduleId)) return false;
+      if (customSlotsToday.length > 0) {
+        return customSlotsToday.some((s) => s.module_id === moduleId);
+      }
+      const days = effectiveModuleScheduleDayKeys(x.metadata, Number(x.row.sequence_order ?? 0));
+      return days.includes(effectiveTodayKey);
     });
 
-    return Response.json({
+    if (scheduleOnly && customSlotsToday.length > 0) {
+      const order = new Map<string, number>();
+      for (let i = 0; i < customSlotsToday.length; i += 1) {
+        order.set(String(customSlotsToday[i].module_id), customSlotsToday[i].slot_order ?? i);
+      }
+      visibleItems = [...visibleItems].sort(
+        (a, b) =>
+          (order.get(String(a.row.id)) ?? 999) - (order.get(String(b.row.id)) ?? 999),
+      );
+    }
+
+    if (scheduleOnly && visibleItems.length === 0) {
+      const filler = [...baseItemsForVisibility]
+        .filter((x) => {
+          const id = String(x.row.id);
+          if (!isModuleUnlockedByPhaseEntry(x, phaseGatedItems)) return false;
+          if (isHubArchiveCompleted(id)) return false;
+          return true;
+        })
+        .sort((a, b) => Number(a.row.sequence_order ?? 0) - Number(b.row.sequence_order ?? 0))[0];
+      if (filler) visibleItems = [filler];
+    }
+
+    const uniqueCourseIds = [...new Set(visibleItems.map((x) => String(x.row.course_id)))];
+    const { data: courseRows, error: courseRowErr } = await auth.supabase
+      .from("courses")
+      .select("id, title")
+      .in(
+        "id",
+        uniqueCourseIds.length > 0 ? uniqueCourseIds : ["00000000-0000-0000-0000-000000000000"],
+      );
+    if (courseRowErr) return jsonPrivateNoStore({ message: courseRowErr.message }, { status: 500 });
+    const courseTitleById = new Map<string, string>(
+      (courseRows ?? []).map((c) => [String(c.id), String(c.title ?? "")]),
+    );
+
+    return jsonPrivateNoStore({
       effectiveGrade: dbGrade,
       assessmentPhase: productPhase,
-      assessmentLayer,
-      placementBaselinePhase,
-      placementBaselineSource: placementPhaseFromProfile != null ? "student_profile" : "assessment_session",
+      assessmentLayer: ctx.assessmentLayer,
+      placementBaselinePhase: ctx.placementBaselinePhase,
+      placementBaselineSource:
+        ctx.placementPhaseFromProfile != null ? "student_profile" : "assessment_session",
       todayKey: effectiveTodayKey,
       catalogMode,
       viewMode: mode === "default" ? (scheduleOnly ? "todayOnly" : "progression-only") : mode,
       phaseProgress,
-      items: visibleItems.map((m) => ({
-        id: String(m.row.id),
-        courseId: String(m.row.course_id),
-        title: String(m.row.title ?? ""),
-        sequenceOrder: Number(m.row.sequence_order ?? 0),
-        masteryThreshold: Number(m.row.mastery_threshold ?? 80),
-        metadata: m.metadata,
-        unlocked: phaseGatedItems.some((x) => String(x.row.id) === String(m.row.id)),
-        lockReason: phaseGatedItems.some((x) => String(x.row.id) === String(m.row.id))
-          ? null
-          : "PHASE_LOCKED",
-        progress: {
-          totalLessons: totalCountByModule.get(String(m.row.id)) ?? 0,
-          passedLessons: passedCountByModule.get(String(m.row.id)) ?? 0,
-          completionPct:
-            (totalCountByModule.get(String(m.row.id)) ?? 0) > 0
-              ? Math.round(
-                  (((passedCountByModule.get(String(m.row.id)) ?? 0) /
-                    (totalCountByModule.get(String(m.row.id)) ?? 1)) *
-                    100 +
-                    Number.EPSILON) *
-                    100,
-                ) / 100
-              : 0,
-        },
-        lessons: includeLessons ? lessonByModule.get(String(m.row.id)) ?? [] : undefined,
-      })),
+      items: visibleItems.map((m) => {
+        const moduleId = String(m.row.id);
+        const phaseUnlocked = isModuleUnlockedByPhaseEntry(m, phaseGatedItems);
+        const unlocked = phaseUnlocked;
+        const lockReason = unlocked ? null : "PHASE_LOCKED";
+        const totalL = totalCountByModule.get(moduleId) ?? 0;
+        const passedL = passedCountByModule.get(moduleId) ?? 0;
+        const allPassed = totalL > 0 && passedL >= totalL;
+        const confirmedIso = studyConfirmedAt(moduleId);
+        const completed = Boolean(confirmedIso) && allPassed;
+        const courseTitle = courseTitleById.get(String(m.row.course_id)) ?? "";
+        const subjectFmt = formatSubjectDisplay(m.metadata);
+        const subjectDisplay = subjectFmt || courseTitle;
+        const lessonsList = includeLessons ? lessonByModule.get(moduleId) ?? [] : [];
+        const { avgPosttestPct, studyPointsTotal } = lessonPosttestAggregates(lessonsList);
+        const phaseLevel = parseModulePhaseNumber(m.metadata);
+        return {
+          id: moduleId,
+          courseId: String(m.row.course_id),
+          courseTitle,
+          subjectDisplay,
+          phaseLevel,
+          title: String(m.row.title ?? ""),
+          sequenceOrder: Number(m.row.sequence_order ?? 0),
+          masteryThreshold: Number(m.row.mastery_threshold ?? 80),
+          metadata: m.metadata,
+          unlocked,
+          lockReason,
+          lessonsAllPassed: allPassed,
+          studyConfirmedAt: confirmedIso,
+          completed,
+          avgPosttestPct,
+          studyPointsTotal,
+          progress: {
+            totalLessons: totalCountByModule.get(String(m.row.id)) ?? 0,
+            passedLessons: passedCountByModule.get(String(m.row.id)) ?? 0,
+            completionPct:
+              (totalCountByModule.get(String(m.row.id)) ?? 0) > 0
+                ? Math.round(
+                    (((passedCountByModule.get(String(m.row.id)) ?? 0) /
+                      (totalCountByModule.get(String(m.row.id)) ?? 1)) *
+                      100 +
+                      Number.EPSILON) *
+                      100,
+                  ) / 100
+                : 0,
+          },
+          lessons: includeLessons ? lessonsList : undefined,
+        };
+      }),
     });
   } catch (error) {
-    return Response.json(
+    return jsonPrivateNoStore(
       { message: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },
     );

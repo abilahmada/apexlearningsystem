@@ -1,11 +1,8 @@
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 import { ensureAssessmentSession, getBearerToken, requireStudentSession } from "@/lib/assessment/require-student";
 import { buildLiveCalibrationRows } from "@/lib/assessment/learning-events";
-import {
-  APEX_LEARNING_EVENTS,
-  resolvePlacementProductPhase,
-  type AssessmentSessionStatus,
-  type PlacementProductPhase,
-} from "@/lib/assessment/placement-lifecycle";
+import { APEX_LEARNING_EVENTS } from "@/lib/assessment/placement-lifecycle";
+import { fetchStudentModulePhaseContext } from "@/lib/learning/student-module-phase-context";
 import {
   computeLessonUnlockMap,
   fetchLatestLessonAttempt,
@@ -57,78 +54,21 @@ function parseSubmitKey(raw: unknown): string | null {
   return t;
 }
 
-function parseModulePhaseNumber(metadata: Record<string, unknown>): number {
-  const fromNumber = Number(metadata.phase ?? metadata.phaseOrder ?? metadata.phase_order);
-  if (Number.isFinite(fromNumber)) return Math.max(1, Math.round(fromNumber));
-  const phaseText = String(metadata.phase ?? "").trim();
-  const m = phaseText.match(/(\d+)/);
-  if (m) return Math.max(1, Number(m[1]));
-  return 1;
-}
-
-function placementBaselinePhaseFromProductPhase(phase: PlacementProductPhase): number {
-  switch (phase) {
-    case "L1_INTAKE":
-      return 1;
-    case "L2_CALIBRATION":
-    case "L3_RADAR_PROVISIONAL":
-      return 2;
-    case "L4_PARENT_VALIDATION_PENDING":
-    case "PLACEMENT_STABLE":
-    case "CONTINUOUS_REVIEW_DUE":
-      return 3;
-  }
-}
-
-function parsePlacementPhase(raw: unknown): number | null {
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return null;
-  return Math.max(1, Math.round(n));
-}
-
-async function isModulePhaseLocked(
-  supabase: { from: (table: string) => any },
-  userId: string,
-  moduleId: string,
-): Promise<boolean> {
-  const [{ data: session }, { data: moduleRow, error: moduleErr }, { data: studentProfile }] = await Promise.all([
-    supabase
-      .from("assessment_sessions")
-      .select("status, sessions_completed, parent_validated_at, placement_locked_at, last_continuous_review_at")
-      .eq("user_id", userId)
-      .maybeSingle(),
-    supabase.from("modules").select("metadata").eq("id", moduleId).maybeSingle(),
-    supabase.from("student_profiles").select("placement_phase").eq("user_id", userId).maybeSingle(),
-  ]);
-  if (moduleErr) throw new Error(moduleErr.message);
-  const productPhase = resolvePlacementProductPhase({
-    sessionStatus: String(session?.status ?? "ACTIVE").toUpperCase() as AssessmentSessionStatus,
-    sessionsCompleted: Number(session?.sessions_completed ?? 0),
-    parentValidatedAt: session?.parent_validated_at ? String(session.parent_validated_at) : null,
-    placementLockedAt: session?.placement_locked_at ? String(session.placement_locked_at) : null,
-    lastContinuousReviewAt: session?.last_continuous_review_at
-      ? String(session.last_continuous_review_at)
-      : null,
-    now: new Date(),
-  });
-  const baseline =
-    parsePlacementPhase(studentProfile?.placement_phase) ??
-    placementBaselinePhaseFromProductPhase(productPhase);
-  const metadata =
-    moduleRow?.metadata && typeof moduleRow.metadata === "object"
-      ? (moduleRow.metadata as Record<string, unknown>)
-      : {};
-  const modulePhase = parseModulePhaseNumber(metadata);
-  return modulePhase > baseline;
-}
-
 export async function GET(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
 
     const auth = await requireStudentSession(token);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
+
+    const phaseRes = await fetchStudentModulePhaseContext(auth.supabase, auth.userId, {
+      catalogMode: false,
+    });
+    if (!phaseRes.ok) {
+      return jsonPrivateNoStore({ message: phaseRes.message }, { status: phaseRes.status });
+    }
+    const unlockedModuleIds = phaseRes.context.unlockedModuleIds;
 
     const url = new URL(req.url);
     const moduleId = parseUuid(url.searchParams.get("moduleId"));
@@ -139,10 +79,10 @@ export async function GET(req: Request) {
       const forAssessment: AssessmentType =
         assessmentParam === "PRE" || assessmentParam === "POST" ? assessmentParam : "POST";
       const lessonMeta = await fetchLessonWithModule(auth.supabase, lessonId);
-      if (!lessonMeta) return Response.json({ message: "Lesson tidak ditemukan." }, { status: 404 });
-      const phaseLocked = await isModulePhaseLocked(auth.supabase, auth.userId, lessonMeta.module_id);
+      if (!lessonMeta) return jsonPrivateNoStore({ message: "Lesson tidak ditemukan." }, { status: 404 });
+      const phaseLocked = !unlockedModuleIds.has(lessonMeta.module_id);
       if (phaseLocked) {
-        return Response.json(
+        return jsonPrivateNoStore(
           {
             message: "Level modul ini masih terkunci untuk levelmu saat ini.",
             reason: "PHASE_LOCKED",
@@ -158,7 +98,7 @@ export async function GET(req: Request) {
           .eq("student_id", studentProfileId)
           .eq("lesson_id", lessonId)
           .maybeSingle();
-        if (progressErr) return Response.json({ message: progressErr.message }, { status: 500 });
+        if (progressErr) return jsonPrivateNoStore({ message: progressErr.message }, { status: 500 });
         if (shouldBlockPostAssessment(forAssessment, progressRow?.pretest_score)) {
           logAssessmentReason(PRE_REQUIRED_REASON, {
             route: "GET",
@@ -166,7 +106,7 @@ export async function GET(req: Request) {
             assessmentType: forAssessment,
             userId: auth.userId,
           });
-          return Response.json(
+          return jsonPrivateNoStore(
             {
               message: "Kerjakan Pre-test terlebih dahulu sebelum membuka Post-test.",
               reason: PRE_REQUIRED_REASON,
@@ -181,8 +121,8 @@ export async function GET(req: Request) {
         .select("lesson_id, questions, questions_pre, questions_post")
         .eq("lesson_id", lessonId)
         .maybeSingle();
-      if (quizErr) return Response.json({ message: quizErr.message }, { status: 500 });
-      if (!quizRow) return Response.json({ message: "Quiz tidak ditemukan." }, { status: 404 });
+      if (quizErr) return jsonPrivateNoStore({ message: quizErr.message }, { status: 500 });
+      if (!quizRow) return jsonPrivateNoStore({ message: "Quiz tidak ditemukan." }, { status: 404 });
       const rawList = pickQuestionsForAssessment(quizRow, forAssessment);
       const questions = rawList.map((q) => ({
         question: q.question,
@@ -191,14 +131,14 @@ export async function GET(req: Request) {
         difficulty: q.difficulty ?? null,
         tags: q.tags ?? [],
       }));
-      return Response.json({ lessonId, assessmentType: forAssessment, questions });
+      return jsonPrivateNoStore({ lessonId, assessmentType: forAssessment, questions });
     }
 
-    if (!moduleId) return Response.json({ message: "moduleId (UUID) wajib." }, { status: 400 });
+    if (!moduleId) return jsonPrivateNoStore({ message: "moduleId (UUID) wajib." }, { status: 400 });
 
     const studentProfileId = await fetchStudentProfileId(auth.supabase, auth.userId);
     const lessons = await fetchModuleLessons(auth.supabase, moduleId);
-    const modulePhaseLocked = await isModulePhaseLocked(auth.supabase, auth.userId, moduleId);
+    const modulePhaseLocked = !unlockedModuleIds.has(moduleId);
     const lessonIds = lessons.map((l) => l.id);
     const progressMap = await fetchLessonProgressMap(auth.supabase, studentProfileId, lessonIds);
     const unlockMap = computeLessonUnlockMap(lessons, progressMap);
@@ -225,9 +165,9 @@ export async function GET(req: Request) {
       };
     });
 
-    return Response.json({ items, postPassThreshold });
+    return jsonPrivateNoStore({ items, postPassThreshold });
   } catch (error) {
-    return Response.json(
+    return jsonPrivateNoStore(
       { message: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },
     );
@@ -237,10 +177,18 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
 
     const auth = await requireStudentSession(token);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
+
+    const phaseRes = await fetchStudentModulePhaseContext(auth.supabase, auth.userId, {
+      catalogMode: false,
+    });
+    if (!phaseRes.ok) {
+      return jsonPrivateNoStore({ message: phaseRes.message }, { status: phaseRes.status });
+    }
+    const unlockedModuleIds = phaseRes.context.unlockedModuleIds;
 
     const body = (await req.json()) as Record<string, unknown>;
     const lessonId = parseUuid(body.lessonId);
@@ -248,13 +196,13 @@ export async function POST(req: Request) {
     const submitKey = parseSubmitKey(body.submitKey);
     const answersRaw = Array.isArray(body.answers) ? body.answers : [];
 
-    if (!lessonId) return Response.json({ message: "lessonId (UUID) wajib." }, { status: 400 });
+    if (!lessonId) return jsonPrivateNoStore({ message: "lessonId (UUID) wajib." }, { status: 400 });
     if (!assessmentType) {
-      return Response.json({ message: "assessmentType harus PRE atau POST." }, { status: 400 });
+      return jsonPrivateNoStore({ message: "assessmentType harus PRE atau POST." }, { status: 400 });
     }
 
     const lesson = await fetchLessonWithModule(auth.supabase, lessonId);
-    if (!lesson) return Response.json({ message: "Lesson tidak ditemukan." }, { status: 404 });
+    if (!lesson) return jsonPrivateNoStore({ message: "Lesson tidak ditemukan." }, { status: 404 });
 
     const studentProfileId = await fetchStudentProfileId(auth.supabase, auth.userId);
     const latestAttempt = await fetchLatestLessonAttempt(
@@ -272,7 +220,7 @@ export async function POST(req: Request) {
         elapsedMs < PRE_RETAKE_COOLDOWN_MS
       ) {
         const retryAfterMs = Math.max(0, PRE_RETAKE_COOLDOWN_MS - elapsedMs);
-        return Response.json(
+        return jsonPrivateNoStore(
           {
             message: "Retake Pre-test terlalu cepat. Tunggu sebentar sebelum mencoba lagi.",
             reason: "PRE_RETAKE_COOLDOWN",
@@ -283,7 +231,7 @@ export async function POST(req: Request) {
       }
       if (Number.isFinite(elapsedMs) && elapsedMs >= 0 && elapsedMs < MIN_SUBMIT_INTERVAL_MS) {
         const retryAfterMs = Math.max(0, MIN_SUBMIT_INTERVAL_MS - elapsedMs);
-        return Response.json(
+        return jsonPrivateNoStore(
           {
             message: "Terlalu cepat submit. Tunggu sebentar sebelum coba lagi.",
             reason: "RATE_LIMITED_MIN_INTERVAL",
@@ -296,7 +244,7 @@ export async function POST(req: Request) {
       const previousSubmitKey = String(latestAttempt.metadata.submitKey ?? "");
       const inIdempotencyWindow = elapsedMs >= 0 && elapsedMs <= IDEMPOTENCY_WINDOW_MS;
       if (submitKey && previousSubmitKey && submitKey === previousSubmitKey && inIdempotencyWindow) {
-        return Response.json(
+        return jsonPrivateNoStore(
           {
             message: "Submit duplikat terdeteksi. Percobaan sebelumnya sudah tercatat.",
             reason: "DUPLICATE_SUBMIT_KEY",
@@ -311,7 +259,7 @@ export async function POST(req: Request) {
     const progressMap = await fetchLessonProgressMap(auth.supabase, studentProfileId, lessonIds);
     const unlockMap = computeLessonUnlockMap(lessons, progressMap);
     const unlocked = Boolean(unlockMap.get(lessonId));
-    const phaseLocked = await isModulePhaseLocked(auth.supabase, auth.userId, lesson.module_id);
+    const phaseLocked = !unlockedModuleIds.has(lesson.module_id);
     if (phaseLocked) {
       logAssessmentReason("PHASE_LOCKED", {
         route: "POST",
@@ -319,7 +267,7 @@ export async function POST(req: Request) {
         assessmentType,
         userId: auth.userId,
       });
-      return Response.json(
+      return jsonPrivateNoStore(
         {
           message: "Level modul ini masih terkunci untuk levelmu saat ini.",
           reason: "PHASE_LOCKED",
@@ -334,7 +282,7 @@ export async function POST(req: Request) {
         assessmentType,
         userId: auth.userId,
       });
-      return Response.json(
+      return jsonPrivateNoStore(
         {
           message:
             "Lesson masih terkunci. Lulus post-test lesson sebelumnya sesuai ambang modul (mastery_threshold).",
@@ -355,7 +303,7 @@ export async function POST(req: Request) {
           assessmentType,
           userId: auth.userId,
         });
-        return Response.json(
+        return jsonPrivateNoStore(
           {
             message: "Kerjakan Pre-test terlebih dahulu sebelum Post-test.",
             reason: PRE_REQUIRED_REASON,
@@ -371,12 +319,12 @@ export async function POST(req: Request) {
       .select("id, questions, questions_pre, questions_post")
       .eq("lesson_id", lessonId)
       .maybeSingle();
-    if (quizErr) return Response.json({ message: quizErr.message }, { status: 500 });
-    if (!quizRow) return Response.json({ message: "Quiz untuk lesson ini belum tersedia." }, { status: 404 });
+    if (quizErr) return jsonPrivateNoStore({ message: quizErr.message }, { status: 500 });
+    if (!quizRow) return jsonPrivateNoStore({ message: "Quiz untuk lesson ini belum tersedia." }, { status: 404 });
 
     const questions = pickQuestionsForAssessment(quizRow, assessmentType);
     if (questions.length === 0) {
-      return Response.json({ message: "Pertanyaan quiz kosong." }, { status: 400 });
+      return jsonPrivateNoStore({ message: "Pertanyaan quiz kosong." }, { status: 400 });
     }
 
     const answers = answersRaw.map((x) => normalizeAnswer(x));
@@ -464,7 +412,7 @@ export async function POST(req: Request) {
     const lessonIndex = lessons.findIndex((x) => x.id === lessonId);
     const nextLesson = lessonIndex >= 0 ? lessons[lessonIndex + 1] : null;
 
-    return Response.json({
+    return jsonPrivateNoStore({
       ok: true,
       lessonId,
       assessmentType,
@@ -483,7 +431,7 @@ export async function POST(req: Request) {
       calibrationSignalsInserted,
     });
   } catch (error) {
-    return Response.json(
+    return jsonPrivateNoStore(
       { message: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },
     );

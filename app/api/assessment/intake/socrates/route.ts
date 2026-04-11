@@ -1,21 +1,22 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 import { getBearerToken, requireStudentSession } from "@/lib/assessment/require-student";
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 
 /** Pancingan meta selama intake (bukan jawaban soal). */
 export async function POST(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
     const auth = await requireStudentSession(token);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
 
     const body = (await req.json()) as { message?: string; language?: string };
     const msg = String(body.message ?? "").trim().slice(0, 500);
-    if (!msg) return Response.json({ message: "message wajib." }, { status: 400 });
+    if (!msg) return jsonPrivateNoStore({ message: "message wajib." }, { status: 400 });
 
     if (!process.env.ANTHROPIC_API_KEY?.trim()) {
-      return Response.json({
+      return jsonPrivateNoStore({
         assistantContent:
           "Coba uraikan dengan kata-katamu sendiri dulu, lalu bandingkan dengan pilihan yang ada. Fokus pada alasan singkat, bukan jawaban lengkap.",
       });
@@ -31,9 +32,9 @@ Student question: ${msg}`,
       maxOutputTokens: 256,
     });
 
-    return Response.json({ assistantContent: text.trim() });
+    return jsonPrivateNoStore({ assistantContent: text.trim() });
   } catch (e) {
-    return Response.json(
+    return jsonPrivateNoStore(
       { message: e instanceof Error ? e.message : "Unknown error" },
       { status: 500 },
     );
