@@ -1,15 +1,25 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Heart, CheckCircle2, Lock, Star, Zap } from 'lucide-react'
 import { useApex } from '../apex-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { APEX_LEARNING_EVENTS } from '@/lib/assessment/placement-lifecycle'
 import { getDailyGrowthMindsetMessage } from '../shared/growth-mindset'
+type SpiritualHabitRowUi = {
+  key: string
+  points: number
+  completed: boolean
+  labelId: string
+  labelEn: string
+  icon: string
+}
 
 interface LearningHubProps {
   charityPoints: number
-  onAddCharityPoints: () => void
+  /** Tambah poin charity (mis. dari mutaba'ah terverifikasi server). */
+  onAddCharityPoints: (delta: number) => void
 }
 
 /* Microcopy resmi dari Panduan UX APEX */
@@ -43,14 +53,6 @@ const REVIEW_QUEUE = [
   { id: 3, subject: 'Bhs Inggris', topic: 'Past Perfect Tense',      days: 3, urgent: false, icon: '🌐' },
 ]
 
-/* Habit tracker */
-const HABITS = [
-  { id: 'dhuha',   label: 'Shalat Dhuha',   icon: '🌅', points: 50,  done: false },
-  { id: 'tilawah', label: 'Tilawah Qur\'an', icon: '📖', points: 75,  done: true  },
-  { id: 'shalat',  label: 'Shalat 5 Waktu',  icon: '🕌', points: 100, done: true  },
-  { id: 'olahraga',label: 'Olahraga',         icon: '🏃', points: 30,  done: false },
-]
-
 const DEMO_MODULE_ID = 'demo-python-loops'
 
 const MODULE_STATUS_COPY = {
@@ -62,6 +64,7 @@ const MODULE_STATUS_COPY = {
 } as const
 
 export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubProps) {
+  const router = useRouter()
   const { t, language, userRole, gradeLevel } = useApex()
   const mastery = TODAY_MISSION.mastery
   const masteryPassed = mastery >= 80
@@ -106,6 +109,14 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
   const [testAnswers, setTestAnswers] = useState<string[]>([])
   const [submittingTest, setSubmittingTest] = useState(false)
   const [openingTestLessonId, setOpeningTestLessonId] = useState<string | null>(null)
+  const [spiritualHabitRows, setSpiritualHabitRows] = useState<SpiritualHabitRowUi[]>([])
+  const [spiritualPointsToday, setSpiritualPointsToday] = useState(0)
+  const [spiritualLocalDate, setSpiritualLocalDate] = useState('')
+  const [spiritualLoadError, setSpiritualLoadError] = useState<string | null>(null)
+  const [spiritualSavingKey, setSpiritualSavingKey] = useState<string | null>(null)
+  /** false = hanya lesson unlocked; true = semua lesson (termasuk terkunci). */
+  const [showAllLessonsInHub, setShowAllLessonsInHub] = useState(false)
+
   const [lastAssessmentResult, setLastAssessmentResult] = useState<{
     lessonId: string
     assessmentType: 'PRE' | 'POST'
@@ -247,6 +258,103 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
     void loadModules()
   }, [loadModules, gradeLevel])
 
+  const loadSpiritualHabits = useCallback(async () => {
+    if (userRole !== 'student') return
+    const d = typeof window !== 'undefined' ? new Date().toLocaleDateString('en-CA') : ''
+    setSpiritualLocalDate(d)
+    setSpiritualLoadError(null)
+    try {
+      const token = await getAccessToken()
+      if (!token) {
+        setSpiritualHabitRows([])
+        setSpiritualPointsToday(0)
+        return
+      }
+      const res = await fetch(`/api/learning/spiritual-habits?localDate=${encodeURIComponent(d)}`, {
+        headers: { authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      })
+      const json = (await res.json()) as {
+        habits?: Array<{
+          key: string
+          points: number
+          completed: boolean
+          labelId?: string
+          labelEn?: string
+          icon?: string
+        }>
+        pointsToday?: number
+        message?: string
+      }
+      if (!res.ok) throw new Error(json.message ?? 'Failed')
+      const rows: SpiritualHabitRowUi[] = (json.habits ?? []).map((h) => ({
+        key: h.key,
+        points: h.points,
+        completed: Boolean(h.completed),
+        labelId: typeof h.labelId === 'string' ? h.labelId : h.key,
+        labelEn: typeof h.labelEn === 'string' ? h.labelEn : h.key,
+        icon: typeof h.icon === 'string' ? h.icon : '✓',
+      }))
+      setSpiritualHabitRows(rows)
+      setSpiritualPointsToday(Number(json.pointsToday ?? 0))
+    } catch {
+      setSpiritualLoadError(
+        t(
+          'Mutaba\'ah belum terhubung ke server (pastikan migrasi DB sudah dijalankan).',
+          'Daily habits are not synced yet (apply the latest database migration).',
+        ),
+      )
+      // Pertahankan spiritualHabitRows / spiritualPointsToday agar UI tidak hilang setelah POST sukses bila GET gagal.
+    }
+  }, [t, userRole])
+
+  useEffect(() => {
+    void loadSpiritualHabits()
+  }, [loadSpiritualHabits, gradeLevel])
+
+  const completeSpiritualHabit = async (key: string) => {
+    const row = spiritualHabitRows.find((h) => h.key === key)
+    if (userRole !== 'student' || !row || row.completed) return
+    if (spiritualSavingKey === key) return
+
+    const rowsSnapshot = spiritualHabitRows.map((r) => ({ ...r }))
+    setSpiritualSavingKey(key)
+    setSpiritualLoadError(null)
+    setSpiritualHabitRows((prev) => prev.map((h) => (h.key === key ? { ...h, completed: true } : h)))
+
+    try {
+      const token = await getAccessToken()
+      if (!token) {
+        setSpiritualLoadError(t('Perlu login untuk mutaba’ah.', 'Sign in required to log daily habits.'))
+        setSpiritualHabitRows(rowsSnapshot)
+        return
+      }
+      const localDate =
+        spiritualLocalDate ||
+        (typeof window !== 'undefined' ? new Date().toLocaleDateString('en-CA') : new Date().toISOString().slice(0, 10))
+      const res = await fetch('/api/learning/spiritual-habits', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ habitKey: key, localDate }),
+      })
+      const json = (await res.json()) as {
+        ok?: boolean
+        pointsDelta?: number
+        message?: string
+      }
+      if (!res.ok) throw new Error(json.message ?? t('Gagal menyimpan.', 'Save failed.'))
+      if (typeof json.pointsDelta === 'number' && json.pointsDelta > 0) {
+        onAddCharityPoints(json.pointsDelta)
+      }
+      await loadSpiritualHabits()
+    } catch (e) {
+      setSpiritualHabitRows(rowsSnapshot)
+      setSpiritualLoadError(e instanceof Error ? e.message : t('Gagal menyimpan.', 'Save failed.'))
+    } finally {
+      setSpiritualSavingKey(null)
+    }
+  }
+
   const confirmModuleStudy = async (moduleId: string) => {
     setConfirmingModuleId(moduleId)
     setLessonMessage(null)
@@ -290,6 +398,19 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
     void loadLessons(selectedModuleId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModuleId])
+
+  useEffect(() => {
+    setShowAllLessonsInHub(false)
+  }, [selectedModuleId])
+
+  const hubLessonLockedCount = useMemo(
+    () => lessonItems.filter((l) => !l.unlocked).length,
+    [lessonItems],
+  )
+  const hubVisibleLessons = useMemo(
+    () => (showAllLessonsInHub ? lessonItems : lessonItems.filter((l) => l.unlocked)),
+    [lessonItems, showAllLessonsInHub],
+  )
 
   const openTest = async (lessonId: string, type: 'PRE' | 'POST') => {
     setLessonMessage(null)
@@ -518,7 +639,7 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
   }
 
   return (
-    <div className="space-y-5 animate-in fade-in">
+    <div className="space-y-5 animate-in fade-in pb-40 md:pb-10">
 
       {/* ── Sapaan selamat datang ────────────────────────────────────── */}
       <div
@@ -824,8 +945,47 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
           })}
         </div>
         {lessonLoading ? <p className="text-xs text-slate-500">{t('Memuat lesson...', 'Loading lessons...')}</p> : null}
+        {!lessonLoading && lessonItems.length > 0 ? (
+          <div className="flex flex-col gap-2 rounded-xl border border-slate-100 bg-slate-50/90 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[11px] leading-snug text-slate-600">
+              {showAllLessonsInHub
+                ? t(
+                    `Menampilkan semua ${lessonItems.length} lesson (termasuk terkunci).`,
+                    `Showing all ${lessonItems.length} lessons (including locked).`,
+                  )
+                : hubLessonLockedCount > 0
+                  ? t(
+                      `Default: ${hubVisibleLessons.length} lesson terbuka · ${hubLessonLockedCount} lesson terkunci disembunyikan.`,
+                      `Default: ${hubVisibleLessons.length} unlocked lesson(s) · ${hubLessonLockedCount} locked hidden.`,
+                    )
+                  : t(
+                      `Semua ${lessonItems.length} lesson terbuka.`,
+                      `All ${lessonItems.length} lesson(s) are unlocked.`,
+                    )}
+            </p>
+            {hubLessonLockedCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowAllLessonsInHub((v) => !v)}
+                className="shrink-0 rounded-lg border border-cyan-200 bg-white px-3 py-1.5 text-left text-xs font-bold text-cyan-800 shadow-sm transition hover:bg-cyan-50"
+              >
+                {showAllLessonsInHub
+                  ? t('Sembunyikan lesson terkunci', 'Show less')
+                  : t('Lihat selengkapnya', 'Show more')}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="space-y-2">
-          {lessonItems.map((lesson) => (
+          {!lessonLoading && lessonItems.length > 0 && hubVisibleLessons.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 py-4 text-center text-[11px] text-slate-500">
+              {t(
+                'Tidak ada lesson terbuka. Gunakan “Lihat selengkapnya” di atas.',
+                'No unlocked lessons. Use “Show more” above.',
+              )}
+            </p>
+          ) : null}
+          {hubVisibleLessons.map((lesson) => (
             <div
               key={lesson.lessonId}
               className={`rounded-xl border p-3 ${lesson.unlocked ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-80'}`}
@@ -903,7 +1063,18 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
                   </div>
                 </div>
               </div>
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!lesson.unlocked || !selectedModuleId || lesson.pretestScore == null}
+                  onClick={() => {
+                    if (!selectedModuleId || lesson.pretestScore == null) return
+                    router.push(`/learn/${encodeURIComponent(selectedModuleId)}/${encodeURIComponent(lesson.lessonId)}`)
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 text-xs font-semibold disabled:opacity-40"
+                >
+                  {t('Materi', 'Materials')}
+                </button>
                 <button
                   type="button"
                   disabled={!lesson.unlocked}
@@ -923,7 +1094,10 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
               </div>
               {lesson.unlocked && lesson.pretestScore == null ? (
                 <p className="mt-1 text-[11px] text-amber-700">
-                  {t('Kerjakan Pre-test dulu untuk membuka Post-test.', 'Complete Pre-test first to unlock Post-test.')}
+                  {t(
+                    'Kerjakan Pre-test dulu untuk membuka Materi dan Post-test.',
+                    'Complete the Pre-test first to unlock Materials and the Post-test.',
+                  )}
                 </p>
               ) : null}
             </div>
@@ -1131,7 +1305,7 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
 
       {/* ── Habit Tracker / Mutaba'ah Yaumiyyah ─────────────────────── */}
       <div
-        className="p-5 rounded-2xl"
+        className="p-5 rounded-2xl isolate max-md:mb-4"
         style={{ background: '#ECFDF5', border: '1px solid #A7F3D0' }}
       >
         <div className="flex items-center gap-2 mb-4">
@@ -1143,42 +1317,60 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
             {t('Mutaba\'ah Yaumiyyah — Ibadah Harianmu', 'Daily Ibadah Tracker')} 🤍
           </h2>
         </div>
+        <p className="text-[10px] text-emerald-800/80 mb-2">
+          {t(
+            'Centang saat selesai; data masuk kalibrasi (dimensi Spiritual) & poin charity.',
+            'Check when done; data feeds calibration (Spiritual dimension) & charity points.',
+          )}
+        </p>
+        {spiritualLoadError ? (
+          <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 mb-2" role="status">
+            {spiritualLoadError}
+          </p>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-2.5">
-          {HABITS.map((h) => (
-            <div
-              key={h.id}
-              className="flex items-center gap-2.5 p-3 bg-white rounded-xl border cursor-pointer transition-all duration-200 hover:border-emerald-300"
-              style={{ borderColor: h.done ? '#6EE7B7' : '#E2E8F0' }}
-              onClick={!h.done ? onAddCharityPoints : undefined}
-            >
-              <span className="text-lg">{h.icon}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-[#0A1128] truncate">
-                  {t(
-                    h.label,
-                    h.id === 'dhuha'
-                      ? 'Dhuha Prayer'
-                      : h.id === 'tilawah'
-                        ? "Qur'an Recitation"
-                        : h.id === 'shalat'
-                          ? 'Five Daily Prayers'
-                          : 'Exercise',
-                  )}
-                </p>
-                <p className="text-[10px]" style={{ color: '#10B981' }}>+{h.points} pts</p>
-              </div>
-              <div
-                className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
-                style={{
-                  borderColor: h.done ? '#10B981' : '#CBD5E1',
-                  background:  h.done ? '#10B981' : 'transparent',
+          {spiritualHabitRows.map((h) => {
+            const done = h.completed
+            const busy = spiritualSavingKey === h.key
+            return (
+              <button
+                key={h.key}
+                type="button"
+                disabled={done || busy || userRole !== 'student'}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  void completeSpiritualHabit(h.key)
                 }}
+                className="flex items-center gap-2.5 min-h-[48px] p-3 bg-white rounded-xl border text-left transition-all duration-200 touch-manipulation hover:border-emerald-300 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed disabled:active:scale-100"
+                style={{ borderColor: done ? '#6EE7B7' : '#E2E8F0' }}
+                aria-pressed={done}
+                aria-busy={busy}
               >
-                {h.done && <CheckCircle2 size={12} className="text-white" />}
-              </div>
-            </div>
-          ))}
+                <span className="text-lg" aria-hidden>
+                  {h.icon}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-[#0A1128] truncate">{t(h.labelId, h.labelEn)}</p>
+                  <p className="text-[10px]" style={{ color: '#10B981' }}>
+                    +{h.points} pts
+                    {busy ? ` · ${t('Menyimpan…', 'Saving…')}` : ''}
+                  </p>
+                </div>
+                <div
+                  className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all pointer-events-none"
+                  style={{
+                    borderColor: done ? '#10B981' : '#CBD5E1',
+                    background: done ? '#10B981' : 'transparent',
+                  }}
+                  aria-hidden
+                >
+                  {done ? <CheckCircle2 size={12} className="text-white" /> : null}
+                </div>
+              </button>
+            )
+          })}
         </div>
 
         {/* Charity Points */}
@@ -1197,7 +1389,8 @@ export function LearningHub({ charityPoints, onAddCharityPoints }: LearningHubPr
               {charityPoints.toLocaleString(language === 'en' ? 'en-US' : 'id-ID')}
             </span>
             <p className="text-[10px] text-emerald-600">
-              {t('≈ Rp 12.500 donasi digital', '≈ Rp 12,500 digital donation')}
+              {t('Poin mutaba\'ah hari ini (server)', 'Spiritual habit points today (server)')}:{' '}
+              <span className="font-bold">{spiritualPointsToday}</span>
             </p>
           </div>
         </div>

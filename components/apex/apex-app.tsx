@@ -1387,7 +1387,7 @@ function ApexAppContent() {
         {/* ── Content area ────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6" style={{ background: '#F8FAFC' }}>
           <div className={`mx-auto ${safeActiveView === 'members-db' ? 'max-w-7xl' : 'max-w-4xl'}`}>
-            {safeActiveView === 'hub'        && <LearningHub charityPoints={charityPoints} onAddCharityPoints={() => addCharityPoints(50)} />}
+            {safeActiveView === 'hub'        && <LearningHub charityPoints={charityPoints} onAddCharityPoints={addCharityPoints} />}
             {safeActiveView === 'classroom'  && <AIClassroom openChatSignal={openChatSignal} />}
             {safeActiveView === 'spaced-rep' && <SpacedRepetition />}
             {safeActiveView === 'portfolio'  && <Portfolio />}
@@ -1443,11 +1443,12 @@ function ApexAppContent() {
       </main>
 
       <button
+        type="button"
         onClick={() => {
           setActiveView('classroom')
           setOpenChatSignal((prev) => prev + 1)
         }}
-        className="fixed right-4 bottom-20 md:right-5 md:bottom-5 z-40 w-12 h-12 md:w-auto md:h-auto md:px-4 py-3 rounded-full text-white font-bold text-sm shadow-lg inline-flex items-center justify-center md:justify-start gap-2"
+        className="fixed right-4 bottom-20 md:right-5 md:bottom-5 z-40 w-12 h-12 md:w-auto md:h-auto md:px-4 py-3 rounded-full text-white font-bold text-sm shadow-lg inline-flex items-center justify-center md:justify-start gap-2 touch-manipulation"
         style={{ background: 'linear-gradient(135deg, #06B6D4 0%, #2563EB 100%)' }}
         title={t('Tanya Socrates AI', 'Ask Socrates AI')}
         aria-label={t('Tanya Socrates AI', 'Ask Socrates AI')}

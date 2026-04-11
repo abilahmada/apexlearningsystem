@@ -56,6 +56,8 @@ export const APEX_LEARNING_EVENTS = {
   SESSION_DROP_OFF: "apex.engagement.session_drop_off",
   PLACEMENT_REVIEW_SCHEDULED: "apex.placement.review_scheduled",
   PLACEMENT_REVIEW_COMPLETED: "apex.placement.review_completed",
+  /** Mutaba'ah harian tercatat → sinyal ENGAGEMENT pada dimensi spiritual (kalibrasi live). */
+  DAILY_SPIRITUAL_HABIT: "apex.spiritual.daily_habit",
 } as const;
 
 export type ApexLearningEventName = (typeof APEX_LEARNING_EVENTS)[keyof typeof APEX_LEARNING_EVENTS];
