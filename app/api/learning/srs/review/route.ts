@@ -1,3 +1,4 @@
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 import { getBearerToken, requireStudentSession } from "@/lib/assessment/require-student";
 import { calculateNextReview, DEFAULT_EASE_FACTOR } from "@/lib/learning/spaced-repetition-sm2";
 import { fetchStudentSrsScope, flashcardIdSet } from "@/lib/learning/srs-server";
@@ -18,30 +19,30 @@ function addDaysUtc(from: Date, days: number): string {
 export async function POST(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
 
     const auth = await requireStudentSession(token);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
 
     const body = (await req.json()) as Record<string, unknown>;
     const flashcardId = parseUuid(body.flashcardId);
     if (!flashcardId) {
-      return Response.json({ message: "flashcardId (UUID) wajib." }, { status: 400 });
+      return jsonPrivateNoStore({ message: "flashcardId (UUID) wajib." }, { status: 400 });
     }
 
     const qRaw = Number(body.quality);
     if (!Number.isFinite(qRaw)) {
-      return Response.json({ message: "quality (0–5) wajib." }, { status: 400 });
+      return jsonPrivateNoStore({ message: "quality (0–5) wajib." }, { status: 400 });
     }
     const quality = Math.min(5, Math.max(0, Math.round(qRaw)));
 
     const scopeRes = await fetchStudentSrsScope(auth.supabase, auth.userId);
     if (!scopeRes.ok) {
-      return Response.json({ message: scopeRes.message }, { status: scopeRes.status });
+      return jsonPrivateNoStore({ message: scopeRes.message }, { status: scopeRes.status });
     }
     const allowed = flashcardIdSet(scopeRes.scope);
     if (!allowed.has(flashcardId)) {
-      return Response.json({ message: "Kartu tidak tersedia untuk jenjang kamu." }, { status: 403 });
+      return jsonPrivateNoStore({ message: "Kartu tidak tersedia untuk jenjang kamu." }, { status: 403 });
     }
 
     const { data: existing, error: selErr } = await auth.supabase
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (selErr) {
-      return Response.json({ message: selErr.message }, { status: 500 });
+      return jsonPrivateNoStore({ message: selErr.message }, { status: 500 });
     }
 
     const prevInterval = existing ? Number(existing.interval_days) : 0;
@@ -76,10 +77,10 @@ export async function POST(req: Request) {
     });
 
     if (upsertErr) {
-      return Response.json({ message: upsertErr.message }, { status: 500 });
+      return jsonPrivateNoStore({ message: upsertErr.message }, { status: 500 });
     }
 
-    return Response.json({
+    return jsonPrivateNoStore({
       ok: true,
       quality,
       nextInterval: result.nextInterval,
@@ -88,7 +89,7 @@ export async function POST(req: Request) {
       nextReviewDate,
     });
   } catch (error) {
-    return Response.json(
+    return jsonPrivateNoStore(
       { message: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },
     );

@@ -80,6 +80,12 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 
 ## C) Endpoint / Query Alignment Map
 
+## C0. HTTP cache (data siswa)
+
+- [x] Helper `jsonPrivateNoStore` (`lib/http/json-private-no-store.ts`) mengatur `Cache-Control: private, no-store, max-age=0, must-revalidate` pada respons JSON.
+- [x] Route di `app/api/learning/**` memakai helper ini agar respons progres/jadwal tidak disimpan cache publik atau CDN secara default.
+- [x] Route sesi privat lain memakai helper yang sama: `app/api/auth/me`, `app/api/auth/profile`, serta assessment siswa/orang tua (`status`, `intake`, `intake/socrates`, `learning-events`, `remediation`, `parent-validation`, `final-profile`), plus mentor/admin (`mentor-students`, `mentor-flags`, `mentor-override`).
+
 ## C1. Wajib sinkron v1 (core flow)
 
 1. `app/api/learning/modules/route.ts`
@@ -88,18 +94,22 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
    - [x] Baseline unlock phase sudah diterapkan (mapping dari placement product phase).
   - [x] Migrasi ke field `placement_phase` eksplisit sudah diterapkan (dengan fallback aman saat field kosong).
   - [x] Pisahkan mode `todayOnly` vs `progression-only` agar debugging mudah (query `mode` pada API modules).
+  - [x] `completed` resmi = semua lesson lulus post-test **dan** konfirmasi siswa (`studyConfirmedAt`); fallback Hub jika hari ini kosong; source-of-truth unlock fase sama dengan `lesson-assessment`.
 
-2. `app/api/learning/lesson-assessment/route.ts`
+2. `app/api/learning/module-complete/route.ts`
+   - [x] `POST` konfirmasi "selesai dipelajari" setelah validasi unlock + semua lesson `posttest_passed`.
+
+3. `app/api/learning/lesson-assessment/route.ts`
    - [x] PRE required sebelum POST.
    - [x] Reason code/logging untuk block (`PRE_REQUIRED`, `LESSON_LOCKED`).
    - [x] Unlock sudah diselaraskan dengan aturan baru: baseline phase placement + progression intra-module.
 
-3. `app/api/admin/content/route.ts`
+4. `app/api/admin/content/route.ts`
    - [x] Validasi UUID payload.
    - [x] Auto-seed PRE/POST saat create lesson.
    - [x] Wajibkan `grade/phase/subject` saat create/update module (hard validation).
 
-4. `app/api/admin/content/bulk-quiz/route.ts`
+5. `app/api/admin/content/bulk-quiz/route.ts`
    - [x] Support bank `legacy/pre/post`.
    - [x] Tambahkan validasi `answer` format + minimum kualitas soal.
 
@@ -110,11 +120,15 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
    - [x] Test session tampil popup modal.
    - [x] Progress bar lesson PRE/POST.
    - [x] Tampilkan badge alasan lock (`phase locked`, `lesson locked`, `pre required`).
+   - [x] Tombol "Selesai dipelajari" bila semua lesson lulus dan belum dikonfirmasi; badge status "Siap dikonfirmasi".
+   - [x] Loading modul: skeleton + `aria-busy`; error load modul vs pesan lesson terpisah; sukses konfirmasi studi via banner khusus + `aria-live`.
+   - [x] Badge jenjang dari `effectiveGrade` respons API modul.
 
 2. `components/apex/modules/module-materials.tsx`
    - [x] Berfungsi sebagai halaman review.
    - [x] Pastikan data hanya konten unlocked (tanpa memaksa mulai PRE).
    - [x] CTA jelas: "Buka Learning Hub untuk tes".
+   - [x] Status selesai mengikuti `completed` API; tombol konfirmasi setara dengan Learning Hub untuk modul terbuka.
 
 3. `components/apex/modules/admin-panel.tsx`
    - [x] Validasi input dasar.
@@ -133,6 +147,8 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
   - cek integritas signup trigger.
 - [x] `supabase/verify_grade_change_archive_operational.sql`
   - cek trigger archive grade change + integritas snapshot.
+- [x] `supabase/verify_student_module_study_confirmations_operational.sql`
+  - cek tabel konfirmasi studi + orphan + duplikat.
 
 ## D1. Health monitoring & alert readiness
 
@@ -141,6 +157,7 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 - [x] Cek `module tanpa lesson`.
 - [x] Cek `quiz kosong` (missing quiz row / empty pre-post bank).
 - [x] Cek `lock reason mismatch` (API check jika smoke token tersedia).
+- [x] Cek tabel `student_module_study_confirmations` dapat di-query (migrasi terpasang).
 - [x] Baseline health saat ini: `modulesWithoutLesson=0`, `quizEmptyIssue=0`, `lockReasonMismatch=0`.
 
 ## D2. Runbook operasional rutin
@@ -173,6 +190,7 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 - [x] Learning Hub `todayOnly` hanya menampilkan modul dengan `scheduleDays` hari ini.
 - [x] Tidak muncul modul di luar jadwal hari ini.
 - [x] Data smoke lulus (`test:learning-flow:data`): setiap grade aktif punya modul terjadwal hari ini.
+- [x] Modul yang `completed` (terkonfirmasi selesai dipelajari) tidak ikut jadwal mingguan (`weekly-schedule` memakai `completed` dari API).
 
 ## E4. Skenario Modul Materi
 
@@ -208,6 +226,15 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 - [x] Tahap 2: opsi override threshold per grade/course (fallback `module -> course -> 80`).
 - [x] Tahap 3: endpoint + panel admin untuk monitoring archive (`/api/admin/grade-change-archives`).
 - [x] Tahap 3: SQL verify pack untuk archive grade change ditambahkan.
+
+## G2) Konfirmasi "Selesai dipelajari" (completed resmi)
+
+- [x] Migrasi `student_module_study_confirmations`.
+- [x] `POST /api/learning/module-complete` + validasi unlock fase + semua post-test passed per modul.
+- [x] `GET /api/learning/modules` mengembalikan `lessonsAllPassed`, `studyConfirmedAt`, `completed` (sinkron dengan Hub + jadwal).
+- [x] UI Learning Hub + Modul Materi.
+- [x] Health (`health:learning-flow`) + live smoke (`test:learning-flow:live`) memverifikasi kontrak field modul + `400` tanpa `moduleId`.
+- [x] SQL verify: `verify_student_module_study_confirmations_operational.sql`.
 
 ## H) Backlog Lanjutan (Non-Blocking)
 

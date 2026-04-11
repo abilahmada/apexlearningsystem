@@ -135,6 +135,25 @@ function formatRemediationShortDate(iso: string, lang: 'id' | 'en') {
   }
 }
 
+/**
+ * Validates the session with Supabase Auth (unlike getSession(), which can return a stale JWT).
+ * Refreshes tokens when needed so Bearer tokens accepted by /api/assessment/* succeed.
+ */
+async function getFreshAccessTokenForApis(
+  client: ReturnType<typeof createSupabaseBrowserClient>,
+): Promise<string | null> {
+  const { error: validateErr } = await client.auth.getUser()
+  if (!validateErr) {
+    const { data } = await client.auth.getSession()
+    const tok = data.session?.access_token
+    if (tok) return tok
+  }
+  const { data: refreshed, error: refreshErr } = await client.auth.refreshSession()
+  if (!refreshErr && refreshed.session?.access_token) return refreshed.session.access_token
+  const { data: again } = await client.auth.getSession()
+  return again.session?.access_token ?? null
+}
+
 function describePlacementPhase(phase: PlacementProductPhase | undefined, t: (id: string, en: string) => string) {
   switch (phase) {
     case 'L1_INTAKE':
@@ -155,7 +174,7 @@ function describePlacementPhase(phase: PlacementProductPhase | undefined, t: (id
 }
 
 export function AssessmentDashboard() {
-  const { t, language } = useApex()
+  const { t, language, userRole } = useApex()
   const [expandedComponent, setExpandedComponent] = useState<string | null>(null)
   const [scores, setScores] = useState<Record<string, number>>(
     baseComponents.reduce((acc, comp) => ({ ...acc, [comp.id]: comp.score }), {} as Record<string, number>),
@@ -173,18 +192,36 @@ export function AssessmentDashboard() {
   useEffect(() => {
     let mounted = true
 
+    if (userRole === null) {
+      return () => {
+        mounted = false
+      }
+    }
+
+    if (userRole !== 'student') {
+      setLoading(false)
+      setFetchError(null)
+      setRemediationLoaded(true)
+      setRemediationItems([])
+      return () => {
+        mounted = false
+      }
+    }
+
     const loadAssessmentStatus = async () => {
       setLoading(true)
       setFetchError(null)
       try {
         const supabase = createSupabaseBrowserClient()
-        const { data } = await supabase.auth.getSession()
-        const token = data.session?.access_token
+        const token = await getFreshAccessTokenForApis(supabase)
         if (!token) {
           if (!mounted) return
           setLoading(false)
           setRemediationLoaded(true)
           setRemediationItems([])
+          setFetchError(
+            t('Sesi berakhir atau belum login. Muat ulang halaman atau login lagi.', 'Session expired or not signed in. Reload or sign in again.'),
+          )
           return
         }
 
@@ -247,11 +284,11 @@ export function AssessmentDashboard() {
       }
     }
 
-    loadAssessmentStatus()
+    void loadAssessmentStatus()
     return () => {
       mounted = false
     }
-  }, [])
+  }, [userRole])
 
   const calculateWeightedScore = () => {
     return baseComponents.reduce((total, comp) => {
@@ -297,6 +334,14 @@ export function AssessmentDashboard() {
           '6-dimension assessment system following global self-learning methodology'
         )}
       </p>
+      {userRole !== null && userRole !== 'student' ? (
+        <p className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+          {t(
+            'Data penempatan dan radar real-time di bawah ini hanya ditampilkan untuk akun siswa. Orang tua/mentor memantau lewat menu kontrol masing-masing.',
+            'Placement and live radar below are loaded for student accounts only. Parents and mentors use their own dashboards to monitor progress.',
+          )}
+        </p>
+      ) : null}
       {statusLabel ? (
         <div className="mb-4 space-y-1">
           <div className={`inline-flex flex-wrap items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${statusTone}`}>

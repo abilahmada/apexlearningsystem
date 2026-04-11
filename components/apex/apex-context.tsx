@@ -140,22 +140,36 @@ export function ApexProvider({ children }: { children: ReactNode }) {
   }, [normalizeGradeLevel])
 
   const fetchAppRole = useCallback(async (accessToken: string) => {
-    const res = await fetch('/api/auth/me', {
-      headers: { authorization: `Bearer ${accessToken}` },
-      cache: 'no-store',
-    })
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: { authorization: `Bearer ${accessToken}` },
+        cache: 'no-store',
+      })
 
-    if (!res.ok) {
-      const errorData = (await res.json().catch(() => ({ message: 'Unauthorized' }))) as { message?: string }
-      return { ok: false as const, message: errorData.message ?? 'Unauthorized' }
-    }
+      if (!res.ok) {
+        const errorData = (await res.json().catch(() => ({ message: 'Unauthorized' }))) as { message?: string }
+        return { ok: false as const, message: errorData.message ?? 'Unauthorized' }
+      }
 
-    const data = (await res.json()) as { role: UserRole }
-    setUserRole(data.role)
-    if (data.role === 'student') {
-      await syncStudentGradeLevel(accessToken)
+      const data = (await res.json()) as { role: UserRole }
+      setUserRole(data.role)
+      if (data.role === 'student') {
+        await syncStudentGradeLevel(accessToken)
+      }
+      return { ok: true as const }
+    } catch (e) {
+      const failedFetch =
+        e instanceof TypeError &&
+        (String(e.message).includes('fetch') || String(e.message).includes('Load failed'))
+      return {
+        ok: false as const,
+        message: failedFetch
+          ? 'Tidak terhubung ke server aplikasi (Failed to fetch). Pastikan `npm run dev` berjalan dan buka lewat http://localhost:3000 (bukan file://).'
+          : e instanceof Error
+            ? e.message
+            : 'Jaringan bermasalah.',
+      }
     }
-    return { ok: true as const }
   }, [syncStudentGradeLevel])
 
   const login = async (email: string, password: string) => {
@@ -468,14 +482,18 @@ export function ApexProvider({ children }: { children: ReactNode }) {
 
     const supabase = createSupabaseBrowserClient()
     const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-      const token = session?.access_token
-      if (!token) {
-        setUserRole(null)
-        return
+      try {
+        const token = session?.access_token
+        if (!token) {
+          setUserRole(null)
+          return
+        }
+        const result = await fetchAppRole(token)
+        // Jangan hapus sesi UI hanya karena /api/auth/me error sementara (jaringan, deploy).
+        if (!result.ok && event === 'SIGNED_OUT') setUserRole(null)
+      } catch {
+        /* fetchAppRole tidak boleh melempar setelah try/catch di dalamnya; ini cadangan agar Supabase subscriber tidak crash */
       }
-      const result = await fetchAppRole(token)
-      // Jangan hapus sesi UI hanya karena /api/auth/me error sementara (jaringan, deploy).
-      if (!result.ok && event === 'SIGNED_OUT') setUserRole(null)
     })
 
     return () => {

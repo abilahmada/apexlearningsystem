@@ -1,3 +1,4 @@
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 import { getBearerToken, requireStudentSession } from "@/lib/assessment/require-student";
 import { fetchStudentSrsScope, flashcardIdSet } from "@/lib/learning/srs-server";
 
@@ -10,10 +11,10 @@ function parseLimit(raw: string | null, fallback: number, max: number): number {
 export async function GET(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
 
     const auth = await requireStudentSession(token);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
 
     const url = new URL(req.url);
     const limitDue = parseLimit(url.searchParams.get("limitDue"), 50, 100);
@@ -21,12 +22,12 @@ export async function GET(req: Request) {
 
     const scopeRes = await fetchStudentSrsScope(auth.supabase, auth.userId);
     if (!scopeRes.ok) {
-      return Response.json({ message: scopeRes.message }, { status: scopeRes.status });
+      return jsonPrivateNoStore({ message: scopeRes.message }, { status: scopeRes.status });
     }
     const { scope } = scopeRes;
     const allowed = flashcardIdSet(scope);
     if (allowed.size === 0) {
-      return Response.json({
+      return jsonPrivateNoStore({
         due: [],
         newCards: [],
         stats: { dueCount: 0, newCount: 0, masteredCount: 0, totalFlashcards: 0 },
@@ -46,7 +47,7 @@ export async function GET(req: Request) {
       .limit(limitDue);
 
     if (dueErr) {
-      return Response.json({ message: dueErr.message }, { status: 500 });
+      return jsonPrivateNoStore({ message: dueErr.message }, { status: 500 });
     }
 
     const due: Array<{
@@ -85,7 +86,7 @@ export async function GET(req: Request) {
       .in("flashcard_id", [...allowed]);
 
     if (exErr) {
-      return Response.json({ message: exErr.message }, { status: 500 });
+      return jsonPrivateNoStore({ message: exErr.message }, { status: 500 });
     }
 
     const seen = new Set((existingRows ?? []).map((x) => String(x.flashcard_id)));
@@ -104,7 +105,7 @@ export async function GET(req: Request) {
         moduleTitle: card.moduleTitle,
       }));
 
-    return Response.json({
+    return jsonPrivateNoStore({
       due,
       newCards,
       stats: {
@@ -115,7 +116,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    return Response.json(
+    return jsonPrivateNoStore(
       { message: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },
     );

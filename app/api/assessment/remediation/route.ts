@@ -1,12 +1,13 @@
 import { getBearerToken, requireStudentSession } from "@/lib/assessment/require-student";
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 
 export async function GET(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
 
     const auth = await requireStudentSession(token);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
 
     const { data, error } = await auth.supabase
       .from("assessment_remediation_queue")
@@ -15,7 +16,7 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false })
       .limit(50);
 
-    if (error) return Response.json({ message: error.message }, { status: 500 });
+    if (error) return jsonPrivateNoStore({ message: error.message }, { status: 500 });
 
     const items = (data ?? []).map((row) => ({
       id: String(row.id),
@@ -29,9 +30,9 @@ export async function GET(req: Request) {
       resolvedAt: row.resolved_at ? String(row.resolved_at) : null,
     }));
 
-    return Response.json({ items });
+    return jsonPrivateNoStore({ items });
   } catch (e) {
-    return Response.json(
+    return jsonPrivateNoStore(
       { message: e instanceof Error ? e.message : "Unknown error" },
       { status: 500 },
     );

@@ -1,4 +1,5 @@
 import { getBearerToken, requireStudentSession } from "@/lib/assessment/require-student";
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 import { buildLiveCalibrationRows, KNOWN_LEARNING_EVENT_NAMES, type LiveLearningEventPayload } from "@/lib/assessment/learning-events";
 import { APEX_LEARNING_EVENTS } from "@/lib/assessment/placement-lifecycle";
 import { CALIBRATION_DIMENSIONS, type CalibrationDimension } from "@/lib/calibration/engine";
@@ -14,18 +15,18 @@ import { CALIBRATION_DIMENSIONS, type CalibrationDimension } from "@/lib/calibra
 export async function POST(req: Request) {
   try {
     const token = getBearerToken(req);
-    if (!token) return Response.json({ message: "Missing token" }, { status: 401 });
+    if (!token) return jsonPrivateNoStore({ message: "Missing token" }, { status: 401 });
 
     const auth = await requireStudentSession(token);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
 
     const { supabase, userId } = auth;
 
     const body = (await req.json()) as Partial<LiveLearningEventPayload>;
     const event = typeof body.event === "string" ? body.event.trim() : "";
-    if (!event) return Response.json({ message: "event wajib." }, { status: 400 });
+    if (!event) return jsonPrivateNoStore({ message: "event wajib." }, { status: 400 });
     if (!KNOWN_LEARNING_EVENT_NAMES.has(event)) {
-      return Response.json({ message: `Event tidak dikenal: ${event}` }, { status: 400 });
+      return jsonPrivateNoStore({ message: `Event tidak dikenal: ${event}` }, { status: 400 });
     }
 
     const dimension =
@@ -39,8 +40,8 @@ export async function POST(req: Request) {
       .select("id, status, sessions_completed")
       .eq("user_id", userId)
       .maybeSingle();
-    if (sErr) return Response.json({ message: sErr.message }, { status: 500 });
-    if (!session) return Response.json({ message: "Sesi assessment belum dibuat." }, { status: 404 });
+    if (sErr) return jsonPrivateNoStore({ message: sErr.message }, { status: 500 });
+    if (!session) return jsonPrivateNoStore({ message: "Sesi assessment belum dibuat." }, { status: 404 });
 
     const payload: LiveLearningEventPayload = {
       event,
@@ -73,8 +74,8 @@ export async function POST(req: Request) {
         .eq("user_id", userId);
     }
 
-    return Response.json({ ok: true, signalsInserted: insErr ? 0 : signalRows.length });
+    return jsonPrivateNoStore({ ok: true, signalsInserted: insErr ? 0 : signalRows.length });
   } catch (e) {
-    return Response.json({ message: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });
+    return jsonPrivateNoStore({ message: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });
   }
 }

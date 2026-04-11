@@ -95,6 +95,14 @@ async function run() {
     .order("id", { ascending: true });
   if (quizzesErr) throw quizzesErr;
 
+  const { error: studyConfErr } = await supabase.from("student_module_study_confirmations").select("id").limit(1);
+  const studyConfirmationsTableOk = !studyConfErr;
+  const studyConfirmationsError = studyConfErr ? String(studyConfErr.message ?? studyConfErr) : null;
+
+  const { error: scheduleSlotsErr } = await supabase.from("student_learning_schedule_slots").select("id").limit(1);
+  const studentScheduleSlotsTableOk = !scheduleSlotsErr;
+  const studentScheduleSlotsError = scheduleSlotsErr ? String(scheduleSlotsErr.message ?? scheduleSlotsErr) : null;
+
   const lessonsByModule = new Map();
   for (const l of lessons ?? []) {
     const key = String(l.module_id);
@@ -152,6 +160,10 @@ async function run() {
     quizEmptyIssueCount: quizEmptyIssues.length,
     lockReasonMismatchCount: 0,
     lockReasonMismatches: [],
+    studyConfirmationsTableOk,
+    studyConfirmationsError,
+    studentScheduleSlotsTableOk,
+    studentScheduleSlotsError,
     modulesWithoutLessonSample: modulesWithoutLesson.slice(0, 20),
     quizEmptyIssueSample: quizEmptyIssues.slice(0, 30),
   };
@@ -223,7 +235,9 @@ async function run() {
   if (
     report.modulesWithoutLessonCount > 0 ||
     report.quizEmptyIssueCount > 0 ||
-    report.lockReasonMismatchCount > 0
+    report.lockReasonMismatchCount > 0 ||
+    report.studyConfirmationsTableOk !== true ||
+    report.studentScheduleSlotsTableOk !== true
   ) {
     process.exitCode = 1;
   }

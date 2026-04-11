@@ -255,7 +255,7 @@ async function run() {
         const { error: upErr } = await supabase.from("quizzes").update(patch).eq("id", row.quizId);
         if (upErr) throw new Error(upErr.message);
       } else {
-        const { error: insErr } = await supabase.from("quizzes").insert(patch);
+        const { error: insErr } = await supabase.from("quizzes").upsert(patch, { onConflict: "lesson_id" });
         if (insErr) throw new Error(insErr.message);
       }
       ok += 1;

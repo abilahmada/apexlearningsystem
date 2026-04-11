@@ -12,6 +12,9 @@
  * - APEX_FLOW_SMOKE_EXPECT_UNLOCKED_MODULE_ID
  * - APEX_FLOW_SMOKE_EXPECT_LOCKED_MODULE_ID
  *
+ * Also asserts: setiap item modul memuat `lessonsAllPassed`, `studyConfirmedAt`, `completed`;
+ * `POST /api/learning/module-complete` tanpa body valid mengembalikan 400.
+ *
  * Run:
  *   npm run test:learning-flow:live
  */
@@ -120,11 +123,35 @@ async function run() {
     return items.length > 0;
   };
 
+  const assertModuleStudyCompletionFields = (items, label) => {
+    const slice = (Array.isArray(items) ? items : []).slice(0, 30);
+    for (let idx = 0; idx < slice.length; idx += 1) {
+      const m = slice[idx];
+      assert.ok(m && typeof m === "object", `${label}[${idx}] should be an object`);
+      assert.ok("lessonsAllPassed" in m, `${label}[${idx}] should expose lessonsAllPassed`);
+      assert.ok("studyConfirmedAt" in m, `${label}[${idx}] should expose studyConfirmedAt`);
+      assert.ok("completed" in m, `${label}[${idx}] should expose completed`);
+      assert.equal(typeof m.lessonsAllPassed, "boolean", `${label}[${idx}] lessonsAllPassed should be boolean`);
+      assert.equal(typeof m.completed, "boolean", `${label}[${idx}] completed should be boolean`);
+      if (m.studyConfirmedAt != null) {
+        assert.equal(typeof m.studyConfirmedAt, "string", `${label}[${idx}] studyConfirmedAt should be string or null`);
+      }
+    }
+  };
+
   // 1) Validate module visibility + baseline phase from modules endpoint.
   const modulesUrl = `${cleanBase}/api/learning/modules?todayOnly=1`;
   const modulesRes = await callJson(modulesUrl, { method: "GET", headers: authHeaders });
   assert.equal(modulesRes.res.status, 200, "GET /learning/modules should return 200");
   const moduleItems = Array.isArray(modulesRes.body.items) ? modulesRes.body.items : [];
+  assertModuleStudyCompletionFields(moduleItems, "GET /api/learning/modules?todayOnly=1 items");
+
+  const mcBad = await callJson(`${cleanBase}/api/learning/module-complete`, {
+    method: "POST",
+    headers: { ...authHeaders, "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.equal(mcBad.res.status, 400, "POST /api/learning/module-complete without moduleId should return 400");
 
   if (expectedBaselinePhase != null) {
     assert.equal(
@@ -183,6 +210,7 @@ async function run() {
       });
       assert.equal(fallbackModulesRes.res.status, 200, "GET /learning/modules (fallback) should return 200");
       const fallbackItems = Array.isArray(fallbackModulesRes.body.items) ? fallbackModulesRes.body.items : [];
+      assertModuleStudyCompletionFields(fallbackItems, "GET /api/learning/modules (fallback) items");
       const fallbackUnlocked = fallbackItems.filter((x) => Boolean(x?.unlocked));
       let selectedFallback = null;
       for (const item of fallbackUnlocked) {

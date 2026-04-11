@@ -174,6 +174,8 @@ export function AdminPanel() {
   const [lessonBenchmark, setLessonBenchmark] = useState('')
 
   const [quizLessonId, setQuizLessonId] = useState('')
+  /** Modul yang dipakai untuk dropdown lesson di tab Kuis (lebih sederhana daripada ribuan lesson global). */
+  const [quizModuleId, setQuizModuleId] = useState('')
   const [quizQuestionsJson, setQuizQuestionsJson] = useState(DEFAULT_QUIZ_LEGACY_JSON)
   const [quizQuestionsPreJson, setQuizQuestionsPreJson] = useState(DEFAULT_QUIZ_BANK_JSON)
   const [quizQuestionsPostJson, setQuizQuestionsPostJson] = useState(DEFAULT_QUIZ_BANK_JSON)
@@ -188,6 +190,8 @@ export function AdminPanel() {
     }>
   >([])
   const [aiQuizOverwrite, setAiQuizOverwrite] = useState(false)
+  /** Panel JSON manual: dibuka otomatis setelah generate AI agar hasil terlihat. */
+  const [quizJsonDetailsOpen, setQuizJsonDetailsOpen] = useState(false)
 
   const [pendingRegs, setPendingRegs] = useState<PendingReg[]>([])
   const [pendingLoading, setPendingLoading] = useState(false)
@@ -833,11 +837,14 @@ export function AdminPanel() {
     if (!lessonModuleId && loaded.length > 0) setLessonModuleId(loaded[0].id)
   }
 
-  const loadLessons = async (moduleId?: string) => {
+  const loadLessons = async (
+    moduleId?: string,
+    opts?: { reconcileQuizLesson?: boolean },
+  ) => {
     const accessToken = await getAccessToken()
     const query = moduleId
-      ? `/api/admin/content?type=lessons&module_id=${moduleId}&limit=100`
-      : '/api/admin/content?type=lessons&limit=100'
+      ? `/api/admin/content?type=lessons&module_id=${moduleId}&limit=500`
+      : '/api/admin/content?type=lessons&limit=2000'
     const res = await fetch(query, {
       headers: { authorization: `Bearer ${accessToken}` },
       cache: 'no-store',
@@ -847,6 +854,14 @@ export function AdminPanel() {
     const loaded = data.items ?? []
     setLessons(loaded)
     if (!quizLessonId && loaded.length > 0) setQuizLessonId(loaded[0].id)
+    if (
+      opts?.reconcileQuizLesson &&
+      quizLessonId &&
+      loaded.length > 0 &&
+      !loaded.some((l) => String(l.id) === String(quizLessonId))
+    ) {
+      setQuizLessonId(loaded[0].id)
+    }
   }
 
   useEffect(() => {
@@ -945,21 +960,29 @@ export function AdminPanel() {
 
   useEffect(() => {
     if (!lessonModuleId) return
+    if (activeContentType === 'quizzes') return
     void loadLessons(lessonModuleId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lessonModuleId])
+  }, [lessonModuleId, activeContentType])
 
+  /** Saat tab Kuis aktif, sinkronkan modul kuis (pertahankan pilihan admin jika masih valid). */
   useEffect(() => {
     if (activeContentType !== 'quizzes') return
-    void (async () => {
-      try {
-        await loadLessons()
-      } catch {
-        /* dropdown falls back to whatever is already loaded */
-      }
-    })()
+    setQuizModuleId((current) => {
+      if (current && modules.some((m) => String(m.id) === String(current))) return current
+      if (lessonModuleId && modules.some((m) => String(m.id) === String(lessonModuleId))) return lessonModuleId
+      return String(modules[0]?.id ?? '')
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeContentType])
+  }, [activeContentType, lessonModuleId, modules])
+
+  /** Muat lesson hanya untuk modul yang dipilih di tab Kuis. */
+  useEffect(() => {
+    if (activeContentType !== 'quizzes') return
+    if (!quizModuleId) return
+    void loadLessons(quizModuleId, { reconcileQuizLesson: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeContentType, quizModuleId])
 
   const onSave = async () => {
     setSaving(true)
@@ -1137,11 +1160,18 @@ export function AdminPanel() {
       const data = (await res.json()) as { message?: string }
       if (!res.ok) throw new Error(data.message ?? t('Gagal menyimpan konten', 'Failed to save content'))
 
-      setContentMessage(
-        isEditing
-          ? t('Konten berhasil diperbarui.', 'Content updated successfully.')
-          : t('Konten berhasil ditambahkan.', 'Content created successfully.'),
-      )
+      if (isEditing) {
+        setContentMessage(t('Konten berhasil diperbarui.', 'Content updated successfully.'))
+      } else if (contentType === 'lessons') {
+        setContentMessage(
+          t(
+            'Pelajaran berhasil ditambahkan. Lanjut: tab “4 · Kuis” → pilih kursus & modul yang sama → pilih lesson → Generate AI atau simpan (JSON ada di bagian Lanjutan).',
+            'Lesson added. Next: open “4 · Quizzes” → pick the same course & module → pick the lesson → AI Generate or save (JSON is under Advanced).',
+          ),
+        )
+      } else {
+        setContentMessage(t('Konten berhasil ditambahkan.', 'Content created successfully.'))
+      }
       setEditingId(null)
       if (!isEditing) {
         if (contentType === 'modules') setModuleMetadataBase({})
@@ -1200,7 +1230,12 @@ export function AdminPanel() {
 
       setContentMessage(
         wizardStep < 4
-          ? t('Berhasil. Lanjut ke langkah berikutnya.', 'Saved. Continue to the next step.')
+          ? type === 'lessons' && wizardStep === 3
+            ? t(
+                'Berhasil. Langkah 4: pilih modul & lesson di bawah, lalu Generate atau simpan kuis.',
+                'Saved. Step 4: pick module & lesson below, then Generate or save the quiz.',
+              )
+            : t('Berhasil. Lanjut ke langkah berikutnya.', 'Saved. Continue to the next step.')
           : t('Kuis berhasil disimpan.', 'Quiz saved successfully.'),
       )
 
@@ -1210,12 +1245,8 @@ export function AdminPanel() {
       await loadCourses()
       await loadModules(nextCourseId || undefined)
       await loadLessons(nextModuleId || undefined)
-      if (type === 'lessons') {
-        try {
-          await loadLessons()
-        } catch {
-          /* ignore */
-        }
+      if (type === 'lessons' && nextModuleId) {
+        setQuizModuleId(String(nextModuleId))
       }
 
       if (wizardStep < 4) {
@@ -1631,8 +1662,8 @@ export function AdminPanel() {
       }
       setContentMessage(
         t(
-          `Claude selesai: ${data.preCount ?? 0} soal PRE + ${data.postCount ?? 0} soal POST disimpan (kolom questions_pre / questions_post).`,
-          `Claude finished: saved ${data.preCount ?? 0} PRE + ${data.postCount ?? 0} POST questions (questions_pre / questions_post).`,
+          `Claude selesai: ${data.preCount ?? 0} soal PRE + ${data.postCount ?? 0} soal POST disimpan. Bagian “Lanjutan” dibuka agar Anda bisa meninjau JSON.`,
+          `Claude finished: saved ${data.preCount ?? 0} PRE + ${data.postCount ?? 0} POST questions. Advanced section opened so you can review the JSON.`,
         ),
       )
       const list = await loadItems('quizzes')
@@ -1642,6 +1673,7 @@ export function AdminPanel() {
         setQuizQuestionsPreJson(JSON.stringify(row.questions_pre ?? [], null, 2))
         setQuizQuestionsPostJson(JSON.stringify(row.questions_post ?? [], null, 2))
       }
+      setQuizJsonDetailsOpen(true)
     } catch (error) {
       setContentMessage(
         error instanceof Error ? error.message : t('Gagal generate quiz AI.', 'AI quiz generation failed.'),
@@ -1723,10 +1755,37 @@ export function AdminPanel() {
       setLessonBenchmark(String(metadata.benchmark ?? ''))
       return
     }
-    setQuizLessonId(String(item.lesson_id ?? ''))
+    const qLessonId = String(item.lesson_id ?? '')
+    setQuizLessonId(qLessonId)
     setQuizQuestionsJson(JSON.stringify(item.questions ?? [], null, 2))
     setQuizQuestionsPreJson(JSON.stringify(item.questions_pre ?? [], null, 2))
     setQuizQuestionsPostJson(JSON.stringify(item.questions_post ?? [], null, 2))
+    void (async () => {
+      if (!qLessonId || !isUuid(qLessonId)) return
+      try {
+        const supabase = createSupabaseBrowserClient()
+        const { data: lessonRow, error: leErr } = await supabase
+          .from('lessons')
+          .select('module_id')
+          .eq('id', qLessonId)
+          .maybeSingle()
+        if (leErr || !lessonRow?.module_id) return
+        const mid = String(lessonRow.module_id)
+        const { data: modRow, error: modErr } = await supabase
+          .from('modules')
+          .select('course_id')
+          .eq('id', mid)
+          .maybeSingle()
+        if (!modErr && modRow?.course_id) {
+          setModuleCourseId(String(modRow.course_id))
+          await loadModules(String(modRow.course_id))
+        }
+        setQuizModuleId(mid)
+        await loadLessons(mid, { reconcileQuizLesson: true })
+      } catch {
+        /* admin can still pick module manually */
+      }
+    })()
   }
 
   const removeContent = async (id: string) => {
@@ -2259,11 +2318,27 @@ export function AdminPanel() {
             )}
           </div>
         )}
-        {activeContentType === 'quizzes' && lessons.length === 0 && (
+        {activeContentType === 'quizzes' && courses.length === 0 && (
           <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             {t(
-              'Belum ada pelajaran. Buat lesson (mis. pre/post) di tab Pelajaran, baru tempel kuis di sini.',
-              'No lessons yet. Create lessons (e.g. pre/post) under Lessons, then attach quizzes here.',
+              'Belum ada kursus. Buat kursus dulu (tab Kursus / langkah 1 wizard).',
+              'No courses yet. Create a course first (Courses tab / wizard step 1).',
+            )}
+          </div>
+        )}
+        {activeContentType === 'quizzes' && courses.length > 0 && modules.length === 0 && (
+          <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {t(
+              'Belum ada modul untuk kursus yang dipilih. Pilih kursus lain atau buat modul di tab Modul.',
+              'No modules for the selected course. Pick another course or create modules under Modules.',
+            )}
+          </div>
+        )}
+        {activeContentType === 'quizzes' && modules.length > 0 && quizModuleId && lessons.length === 0 && (
+          <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {t(
+              'Belum ada pelajaran di modul ini. Buat lesson di tab Pelajaran (modul yang sama), lalu klik “Muat ulang daftar”.',
+              'No lessons in this module yet. Create lessons under Lessons (same module), then click “Reload list”.',
             )}
           </div>
         )}
@@ -2766,76 +2841,107 @@ export function AdminPanel() {
             <>
               <p className="text-xs text-slate-500">
                 {t(
-                  'Satu lesson = satu baris quiz. Isi JSON di bawah: legacy `questions` (fallback), plus `questions_pre` / `questions_post` untuk pre/post terpisah. Generator Claude mengisi PRE+POST; simpan lewat Wizard/Tab mengirim ketiga kolom ke API.',
-                  'One lesson = one quiz row. Use JSON below: legacy `questions` (fallback), plus `questions_pre` / `questions_post` for split banks. Claude fills PRE+POST; Wizard/Tab save sends all three columns to the API.',
+                  'Alur: pilih kursus → modul → lesson → Generate AI. Hasil PRE/POST tampil di kotak pratinjau; bagian Lanjutan (JSON) terbuka otomatis setelah generate untuk sunting jika perlu.',
+                  'Flow: pick course → module → lesson → AI Generate. PRE/POST output shows in the preview box; Advanced JSON opens automatically after generate for edits if needed.',
                 )}
               </p>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  {t('Pelajaran yang dikuis', 'Lesson to attach quiz to')}
-                </label>
-                <select
-                  value={quizLessonId}
-                  onChange={(e) => setQuizLessonId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                >
-                  {lessons.length === 0 && (
-                    <option value="">{t('Belum ada lesson', 'No lessons yet')}</option>
-                  )}
-                  {lessons.map((lesson) => (
-                    <option key={lesson.id} value={lesson.id}>
-                      {formatLessonOptionLabel(lesson)}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  {t(
-                    'Saat tab ini dibuka, daftar memuat sampai 100 pelajaran dari semua modul (bukan hanya modul yang dipilih di tab Pelajaran).',
-                    'When this tab opens, the list loads up to 100 lessons across all modules (not only the module selected on the Lessons tab).',
-                  )}
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 space-y-3">
+                <p className="text-[11px] font-bold text-emerald-900 uppercase tracking-wide">
+                  {t('1 — Kursus', '1 — Course')}
                 </p>
-              </div>
-              <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    {t('Legacy questions (JSON)', 'Legacy questions (JSON)')}
+                    {t('Kursus (menentukan daftar modul)', 'Course (drives the module list)')}
                   </label>
-                  <p className="text-[11px] text-slate-400 mb-1">
+                  <select
+                    value={moduleCourseId}
+                    onChange={(e) => setModuleCourseId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  >
+                    {courses.length === 0 && (
+                      <option value="">{t('Belum ada course', 'No courses yet')}</option>
+                    )}
+                    {courses.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.title} ({course.grade_level})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    {t('2 — Modul (bab)', '2 — Module (chapter)')}
+                  </label>
+                  <select
+                    value={quizModuleId}
+                    onChange={(e) => setQuizModuleId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  >
+                    {modules.length === 0 && (
+                      <option value="">{t('Belum ada modul', 'No modules yet')}</option>
+                    )}
+                    {modules.map((module) => (
+                      <option key={module.id} value={module.id}>
+                        {formatModuleOptionLabel(module)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    {t('3 — Pelajaran yang dikuis', '3 — Lesson to attach quiz to')}
+                  </label>
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+                    <select
+                      value={quizLessonId}
+                      onChange={(e) => setQuizLessonId(e.target.value)}
+                      className="w-full flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                    >
+                      {lessons.length === 0 && (
+                        <option value="">{t('Belum ada lesson di modul ini', 'No lessons in this module')}</option>
+                      )}
+                      {lessons.map((lesson) => (
+                        <option key={lesson.id} value={lesson.id}>
+                          {formatLessonOptionLabel(lesson)}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void (async () => {
+                          if (!quizModuleId) return
+                          setContentLoading(true)
+                          setContentMessage(null)
+                          try {
+                            await loadLessons(quizModuleId, { reconcileQuizLesson: true })
+                          } catch (err) {
+                            setContentMessage(
+                              err instanceof Error
+                                ? err.message
+                                : t('Gagal memuat ulang daftar lesson.', 'Failed to reload lesson list.'),
+                            )
+                          } finally {
+                            setContentLoading(false)
+                          }
+                        })()
+                      }}
+                      disabled={contentLoading || !quizModuleId}
+                      className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {t('Muat ulang', 'Reload')}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
                     {t(
-                      'Dipakai jika PRE dan POST kosong. Format sama untuk ketiga kolom.',
-                      'Used when PRE and POST are empty. Same item shape for all three banks.',
+                      'Hanya lesson dalam modul yang dipilih. Setelah menambah lesson di tab Pelajaran, kembali ke sini lalu klik Muat ulang.',
+                      'Only lessons from the selected module. After adding a lesson on the Lessons tab, return here and click Reload.',
                     )}
                   </p>
-                  <textarea
-                    value={quizQuestionsJson}
-                    onChange={(e) => setQuizQuestionsJson(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm min-h-28 font-mono text-[13px]"
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      {t('PRE — questions_pre (JSON)', 'PRE — questions_pre (JSON)')}
-                    </label>
-                    <textarea
-                      value={quizQuestionsPreJson}
-                      onChange={(e) => setQuizQuestionsPreJson(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm min-h-28 font-mono text-[13px]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      {t('POST — questions_post (JSON)', 'POST — questions_post (JSON)')}
-                    </label>
-                    <textarea
-                      value={quizQuestionsPostJson}
-                      onChange={(e) => setQuizQuestionsPostJson(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm min-h-28 font-mono text-[13px]"
-                    />
-                  </div>
                 </div>
               </div>
-              <div className="rounded-xl border border-violet-200 bg-violet-50/80 p-3 space-y-2 mt-2">
+
+              <div className="rounded-xl border border-violet-200 bg-violet-50/90 p-3 space-y-3 mt-2">
                 <p className="text-xs font-bold text-violet-900">
                   {t('Generator AI (Claude)', 'AI generator (Claude)')}
                 </p>
@@ -2861,7 +2967,103 @@ export function AdminPanel() {
                 >
                   {t('Generate PRE (5) + POST (10) dari materi', 'Generate PRE (5) + POST (10) from material')}
                 </button>
+                <div className="rounded-lg border border-violet-200 bg-white/90 p-2 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-violet-800">
+                    {t('Pratinjau soal (baca saja — sama dengan isi JSON)', 'Question preview (read-only — matches JSON below)')}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">
+                        {t('PRE (questions_pre)', 'PRE (questions_pre)')}
+                      </label>
+                      <textarea
+                        readOnly
+                        value={quizQuestionsPreJson}
+                        rows={10}
+                        spellCheck={false}
+                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-mono bg-slate-50 text-slate-800 resize-y min-h-[10rem] max-h-64 overflow-auto"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">
+                        {t('POST (questions_post)', 'POST (questions_post)')}
+                      </label>
+                      <textarea
+                        readOnly
+                        value={quizQuestionsPostJson}
+                        rows={10}
+                        spellCheck={false}
+                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-mono bg-slate-50 text-slate-800 resize-y min-h-[10rem] max-h-64 overflow-auto"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    {t(
+                      'Untuk mengedit teks JSON, gunakan bagian Lanjutan di bawah. Setelah Generate berhasil, bagian itu terbuka otomatis.',
+                      'To edit JSON text, use the Advanced section below. After a successful Generate, that section opens automatically.',
+                    )}
+                  </p>
+                </div>
               </div>
+
+              <details
+                className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 mt-2"
+                open={quizJsonDetailsOpen}
+                onToggle={(e) => setQuizJsonDetailsOpen(e.currentTarget.open)}
+              >
+                <summary className="cursor-pointer text-xs font-bold text-slate-700 list-none [&::-webkit-details-marker]:hidden">
+                  {t(
+                    'Lanjutan: edit JSON soal (legacy / PRE / POST) — klik untuk buka/tutup',
+                    'Advanced: edit question JSON (legacy / PRE / POST) — click to toggle',
+                  )}
+                </summary>
+                <div className="space-y-3 mt-3 pt-2 border-t border-slate-200">
+                  <p className="text-[11px] text-slate-500">
+                    {t(
+                      'Satu lesson = satu baris quiz di API. Legacy `questions` dipakai jika PRE/POST kosong. Simpan lewat Wizard/Tab mengirim ketiga kolom.',
+                      'One lesson = one quiz row in the API. Legacy `questions` is used when PRE/POST are empty. Wizard/Tab save sends all three columns.',
+                    )}
+                  </p>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">
+                      {t('Legacy questions (JSON)', 'Legacy questions (JSON)')}
+                    </label>
+                    <p className="text-[11px] text-slate-400 mb-1">
+                      {t(
+                        'Dipakai jika PRE dan POST kosong. Format sama untuk ketiga kolom.',
+                        'Used when PRE and POST are empty. Same item shape for all three banks.',
+                      )}
+                    </p>
+                    <textarea
+                      value={quizQuestionsJson}
+                      onChange={(e) => setQuizQuestionsJson(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm min-h-28 font-mono text-[13px] bg-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        {t('PRE — questions_pre (JSON)', 'PRE — questions_pre (JSON)')}
+                      </label>
+                      <textarea
+                        value={quizQuestionsPreJson}
+                        onChange={(e) => setQuizQuestionsPreJson(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm min-h-28 font-mono text-[13px] bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        {t('POST — questions_post (JSON)', 'POST — questions_post (JSON)')}
+                      </label>
+                      <textarea
+                        value={quizQuestionsPostJson}
+                        onChange={(e) => setQuizQuestionsPostJson(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm min-h-28 font-mono text-[13px] bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </details>
             </>
           )}
         </div>

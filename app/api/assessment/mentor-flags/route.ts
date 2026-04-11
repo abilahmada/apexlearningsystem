@@ -1,4 +1,5 @@
 import { requireAppUserFromRequest } from "@/lib/auth/request-user";
+import { jsonPrivateNoStore } from "@/lib/http/json-private-no-store";
 
 /**
  * GET /api/assessment/mentor-flags?userId=<studentUserId>
@@ -8,14 +9,14 @@ import { requireAppUserFromRequest } from "@/lib/auth/request-user";
 export async function GET(req: Request) {
   try {
     const auth = await requireAppUserFromRequest(req);
-    if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
+    if (!auth.ok) return jsonPrivateNoStore({ message: auth.message }, { status: auth.status });
     if (auth.role !== "MENTOR" && auth.role !== "ADMIN") {
-      return Response.json({ message: "Forbidden" }, { status: 403 });
+      return jsonPrivateNoStore({ message: "Forbidden" }, { status: 403 });
     }
 
     const url = new URL(req.url);
     const userId = url.searchParams.get("userId") ?? "";
-    if (!userId) return Response.json({ message: "userId wajib." }, { status: 400 });
+    if (!userId) return jsonPrivateNoStore({ message: "userId wajib." }, { status: 400 });
 
     const { supabase } = auth;
 
@@ -26,7 +27,7 @@ export async function GET(req: Request) {
       .eq("resolved", false)
       .order("created_at", { ascending: false })
       .limit(50);
-    if (error) return Response.json({ message: error.message }, { status: 500 });
+    if (error) return jsonPrivateNoStore({ message: error.message }, { status: 500 });
 
     const flags = (data ?? []).map((f) => ({
       id: String(f.id),
@@ -37,8 +38,8 @@ export async function GET(req: Request) {
       createdAt: String(f.created_at ?? ""),
     }));
 
-    return Response.json({ flags });
+    return jsonPrivateNoStore({ flags });
   } catch (e) {
-    return Response.json({ message: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });
+    return jsonPrivateNoStore({ message: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });
   }
 }
