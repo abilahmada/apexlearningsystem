@@ -215,6 +215,33 @@ export function buildLiveCalibrationRows(
     ];
   }
 
+  if (event === APEX_LEARNING_EVENTS.DAILY_SPIRITUAL_HABIT) {
+    const habitKey =
+      typeof payload.metadata?.habitKey === "string" ? String(payload.metadata.habitKey).trim().slice(0, 64) : "";
+    const localDate =
+      typeof payload.metadata?.localDate === "string" ? String(payload.metadata.localDate).trim().slice(0, 10) : "";
+    const score = typeof payload.scorePct === "number" && Number.isFinite(payload.scorePct) ? payload.scorePct : 50;
+    const raw = Math.max(5, Math.min(8.8, 5.1 + (Math.min(100, Math.max(0, score)) / 100) * 3.7));
+    return [
+      {
+        user_id: userId,
+        session_id: sessionId,
+        signal_type: "ENGAGEMENT",
+        dimension: "spiritual",
+        raw_value: raw,
+        normalized_value: raw,
+        metadata: {
+          ...baseMeta,
+          kind: "daily_spiritual_habit",
+          habitKey: habitKey || null,
+          localDate: localDate || null,
+          scorePct: score,
+        },
+        recorded_at: iso,
+      },
+    ];
+  }
+
   if (
     event === APEX_LEARNING_EVENTS.PLACEMENT_REVIEW_SCHEDULED ||
     event === APEX_LEARNING_EVENTS.PLACEMENT_REVIEW_COMPLETED

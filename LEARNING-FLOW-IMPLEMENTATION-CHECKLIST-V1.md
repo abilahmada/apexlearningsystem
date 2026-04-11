@@ -99,6 +99,10 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 2. `app/api/learning/module-complete/route.ts`
    - [x] `POST` konfirmasi "selesai dipelajari" setelah validasi unlock + semua lesson `posttest_passed`.
 
+2b. `app/api/learning/spiritual-habits/route.ts`
+   - [x] `GET` status mutaba'ah harian per `localDate`; `POST` idempoten per habit/hari.
+   - [x] Menulis `student_spiritual_habit_completions` + sinyal `calibration_signals` (event `apex.spiritual.daily_habit`, dimensi `spiritual`) via `buildLiveCalibrationRows`.
+
 3. `app/api/learning/lesson-assessment/route.ts`
    - [x] PRE required sebelum POST.
    - [x] Reason code/logging untuk block (`PRE_REQUIRED`, `LESSON_LOCKED`).
@@ -116,6 +120,7 @@ Dokumen ini menurunkan `LEARNING-FLOW-RULEBOOK-V1.md` menjadi checklist eksekusi
 ## C2. UI yang harus ikut sinkron
 
 1. `components/apex/modules/learning-hub.tsx`
+   - [x] Mutaba'ah Yaumiyyah: muat/simpan via API spiritual-habits; poin charity mengikuti `pointsDelta` server; salin ke kalibrasi Spiritual.
    - [x] Modul tampil sebagai kartu terpisah.
    - [x] Test session tampil popup modal.
    - [x] Progress bar lesson PRE/POST.

@@ -46,29 +46,57 @@ export async function GET(req: Request) {
     .in("user_id", userIds)
     .in("signal_type", ["MASTERY_VELOCITY", "ERROR_PATTERN", "ENGAGEMENT"]);
 
-  type SigAccum = { velocitySum: number; velocityCount: number; errorSum: number; errorCount: number };
+  type SigAccum = {
+    velocitySum: number;
+    velocityCount: number;
+    errorSum: number;
+    errorCount: number;
+    engagementSum: number;
+    engagementCount: number;
+  };
+  const emptyAcc = (): SigAccum => ({
+    velocitySum: 0,
+    velocityCount: 0,
+    errorSum: 0,
+    errorCount: 0,
+    engagementSum: 0,
+    engagementCount: 0,
+  });
   const sigMap = new Map<string, Map<string, SigAccum>>();
   for (const sig of signals ?? []) {
     const uid = String(sig.user_id);
     const dim = String(sig.dimension);
     if (!sigMap.has(uid)) sigMap.set(uid, new Map());
     const dimMap = sigMap.get(uid)!;
-    if (!dimMap.has(dim)) dimMap.set(dim, { velocitySum: 0, velocityCount: 0, errorSum: 0, errorCount: 0 });
+    if (!dimMap.has(dim)) dimMap.set(dim, emptyAcc());
     const acc = dimMap.get(dim)!;
     const val = Number(sig.normalized_value ?? 5);
-    if (sig.signal_type === "MASTERY_VELOCITY") { acc.velocitySum += val; acc.velocityCount += 1; }
-    if (sig.signal_type === "ERROR_PATTERN")   { acc.errorSum += val; acc.errorCount += 1; }
+    if (sig.signal_type === "MASTERY_VELOCITY") {
+      acc.velocitySum += val;
+      acc.velocityCount += 1;
+    }
+    if (sig.signal_type === "ERROR_PATTERN") {
+      acc.errorSum += val;
+      acc.errorCount += 1;
+    }
+    if (sig.signal_type === "ENGAGEMENT") {
+      acc.engagementSum += val;
+      acc.engagementCount += 1;
+    }
   }
 
-  // 3. Engagement: use global signals per user
+  // 3. Engagement global (CI): rata-rata sinyal ENGAGEMENT per dimensi yang punya data (termasuk spiritual / global).
   const engagementMap = new Map<string, number>();
   for (const [uid, dimMap] of sigMap.entries()) {
-    const globalAcc = dimMap.get("global");
-    if (globalAcc && globalAcc.velocityCount > 0) {
-      engagementMap.set(uid, globalAcc.velocitySum / globalAcc.velocityCount);
-    } else {
-      engagementMap.set(uid, 5);
+    let sum = 0;
+    let n = 0;
+    for (const acc of dimMap.values()) {
+      if (acc.engagementCount > 0) {
+        sum += acc.engagementSum / acc.engagementCount;
+        n += 1;
+      }
     }
+    engagementMap.set(uid, n > 0 ? sum / n : 5);
   }
 
   const now = new Date().toISOString();
@@ -97,8 +125,15 @@ export async function GET(req: Request) {
       for (const dim of CALIBRATION_DIMENSIONS) {
         const acc = dimMap?.get(dim);
         if (acc) {
+          let velocity = acc.velocityCount > 0 ? acc.velocitySum / acc.velocityCount : 1.0;
+          // Mutaba'ah & engagement modul pada dimensi spiritual → bobot lebih ke sinyal ENGAGEMENT.
+          if (dim === "spiritual" && acc.engagementCount > 0) {
+            const engAvg = acc.engagementSum / acc.engagementCount;
+            const engAsVel = 0.4 + (Math.min(10, Math.max(0, engAvg)) / 10) * 2.2;
+            velocity = velocity * 0.55 + engAsVel * 0.45;
+          }
           aggregated[dim] = {
-            velocity: acc.velocityCount > 0 ? acc.velocitySum / acc.velocityCount : 1.0,
+            velocity,
             systematicRate: acc.errorCount > 0 ? 1 - (acc.errorSum / acc.errorCount) / 10 : 0,
           };
         }

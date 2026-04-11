@@ -1387,7 +1387,7 @@ function ApexAppContent() {
         {/* ── Content area ────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6" style={{ background: '#F8FAFC' }}>
           <div className={`mx-auto ${safeActiveView === 'members-db' ? 'max-w-7xl' : 'max-w-4xl'}`}>
-            {safeActiveView === 'hub'        && <LearningHub charityPoints={charityPoints} onAddCharityPoints={() => addCharityPoints(50)} />}
+            {safeActiveView === 'hub'        && <LearningHub charityPoints={charityPoints} onAddCharityPoints={addCharityPoints} />}
             {safeActiveView === 'classroom'  && <AIClassroom openChatSignal={openChatSignal} />}
             {safeActiveView === 'spaced-rep' && <SpacedRepetition />}
             {safeActiveView === 'portfolio'  && <Portfolio />}

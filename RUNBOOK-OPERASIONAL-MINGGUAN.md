@@ -8,6 +8,17 @@ Dokumen ini untuk cek rutin kestabilan learning flow tanpa harus investigasi man
 - Pastikan ENV server utama aktif (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).
 - Jalankan dari root `apex-frontend`.
 
+### 1b) Push migrasi Supabase (produksi / staging)
+
+Dengan CLI terhubung ke proyek Supabase yang benar:
+
+```bash
+cd apex-frontend
+npx supabase db push
+```
+
+Setelah itu, pastikan migrasi avatar (`20260418120000_users_avatar_url_and_avatars_bucket.sql`) terpasang bila profil memakai upload foto: kolom `public.users.avatar_url`, bucket `avatars`, dan policy baca publik untuk objek di bucket tersebut.
+
 ## 2) Health check data inti
 
 Jalankan:
@@ -74,6 +85,15 @@ Lolos jika:
 - tabel + trigger arsip tersedia
 - tidak ada mismatch pada query integritas snapshot vs counter
 - tidak ada event invalid (`from_grade = to_grade`, grade kosong)
+
+### 5b) SQL verify mutaba'ah & kalibrasi spiritual
+
+Setelah migrasi `20260416120000_student_spiritual_habit_completions.sql` aktif di database:
+
+- Jalankan `supabase/verify_student_spiritual_habit_operational.sql` di Supabase SQL Editor.
+- Lolos jika tabel `student_spiritual_habit_completions` ada dan query sinyal `apex.spiritual.daily_habit` di `calibration_signals` tidak error.
+
+Cron malam `GET /api/cron/nightly-calibration` sudah mengagregasi `ENGAGEMENT` per dimensi (termasuk **spiritual**) ke `competency_profiles`.
 
 ## 6) Maintenance data bila ada temuan
 

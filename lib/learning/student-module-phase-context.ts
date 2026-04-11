@@ -12,7 +12,7 @@ import {
 
 export const PHASE_PROGRESS_AVG_POST_THRESHOLD = 80;
 
-type GradeApi = "SD" | "SMP" | "SMA" | "SMK";
+export type GradeApi = "SD" | "SMP" | "SMA" | "SMK";
 
 export function parseStudentGrade(raw: string | null): GradeApi | null {
   if (!raw) return null;

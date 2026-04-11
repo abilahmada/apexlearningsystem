@@ -95,6 +95,17 @@ export async function GET(req: Request) {
     profile = (data as Record<string, unknown> | null) ?? null;
   }
 
+  const { data: userAvatarRow, error: userAvatarErr } = await auth.supabase
+    .from("users")
+    .select("avatar_url")
+    .eq("id", auth.userId)
+    .maybeSingle();
+  if (userAvatarErr) {
+    return jsonPrivateNoStore({ message: userAvatarErr.message }, { status: 500 });
+  }
+  const avatarUrl =
+    (userAvatarRow as { avatar_url?: string | null } | null)?.avatar_url ?? null;
+
   const roleLower = String(auth.role).toLowerCase();
   const base = {
     id: auth.userId,
@@ -102,6 +113,7 @@ export async function GET(req: Request) {
     email: auth.email,
     role: roleLower,
     profile,
+    avatarUrl,
   };
 
   if (auth.role === "PARENT") {
