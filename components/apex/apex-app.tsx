@@ -1443,11 +1443,12 @@ function ApexAppContent() {
       </main>
 
       <button
+        type="button"
         onClick={() => {
           setActiveView('classroom')
           setOpenChatSignal((prev) => prev + 1)
         }}
-        className="fixed right-4 bottom-20 md:right-5 md:bottom-5 z-40 w-12 h-12 md:w-auto md:h-auto md:px-4 py-3 rounded-full text-white font-bold text-sm shadow-lg inline-flex items-center justify-center md:justify-start gap-2"
+        className="fixed right-4 bottom-20 md:right-5 md:bottom-5 z-40 w-12 h-12 md:w-auto md:h-auto md:px-4 py-3 rounded-full text-white font-bold text-sm shadow-lg inline-flex items-center justify-center md:justify-start gap-2 touch-manipulation"
         style={{ background: 'linear-gradient(135deg, #06B6D4 0%, #2563EB 100%)' }}
         title={t('Tanya Socrates AI', 'Ask Socrates AI')}
         aria-label={t('Tanya Socrates AI', 'Ask Socrates AI')}
