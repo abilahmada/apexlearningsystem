@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import {
   Home, BrainCircuit, RotateCw, Globe, LineChart, ShieldCheck, Clock,
   Timer, Calendar, BookOpen, ClipboardList, Flag, Settings, Heart,
@@ -581,7 +581,7 @@ function LoginGate() {
         </h2>
         <p className="text-sm sm:text-base text-slate-500 mb-6 leading-relaxed max-w-xl">
           {mode === 'signin'
-            ? t('Masuk dengan akun Supabase kamu untuk melanjutkan.', 'Sign in with your Supabase account to continue.')
+            ? t('Masuk dengan akun kamu untuk melanjutkan.', 'Sign in with your account to continue.')
             : t('Daftar akun baru dan pilih peran aksesmu.', 'Create a new account and choose your access role.')}
         </p>
 
@@ -1038,9 +1038,24 @@ function ApexAppContent() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [showWellbeing, setShowWellbeing] = useState(false)
   const [showSettings, setShowSettings]   = useState(false)
-  const [dyslexicMode, setDyslexicMode]   = useState(false)
+  const DYSLEXIC_STORAGE_KEY = 'apex-dyslexic'
+  const [dyslexicMode, setDyslexicMode] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return window.localStorage.getItem(DYSLEXIC_STORAGE_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
   const allowedViews = useMemo(() => (userRole ? ROLE_ACCESS[userRole] : []), [userRole])
   const safeActiveView = (allowedViews.includes(activeView) ? activeView : allowedViews[0]) ?? 'hub'
+
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    if (dyslexicMode) root.classList.add('apex-dyslexic')
+    else root.classList.remove('apex-dyslexic')
+    return () => root.classList.remove('apex-dyslexic')
+  }, [dyslexicMode])
 
   useEffect(() => {
     if (!mobileNavOpen) return
@@ -1167,7 +1182,7 @@ function ApexAppContent() {
 
   return (
     <div
-      className={`min-h-screen flex text-[#0A1128] relative overflow-hidden ${dyslexicMode ? 'font-dyslexic' : ''}`}
+      className="min-h-screen flex text-[#0A1128] relative overflow-hidden"
       style={{ background: '#F8FAFC', fontFamily: dyslexicMode ? undefined : "'Inter', system-ui, sans-serif" }}
     >
       {/* ── Wellbeing overlay ──────────────────────────────────────────── */}
@@ -1234,7 +1249,18 @@ function ApexAppContent() {
                 </div>
                 {/* Toggle switch */}
                 <button
-                  onClick={() => setDyslexicMode(!dyslexicMode)}
+                  type="button"
+                  onClick={() => {
+                    setDyslexicMode((prev) => {
+                      const next = !prev
+                      try {
+                        window.localStorage.setItem(DYSLEXIC_STORAGE_KEY, next ? '1' : '0')
+                      } catch {
+                        /* ignore */
+                      }
+                      return next
+                    })
+                  }}
                   className="relative w-12 h-6 rounded-full transition-all duration-200"
                   style={{ background: dyslexicMode ? '#06B6D4' : '#CBD5E1' }}
                 >
