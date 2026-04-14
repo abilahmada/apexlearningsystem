@@ -25,3 +25,13 @@
     line-height: 1.5 !important;
   }
 }
+
+/**
+ * Mode aksesibilitas: font OpenDyslexic + timpa font inline (Plus Jakarta / Inter).
+ * Kelas diset di `document.documentElement` dari ApexApp agar mencakup portal (mis. chat) ke body.
+ * @font-face di-load lewat app/layout.tsx (@fontsource/opendyslexic).
+ */
+html.apex-dyslexic,
+html.apex-dyslexic * {
+  font-family: "OpenDyslexic", Verdana, Geneva, sans-serif !important;
+}

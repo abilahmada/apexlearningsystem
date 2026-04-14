@@ -2452,135 +2452,6 @@ export function AdminPanel() {
           </ul>
         </div>
 
-        {(activeContentType === 'modules' || activeContentType === 'lessons') && (
-          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-            <div>
-              <p className="text-xs font-semibold text-slate-700">
-                {activeContentType === 'modules'
-                  ? t('Saring daftar modul (preview)', 'Filter module list (preview)')
-                  : t('Saring daftar pelajaran (preview)', 'Filter lesson list (preview)')}
-              </p>
-              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                {activeContentType === 'modules'
-                  ? t(
-                      'Mempersempit daftar modul di bawah saja (cari cepat & salin ID). Form wizard tidak terpengaruh. Kosongkan semua = tampilkan semua.',
-                      'Narrows only the module list below (quick find & copy IDs). Wizard form is unchanged. Leave all empty to show everything.',
-                    )
-                  : t(
-                      'Mempersempit daftar pelajaran di bawah saja. Form tidak terpengaruh. Kosongkan = semua.',
-                      'Narrows only the lesson list below. Form unchanged. Empty = show all.',
-                    )}
-              </p>
-            </div>
-            {activeContentType === 'modules' && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                    {t('Level (metadata)', 'Level (in metadata)')}
-                  </label>
-                <select
-                  value={filterPhase}
-                  onChange={(e) => setFilterPhase(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
-                >
-                  <option value="">{t('Semua level', 'All levels')}</option>
-                  {modulePhaseOptions.map((phase) => (
-                    <option key={phase} value={phase}>
-                      {phase}
-                    </option>
-                  ))}
-                </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                    {t('Mapel', 'Subject')}
-                  </label>
-                <select
-                  value={filterSubject}
-                  onChange={(e) => setFilterSubject(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
-                >
-                  <option value="">{t('Semua mapel', 'All subjects')}</option>
-                  {moduleSubjectOptions.map((subject) => (
-                    <option key={subject} value={subject}>
-                      {subject}
-                    </option>
-                  ))}
-                </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                    {t('Track (opsional)', 'Track (optional)')}
-                  </label>
-                <select
-                  value={filterTrack}
-                  onChange={(e) => setFilterTrack(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
-                >
-                  <option value="">{t('Semua track', 'All tracks')}</option>
-                  {moduleTrackOptions.map((track) => (
-                    <option key={track} value={track}>
-                      {track}
-                    </option>
-                  ))}
-                </select>
-                </div>
-              </div>
-            )}
-            {activeContentType === 'lessons' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                    {t('Kode pelajaran', 'Lesson code')}
-                  </label>
-                <select
-                  value={filterCode}
-                  onChange={(e) => setFilterCode(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
-                >
-                  <option value="">{t('Semua kode', 'All codes')}</option>
-                  {lessonCodeOptions.map((code) => (
-                    <option key={code} value={code}>
-                      {code}
-                    </option>
-                  ))}
-                </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                    {t('Benchmark', 'Benchmark')}
-                  </label>
-                <select
-                  value={filterBenchmark}
-                  onChange={(e) => setFilterBenchmark(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
-                >
-                  <option value="">{t('Semua benchmark', 'All benchmarks')}</option>
-                  {lessonBenchmarkOptions.map((benchmark) => (
-                    <option key={benchmark} value={benchmark}>
-                      {benchmark}
-                    </option>
-                  ))}
-                </select>
-                </div>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setFilterPhase('')
-                setFilterSubject('')
-                setFilterTrack('')
-                setFilterCode('')
-                setFilterBenchmark('')
-              }}
-              className="text-xs font-semibold text-blue-700 hover:text-blue-900"
-            >
-              {t('Reset filter', 'Reset filters')}
-            </button>
-          </div>
-        )}
-
         <div className="space-y-3">
           {activeContentType === 'courses' && (
             <>
@@ -2820,7 +2691,7 @@ export function AdminPanel() {
                   <input
                     value={lessonCode}
                     onChange={(e) => setLessonCode(e.target.value)}
-                    placeholder="7M.1"
+                    placeholder="SD-F2-MATH-M1-L1"
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                   />
                 </div>
@@ -2834,6 +2705,30 @@ export function AdminPanel() {
                   />
                 </div>
               </div>
+              <details className="mt-2 rounded-lg border border-slate-200 bg-slate-50/95 p-2.5 text-[11px] text-slate-700">
+                <summary className="cursor-pointer list-none font-semibold text-slate-800 [&::-webkit-details-marker]:hidden">
+                  {t('Panduan kode pelajaran (lesson_code)', 'Lesson code (lesson_code) — quick guide')}
+                </summary>
+                <div className="mt-2 space-y-1.5 border-t border-slate-200 pt-2 leading-relaxed text-slate-600">
+                  <p>
+                    <span className="font-semibold text-slate-700">{t('Format:', 'Pattern:')}</span>{' '}
+                    {t(
+                      'JENJANG-FASE-MAPEL-MODUL-LESSON (huruf besar, pisah -). Contoh: SD-F2-MATH-M1-L3. Pakai awalan sama dengan module_code induk bila bisa.',
+                      'GRADE-PHASE-SUBJECT-MODULE-LESSON (UPPERCASE, hyphens). E.g. SD-F2-MATH-M1-L3. Prefer the same prefix as the parent module_code.',
+                    )}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-slate-700">{t('Aturan:', 'Rules:')}</span>{' '}
+                    {t(
+                      'Hanya A–Z, 0–9, -, _. Unik per jenjang kursus (bukan hanya per modul). Simpan konsisten untuk PRE/POST (mis. …-PRE / …-POST).',
+                      'Only A–Z, 0–9, hyphen, underscore. Unique per course grade (across all courses of that level). Use clear suffixes for PRE/POST.',
+                    )}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {t('Detail normatif: LEARNING-FLOW-RULEBOOK-V1 §6.1.', 'Normative detail: LEARNING-FLOW-RULEBOOK-V1 §6.1.')}
+                  </p>
+                </div>
+              </details>
             </>
           )}
 
@@ -3132,7 +3027,136 @@ export function AdminPanel() {
           <p className="mt-2 text-xs font-semibold text-slate-600">{contentMessage}</p>
         )}
 
-        <div className="mt-4 p-3 rounded-xl border border-slate-200 bg-slate-50">
+        {(activeContentType === 'modules' || activeContentType === 'lessons') && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+            <div>
+              <p className="text-xs font-semibold text-slate-700">
+                {activeContentType === 'modules'
+                  ? t('Saring daftar modul (preview)', 'Filter module list (preview)')
+                  : t('Saring daftar pelajaran (preview)', 'Filter lesson list (preview)')}
+              </p>
+              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                {activeContentType === 'modules'
+                  ? t(
+                      'Mempersempit daftar modul di tabel Konten Terbaru di bawah (cari cepat & salin ID). Form tidak terpengaruh. Kosongkan semua = tampilkan semua.',
+                      'Narrows only the module list in the Recent Items table below (quick find & copy IDs). Form is unchanged. Leave all empty to show everything.',
+                    )
+                  : t(
+                      'Mempersempit daftar pelajaran di tabel di bawah. Form tidak terpengaruh. Kosongkan = semua.',
+                      'Narrows only the lesson list in the table below. Form unchanged. Empty = show all.',
+                    )}
+              </p>
+            </div>
+            {activeContentType === 'modules' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    {t('Level (metadata)', 'Level (in metadata)')}
+                  </label>
+                  <select
+                    value={filterPhase}
+                    onChange={(e) => setFilterPhase(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
+                  >
+                    <option value="">{t('Semua level', 'All levels')}</option>
+                    {modulePhaseOptions.map((phase) => (
+                      <option key={phase} value={phase}>
+                        {phase}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    {t('Mapel', 'Subject')}
+                  </label>
+                  <select
+                    value={filterSubject}
+                    onChange={(e) => setFilterSubject(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
+                  >
+                    <option value="">{t('Semua mapel', 'All subjects')}</option>
+                    {moduleSubjectOptions.map((subject) => (
+                      <option key={subject} value={subject}>
+                        {subject}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    {t('Track (opsional)', 'Track (optional)')}
+                  </label>
+                  <select
+                    value={filterTrack}
+                    onChange={(e) => setFilterTrack(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
+                  >
+                    <option value="">{t('Semua track', 'All tracks')}</option>
+                    {moduleTrackOptions.map((track) => (
+                      <option key={track} value={track}>
+                        {track}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+            {activeContentType === 'lessons' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    {t('Kode pelajaran', 'Lesson code')}
+                  </label>
+                  <select
+                    value={filterCode}
+                    onChange={(e) => setFilterCode(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
+                  >
+                    <option value="">{t('Semua kode', 'All codes')}</option>
+                    {lessonCodeOptions.map((code) => (
+                      <option key={code} value={code}>
+                        {code}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    {t('Benchmark', 'Benchmark')}
+                  </label>
+                  <select
+                    value={filterBenchmark}
+                    onChange={(e) => setFilterBenchmark(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
+                  >
+                    <option value="">{t('Semua benchmark', 'All benchmarks')}</option>
+                    {lessonBenchmarkOptions.map((benchmark) => (
+                      <option key={benchmark} value={benchmark}>
+                        {benchmark}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setFilterPhase('')
+                setFilterSubject('')
+                setFilterTrack('')
+                setFilterCode('')
+                setFilterBenchmark('')
+              }}
+              className="text-xs font-semibold text-blue-700 hover:text-blue-900"
+            >
+              {t('Reset filter', 'Reset filters')}
+            </button>
+          </div>
+        )}
+
+        <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
           <p className="text-xs font-bold text-slate-700 mb-2">
             {t('Konten Terbaru', 'Recent Items')}
           </p>

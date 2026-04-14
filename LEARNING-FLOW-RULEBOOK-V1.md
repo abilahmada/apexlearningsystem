@@ -116,6 +116,16 @@ Aturan:
 - UUID tetap dipakai untuk relasi database.
 - UI admin menampilkan kode + judul untuk mencegah salah pilih ID.
 
+### 6.1 Panduan penamaan `lesson_code` (operasional)
+
+- **Format disarankan:** `JENJANG-FASE-MAPEL-MODUL-LESSON` (UPPERCASE, pemisah `-`), contoh `SD-F2-MATH-M1-L3`. Idealnya **awalan sama** dengan `module_code` induk, lalu sufiks urutan atau peran (`-L1`, `-L2`, `-PRE`, `-POST`).
+- **Karakter:** hanya `A–Z`, `0–9`, `-`, `_`. API admin menormalisasi (spasi/karakter lain → `-`, lalu UPPER).
+- **Panjang:** 3–64 karakter setelah normalisasi (regex server).
+- **Unik per jenjang:** tidak boleh bentrok antar lesson pada **semua** kursus dengan `grade_level` yang sama (bukan hanya dalam satu modul).
+- **PRE/POST terpisah:** gunakan sufiks yang tegas agar filter dan template JSON mudah dibaca.
+
+Rujukan implementasi: `normalizeCurriculumCode` dan `ensureUniqueLessonCode` di `app/api/admin/content/route.ts`.
+
 ## 7) Aturan Input Konten Admin (v1)
 
 Saat membuat konten, urutan wajib:
